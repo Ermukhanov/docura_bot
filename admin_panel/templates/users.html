@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Пользователи{% endblock %}
+{% block page_title %}Пользователи{% endblock %}
+{% block content %}
+<div class="card" style="margin-bottom:16px">
+  <form method="GET" style="display:flex;gap:10px;align-items:flex-end">
+    <div style="flex:1">
+      <label>Поиск</label>
+      <input type="text" name="q" value="{{ search }}" placeholder="Имя, школа или Telegram ID...">
+    </div>
+    <div>
+      <label>Фильтр</label>
+      <select name="sub">
+        <option value="">Все</option>
+        <option value="1" {{ 'selected' if sub_filter=='1' }}>Только PRO</option>
+        <option value="0" {{ 'selected' if sub_filter=='0' }}>Только бесплатные</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit">Найти</button>
+    <a href="/users" class="btn">Сбросить</a>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-title">Пользователи ({{ users|length }})</div>
+  <table>
+    <tr>
+      <th>Telegram ID</th><th>Имя</th><th>Школа</th><th>Предмет</th>
+      <th>Классы</th><th>Статус</th><th>Зарегистрирован</th><th>Действия</th>
+    </tr>
+    {% for u in users %}
+    <tr>
+      <td><code style="font-size:12px;background:#f7fafc;padding:2px 6px;border-radius:4px">{{ u.tg_id }}</code></td>
+      <td><strong>{{ u.name or '—' }}</strong></td>
+      <td style="font-size:12px;color:#4a5568">{{ u.school or '—' }}</td>
+      <td style="font-size:12px;color:#4a5568">{{ u.subject or '—' }}</td>
+      <td style="font-size:12px;color:#4a5568">{{ u.classes or '—' }}</td>
+      <td>
+        <span class="pill {{ 'pill-pro' if u.subscribed else 'pill-free' }}">
+          {{ 'PRO' if u.subscribed else 'Бесплатно' }}
+        </span>
+      </td>
+      <td style="font-size:12px;color:#718096">{{ u.created_at[:10] if u.created_at else '—' }}</td>
+      <td>
+        <div style="display:flex;gap:5px">
+          {% if not u.subscribed %}
+          <form method="POST" action="/users/activate/{{ u.tg_id }}" style="display:inline">
+            <button class="btn btn-success btn-sm" type="submit">PRO</button>
+          </form>
+          {% else %}
+          <form method="POST" action="/users/deactivate/{{ u.tg_id }}" style="display:inline">
+            <button class="btn btn-warn btn-sm" type="submit">Убрать</button>
+          </form>
+          {% endif %}
+          <form method="POST" action="/users/delete/{{ u.tg_id }}" style="display:inline"
+                onsubmit="return confirm('Удалить пользователя {{ u.name }}?')">
+            <button class="btn btn-danger btn-sm" type="submit">✕</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" style="text-align:center;color:#718096;padding:24px">Пользователи не найдены</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

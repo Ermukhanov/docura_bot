@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Просмотр документа{% endblock %}
+{% block page_title %}Просмотр документа{% endblock %}
+{% block content %}
+<div style="margin-bottom:14px">
+  <a href="/knowledge" class="btn">← Назад к базе знаний</a>
+</div>
+<div class="card">
+  <div class="card-title">{{ doc.original_name }}</div>
+  <div style="display:flex;gap:10px;margin-bottom:16px;font-size:13px;color:#718096">
+    <span>Тип: <strong>{{ doc.file_type|upper }}</strong></span>
+    <span>Размер: <strong>{{ doc.size_kb }} КБ</strong></span>
+    <span>Загружен: <strong>{{ doc.uploaded_at[:10] }}</strong></span>
+  </div>
+  <div style="background:#F7FAFC;border-radius:8px;padding:20px;font-size:13px;line-height:1.8;color:#2d3748;white-space:pre-wrap;max-height:600px;overflow-y:auto;border:1px solid #e2e8f0;font-family:monospace">{{ doc.content or 'Текст не извлечён' }}</div>
+</div>
+{% endblock %}

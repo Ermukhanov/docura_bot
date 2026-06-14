@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.db
+*.sqlite
+fonts/
+/tmp/
+*.ogg
+*.wav
+*.mp3

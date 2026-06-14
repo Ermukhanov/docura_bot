@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Документы{% endblock %}
+{% block page_title %}Документы{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-title">Все сгенерированные документы ({{ docs|length }})</div>
+  <table>
+    <tr><th>ID</th><th>Учитель</th><th>Тип</th><th>Название</th><th>Оценка</th><th>Дата</th></tr>
+    {% for d in docs %}
+    <tr>
+      <td style="color:#718096;font-size:12px">{{ d.id }}</td>
+      <td><strong>{{ d.teacher_name or d.teacher_id }}</strong></td>
+      <td><span class="pill pill-free" style="font-size:10px">{{ d.doc_type }}</span></td>
+      <td style="font-size:13px">{{ d.doc_name }}</td>
+      <td>
+        <span style="font-weight:600;color:{{ '#276749' if d.score >= 90 else '#92400e' if d.score >= 70 else '#c53030' }}">
+          {{ d.score }}/100
+        </span>
+      </td>
+      <td style="font-size:12px;color:#718096">{{ d.created_at[:16] if d.created_at else '—' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" style="text-align:center;color:#718096;padding:24px">Документов пока нет</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

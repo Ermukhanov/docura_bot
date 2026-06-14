@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Дашборд{% endblock %}
+{% block page_title %}Дашборд{% endblock %}
+{% block content %}
+
+<div class="metrics">
+  <div class="metric">
+    <div class="metric-label">👥 Пользователей</div>
+    <div class="metric-value">{{ stats.total_users }}</div>
+    <div class="metric-sub">+{{ stats.week_users }} за неделю</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">⭐ PRO подписчиков</div>
+    <div class="metric-value">{{ stats.subscribed }}</div>
+    <div class="metric-sub">
+      {{ "%.1f"|format(stats.subscribed / stats.total_users * 100 if stats.total_users else 0) }}% конверсия
+    </div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">📄 Документов всего</div>
+    <div class="metric-value">{{ stats.total_docs }}</div>
+    <div class="metric-sub">+{{ stats.today_docs }} сегодня</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">💰 Доход / месяц</div>
+    <div class="metric-value">{{ "{:,}".format(stats.revenue) }} ₸</div>
+    <div class="metric-sub">{{ stats.subscribed }} × 1 990 ₸</div>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <div class="card-title">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      Последние пользователи
+    </div>
+    <table>
+      <tr><th>Имя</th><th>Школа</th><th>Статус</th><th>Дата</th><th></th></tr>
+      {% for u in recent_users %}
+      <tr>
+        <td>
+          <strong>{{ u.name or '—' }}</strong><br>
+          <small style="color:#718096;font-size:11px">{{ u.tg_id }}</small>
+        </td>
+        <td style="color:#4a5568;font-size:12px">{{ u.school or '—' }}</td>
+        <td>
+          <span class="pill {{ 'pill-pro' if u.subscribed else 'pill-free' }}">
+            {{ 'PRO' if u.subscribed else 'Free' }}
+          </span>
+        </td>
+        <td style="color:#718096;font-size:11px">{{ u.created_at[:10] if u.created_at else '—' }}</td>
+        <td>
+          {% if not u.subscribed %}
+          <form method="POST" action="/users/activate/{{ u.tg_id }}" style="display:inline">
+            <button class="btn btn-success btn-sm" type="submit">PRO</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    <div style="margin-top:12px">
+      <a href="/users" class="btn btn-sm">Все пользователи →</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      Топ документов
+    </div>
+    {% if top_docs %}
+      {% set max_cnt = top_docs[0][1] if top_docs else 1 %}
+      {% for row in top_docs %}
+      <div class="bar-row">
+        <div class="bar-label">{{ row[0] }}</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:{{ (row[1]/max_cnt*100)|int }}%"></div>
+        </div>
+        <div class="bar-count">{{ row[1] }}</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div style="text-align:center;color:#718096;padding:20px;font-size:13px">
+        Документов пока нет
+      </div>
+    {% endif %}
+
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f0f0f0">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">База знаний</div>
+          <div style="font-size:22px;font-weight:700;color:#1A2E5A">{{ stats.rag_docs }}</div>
+          <div style="font-size:12px;color:#718096">активных документов</div>
+        </div>
+        <a href="/knowledge" class="btn btn-primary btn-sm">Управлять →</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <div class="card-title">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      Быстрые действия
+    </div>
+    <div class="actions" style="display:flex;flex-wrap:wrap;gap:8px">
+      <a href="/users?sub=0" class="btn">🆓 Бесплатные пользователи</a>
+      <a href="/users?sub=1" class="btn">⭐ PRO подписчики</a>
+      <a href="/broadcast" class="btn btn-primary">📢 Рассылка</a>
+      <a href="/knowledge" class="btn">📚 База знаний</a>
+      <a href="/documents" class="btn">📄 Все документы</a>
+      <a href="/settings" class="btn">⚙️ Настройки</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Состояние системы
+    </div>
+    <div class="stat-row"><span class="stat-label">Статус бота</span><span class="stat-val" style="color:#48bb78">🟢 Работает</span></div>
+    <div class="stat-row"><span class="stat-label">Модель ИИ</span><span class="stat-val">claude-sonnet-4-6</span></div>
+    <div class="stat-row"><span class="stat-label">Оценка качества</span><span class="stat-val">claude-haiku-4-5</span></div>
+    <div class="stat-row"><span class="stat-label">Цена подписки</span><span class="stat-val">1 990 ₸/мес</span></div>
+    <div class="stat-row"><span class="stat-label">Бесплатных попыток</span><span class="stat-val">3 документа</span></div>
+    <div class="stat-row"><span class="stat-label">Конверсия Free→PRO</span>
+      <span class="stat-val">{{ "%.1f"|format(stats.subscribed / stats.total_users * 100 if stats.total_users else 0) }}%</span>
+    </div>
+  </div>
+</div>
+{% endblock %}

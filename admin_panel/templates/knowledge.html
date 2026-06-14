@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}База знаний{% endblock %}
+{% block page_title %}База знаний{% endblock %}
+{% block content %}
+
+<div class="grid2" style="margin-bottom:20px">
+  <div class="card">
+    <div class="card-title">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+      Загрузить документ в базу
+    </div>
+    <form method="POST" action="/knowledge/upload" enctype="multipart/form-data">
+      <div class="form-group">
+        <label>Файл (PDF, DOCX, TXT — до 50 МБ)</label>
+        <div class="upload-zone" onclick="document.getElementById('file-input').click()">
+          <h3>Нажми чтобы выбрать файл</h3>
+          <p>Приказы МОН РК, учебные программы, методички, образцы документов</p>
+          <input type="file" id="file-input" name="file" accept=".pdf,.docx,.doc,.txt"
+                 style="display:none" onchange="updateFilename(this)">
+          <p id="file-name" style="margin-top:10px;color:#2E75B6;font-weight:600"></p>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Описание (для чего этот документ)</label>
+        <input type="text" name="description" placeholder="Например: Приказ МОН РК №604 — требования к КСП">
+      </div>
+      <button class="btn btn-primary" type="submit" style="width:100%">Загрузить в базу знаний</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Как работает база знаний</div>
+    <div style="font-size:13px;color:#4a5568;line-height:1.7">
+      <p style="margin-bottom:10px">
+        <strong>1. Загружаешь документ</strong> — приказы МОН РК, учебные программы, 
+        образцы КСП, методические рекомендации.
+      </p>
+      <p style="margin-bottom:10px">
+        <strong>2. Бот извлекает текст</strong> и сохраняет в базу знаний.
+      </p>
+      <p style="margin-bottom:10px">
+        <strong>3. При генерации</strong> бот автоматически использует 
+        нужные документы из базы как контекст для Claude.
+      </p>
+      <p style="background:#f0fff4;padding:10px;border-radius:8px;border-left:3px solid #48bb78">
+        Чем больше документов — тем точнее и официальнее генерируемые документы.
+      </p>
+    </div>
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid #f0f0f0">
+      <div style="font-size:12px;color:#718096;margin-bottom:4px">Рекомендуемые документы:</div>
+      <div style="font-size:12px;color:#4a5568;line-height:1.8">
+        ✓ Приказ МОН РК №604 (КСП)<br>
+        ✓ Приказ МОН РК №595 (характеристики)<br>
+        ✓ ГОСО РК — учебные программы<br>
+        ✓ ТК РК (трудовые документы)<br>
+        ✓ Образцы готовых КСП по предметам
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+    Документы в базе ({{ docs|length }})
+  </div>
+  {% if docs %}
+  <table>
+    <tr><th>Файл</th><th>Тип</th><th>Описание</th><th>Размер</th><th>Загружен</th><th>Статус</th><th>Действия</th></tr>
+    {% for d in docs %}
+    <tr>
+      <td>
+        <strong style="font-size:13px">{{ d.original_name }}</strong>
+      </td>
+      <td><span class="pill pill-free" style="text-transform:uppercase">{{ d.file_type }}</span></td>
+      <td style="font-size:12px;color:#4a5568;max-width:200px">{{ d.description or '—' }}</td>
+      <td style="font-size:12px;color:#718096">{{ d.size_kb }} КБ</td>
+      <td style="font-size:12px;color:#718096">{{ d.uploaded_at[:10] }}</td>
+      <td>
+        <span class="pill {{ 'pill-active' if d.is_active else 'pill-off' }}">
+          {{ 'Активен' if d.is_active else 'Выкл' }}
+        </span>
+      </td>
+      <td>
+        <div style="display:flex;gap:5px">
+          <a href="/knowledge/preview/{{ d.id }}" class="btn btn-sm">Просмотр</a>
+          <form method="POST" action="/knowledge/toggle/{{ d.id }}" style="display:inline">
+            <button class="btn btn-sm {{ 'btn-warn' if d.is_active else 'btn-success' }}" type="submit">
+              {{ 'Выкл' if d.is_active else 'Вкл' }}
+            </button>
+          </form>
+          <form method="POST" action="/knowledge/delete/{{ d.id }}" style="display:inline"
+                onsubmit="return confirm('Удалить этот документ из базы знаний?')">
+            <button class="btn btn-danger btn-sm" type="submit">✕</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:40px;color:#718096">
+    <div style="font-size:32px;margin-bottom:12px">📚</div>
+    <div style="font-size:15px;font-weight:600;margin-bottom:6px">База знаний пуста</div>
+    <div style="font-size:13px">Загрузи первый документ чтобы бот генерировал точнее</div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function updateFilename(input) {
+  const name = input.files[0]?.name || '';
+  document.getElementById('file-name').textContent = name ? '✓ ' + name : '';
+}
+</script>
+{% endblock %}
