@@ -23,11 +23,19 @@ class MainMenuHandler:
         subscribed = user.get("subscribed", 0)
         free_used  = user.get("free_used", 0)
         free_left  = max(0, 3 - free_used)
+        role       = user.get("role", "teacher")
 
         if subscribed:
             status = t(lang, "status_pro")
         else:
             status = t(lang, "status_free", n=free_left)
+
+        if role == "kindergarten":
+            emoji = "🧸"
+            title = "Балабақша Docura" if lang == "kz" else "Детский сад Docura"
+        else:
+            emoji = "🏫"
+            title = "Мектеп Docura" if lang == "kz" else "Школа Docura"
 
         keyboard = [
             [InlineKeyboardButton(t(lang, "btn_create"),  callback_data="menu_create")],
@@ -37,7 +45,7 @@ class MainMenuHandler:
         ]
         await context.bot.send_message(
             chat_id=chat_id,
-            text=t(lang, "main_menu", status=status),
+            text=f"{emoji} *{title}*\n\n{status}",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.MARKDOWN
         )
@@ -49,6 +57,7 @@ class MainMenuHandler:
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
+        role    = user.get("role", "teacher") if user else "teacher"
 
         if data == "menu_create":
             await self._show_categories(query, lang, user)
@@ -73,6 +82,10 @@ class MainMenuHandler:
             free_used  = user.get("free_used", 0)
             free_left  = max(0, 3 - free_used)
             status = t(lang, "status_pro") if subscribed else t(lang, "status_free", n=free_left)
+            if role == "kindergarten":
+                title = "Балабақша Docura 🧸" if lang == "kz" else "Детский сад Docura 🧸"
+            else:
+                title = "Мектеп Docura 🏫" if lang == "kz" else "Школа Docura 🏫"
             keyboard = [
                 [InlineKeyboardButton(t(lang, "btn_create"),  callback_data="menu_create")],
                 [InlineKeyboardButton(t(lang, "btn_history"), callback_data="menu_history"),
@@ -80,24 +93,47 @@ class MainMenuHandler:
                 [InlineKeyboardButton(t(lang, "btn_help"),    callback_data="menu_help")],
             ]
             await query.edit_message_text(
-                t(lang, "main_menu", status=status),
+                f"*{title}*\n\n{status}",
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode=ParseMode.MARKDOWN
             )
 
     async def _show_categories(self, query, lang, user):
+        role  = user.get("role", "teacher")
         is_ct = user.get("is_class_teacher", 0)
-        keyboard = [
-            [InlineKeyboardButton(t(lang, "cat_planning"),  callback_data="cat_planning")],
-            [InlineKeyboardButton(t(lang, "cat_reports"),   callback_data="cat_reports")],
-        ]
-        if is_ct:
-            keyboard.append([InlineKeyboardButton(t(lang, "cat_students"), callback_data="cat_students")])
-        keyboard.append([InlineKeyboardButton(t(lang, "cat_personal"), callback_data="cat_personal")])
-        keyboard.append([InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")])
 
+        if role == "kindergarten":
+            # Меню для воспитателей садика
+            if lang == "ru":
+                keyboard = [
+                    [InlineKeyboardButton("📝 Планирование",    callback_data="cat_kg_planning")],
+                    [InlineKeyboardButton("📊 Отчёты",          callback_data="cat_kg_reports")],
+                    [InlineKeyboardButton("👶 По детям",         callback_data="cat_kg_children")],
+                    [InlineKeyboardButton("📋 Личные документы", callback_data="cat_personal")],
+                    [InlineKeyboardButton("← Назад",            callback_data="menu_main")],
+                ]
+            else:
+                keyboard = [
+                    [InlineKeyboardButton("📝 Жоспарлау",       callback_data="cat_kg_planning")],
+                    [InlineKeyboardButton("📊 Есептер",          callback_data="cat_kg_reports")],
+                    [InlineKeyboardButton("👶 Балалар бойынша",  callback_data="cat_kg_children")],
+                    [InlineKeyboardButton("📋 Жеке құжаттар",   callback_data="cat_personal")],
+                    [InlineKeyboardButton("← Артқа",            callback_data="menu_main")],
+                ]
+        else:
+            # Меню для учителей школы
+            keyboard = [
+                [InlineKeyboardButton(t(lang, "cat_planning"), callback_data="cat_planning")],
+                [InlineKeyboardButton(t(lang, "cat_reports"),  callback_data="cat_reports")],
+            ]
+            if is_ct:
+                keyboard.append([InlineKeyboardButton(t(lang, "cat_students"), callback_data="cat_students")])
+            keyboard.append([InlineKeyboardButton(t(lang, "cat_personal"), callback_data="cat_personal")])
+            keyboard.append([InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")])
+
+        title = t(lang, "choose_category")
         await query.edit_message_text(
-            t(lang, "choose_category"),
+            title,
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.MARKDOWN
         )

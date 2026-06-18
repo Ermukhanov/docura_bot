@@ -60,7 +60,15 @@ class OnboardingHandler:
             if slide <= 3:
                 await self._show_onboard(query, context, lang, slide)
             else:
-                await self._start_registration(query, context, lang)
+                # Показываем выбор роли перед регистрацией
+                await self._show_role_select(query, lang)
+
+        elif data.startswith("role_select_"):
+            role = data.split("role_select_")[1]  # teacher или kindergarten
+            await self.db.upsert_user(user_id, {"role": role})
+            user = await self.db.get_user(user_id)
+            lang = user.get("lang", "ru") if user else "ru"
+            await self._start_registration(query, context, lang, role)
 
         elif data.startswith("role_class_"):
             user = await self.db.get_user(user_id)
@@ -78,6 +86,21 @@ class OnboardingHandler:
             else:
                 await self._finish_registration(query, context, user_id, lang)
 
+    async def _show_role_select(self, query, lang):
+        if lang == "ru":
+            text = "👋 Кто вы?\n\nВыберите вашу роль:"
+            keyboard = [
+                [InlineKeyboardButton("🏫 Учитель школы",        callback_data="role_select_teacher")],
+                [InlineKeyboardButton("🧸 Воспитатель садика",   callback_data="role_select_kindergarten")],
+            ]
+        else:
+            text = "👋 Сіз кімсіз?\n\nРөліңізді таңдаңыз:"
+            keyboard = [
+                [InlineKeyboardButton("🏫 Мектеп мұғалімі",      callback_data="role_select_teacher")],
+                [InlineKeyboardButton("🧸 Балабақша тәрбиешісі", callback_data="role_select_kindergarten")],
+            ]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+
     async def _show_onboard(self, query, context, lang, slide):
         titles = {1: t(lang, "onboard_1_title"), 2: t(lang, "onboard_2_title"), 3: t(lang, "onboard_3_title")}
         texts  = {1: t(lang, "onboard_1_text"),  2: t(lang, "onboard_2_text"),  3: t(lang, "onboard_3_text")}
@@ -91,77 +114,98 @@ class OnboardingHandler:
         text = f"*{titles[slide]}*\n\n{texts[slide]}\n\n{dots[slide]}"
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
-    async def _start_registration(self, query, context, lang):
-        context.user_data["step"] = "reg_name"
-        kb = [[CANCEL_BTN(lang)]]
-        await query.edit_message_text(
-            t(lang, "reg_name"),
-            reply_markup=InlineKeyboardMarkup(kb),
-            parse_mode=ParseMode.MARKDOWN
-        )
+    async def _start_registration(self, query, context, lang, role="teacher"):
+        if role == "kindergarten":
+            # Для садика спрашиваем имя и садик
+            context.user_data["step"] = "reg_name"
+            context.user_data["role"] = "kindergarten"
+            kb = [[CANCEL_BTN(lang)]]
+            text = "👤 Ваше ФИО?\n\n_Пример: Айгуль Сейткали_" if lang == "ru" else "👤 Аты-жөніңіз?\n\n_Мысалы: Айгуль Сейткали_"
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+        else:
+            context.user_data["step"] = "reg_name"
+            kb = [[CANCEL_BTN(lang)]]
+            await query.edit_message_text(
+                t(lang, "reg_name"),
+                reply_markup=InlineKeyboardMarkup(kb),
+                parse_mode=ParseMode.MARKDOWN
+            )
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         user = await self.db.get_user(user_id)
         lang = user.get("lang", "ru") if user else "ru"
+        role = user.get("role", "teacher") if user else context.user_data.get("role", "teacher")
         step = context.user_data.get("step", "")
         text = update.message.text.strip()
 
         cancel_kb = [[CANCEL_BTN(lang)]]
 
         if len(text) < 2:
-            await update.message.reply_text(
-                t(lang, "val_too_short"),
-                reply_markup=InlineKeyboardMarkup(cancel_kb)
-            )
+            await update.message.reply_text(t(lang, "val_too_short"), reply_markup=InlineKeyboardMarkup(cancel_kb))
             return
         if len(text) > 200:
-            await update.message.reply_text(
-                t(lang, "val_too_long"),
-                reply_markup=InlineKeyboardMarkup(cancel_kb)
-            )
+            await update.message.reply_text(t(lang, "val_too_long"), reply_markup=InlineKeyboardMarkup(cancel_kb))
             return
 
-        steps_flow = {
-            "reg_name":     ("name",     "reg_school",   t(lang, "reg_school")),
-            "reg_school":   ("school",   "reg_subject",  t(lang, "reg_subject")),
-            "reg_subject":  ("subject",  "reg_classes",  t(lang, "reg_classes")),
-            "reg_classes":  ("classes",  "reg_position", t(lang, "reg_position")),
-            "reg_position": ("position", "reg_director", t(lang, "reg_director")),
-        }
+        if role == "kindergarten":
+            # Упрощённый онбординг для садика
+            kg_steps = {
+                "reg_name":     ("name",     "reg_school",   ("🏫 Название детского сада?" if lang == "ru" else "🏫 Балабақшаның атауы?")),
+                "reg_school":   ("school",   "reg_position", ("💼 Ваша должность?\n\n_Пример: воспитатель старшей группы_" if lang == "ru" else "💼 Лауазымыңыз?")),
+                "reg_position": ("position", "reg_director", ("👔 ФИО заведующей?\n\n_Пример: Иванова А.Б._" if lang == "ru" else "👔 Меңгерушінің аты-жөні?")),
+            }
+            if step in kg_steps:
+                field, next_step, next_q = kg_steps[step]
+                await self.db.upsert_user(user_id, {field: text})
+                context.user_data["step"] = next_step
+                await update.message.reply_text(next_q, reply_markup=InlineKeyboardMarkup(cancel_kb), parse_mode=ParseMode.MARKDOWN)
+            elif step == "reg_director":
+                await self.db.upsert_user(user_id, {"director": text})
+                await self._finish_registration(None, context, user_id, lang, update=update)
+        else:
+            # Стандартный онбординг для учителей
+            steps_flow = {
+                "reg_name":     ("name",     "reg_school",   t(lang, "reg_school")),
+                "reg_school":   ("school",   "reg_subject",  t(lang, "reg_subject")),
+                "reg_subject":  ("subject",  "reg_classes",  t(lang, "reg_classes")),
+                "reg_classes":  ("classes",  "reg_position", t(lang, "reg_position")),
+                "reg_position": ("position", "reg_director", t(lang, "reg_director")),
+            }
 
-        if step in steps_flow:
-            field, next_step, next_q = steps_flow[step]
-            await self.db.upsert_user(user_id, {field: text})
-            context.user_data["step"] = next_step
-            await update.message.reply_text(
-                next_q,
-                reply_markup=InlineKeyboardMarkup(cancel_kb),
-                parse_mode=ParseMode.MARKDOWN
-            )
+            if step in steps_flow:
+                field, next_step, next_q = steps_flow[step]
+                await self.db.upsert_user(user_id, {field: text})
+                context.user_data["step"] = next_step
+                await update.message.reply_text(next_q, reply_markup=InlineKeyboardMarkup(cancel_kb), parse_mode=ParseMode.MARKDOWN)
 
-        elif step == "reg_director":
-            await self.db.upsert_user(user_id, {"director": text})
-            context.user_data["step"] = "reg_class_teacher"
-            keyboard = [[
-                InlineKeyboardButton("✅ " + t(lang, "yes"), callback_data="role_class_yes"),
-                InlineKeyboardButton("❌ " + t(lang, "no"),  callback_data="role_class_no"),
-            ]]
-            await update.message.reply_text(
-                t(lang, "reg_is_class_teacher"),
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode=ParseMode.MARKDOWN
-            )
+            elif step == "reg_director":
+                await self.db.upsert_user(user_id, {"director": text})
+                context.user_data["step"] = "reg_class_teacher"
+                keyboard = [[
+                    InlineKeyboardButton("✅ " + t(lang, "yes"), callback_data="role_class_yes"),
+                    InlineKeyboardButton("❌ " + t(lang, "no"),  callback_data="role_class_no"),
+                ]]
+                await update.message.reply_text(
+                    t(lang, "reg_is_class_teacher"),
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode=ParseMode.MARKDOWN
+                )
 
-        elif step == "reg_class_name":
-            await self.db.upsert_user(user_id, {"classes": text})
-            await self._finish_registration(None, context, user_id, lang, update=update)
+            elif step == "reg_class_name":
+                await self.db.upsert_user(user_id, {"classes": text})
+                await self._finish_registration(None, context, user_id, lang, update=update)
 
     async def _finish_registration(self, query, context, user_id, lang, update=None):
         context.user_data["step"] = None
         user = await self.db.get_user(user_id)
         name = (user.get("name") or "").split()[0]
-        msg = t(lang, "reg_done", name=name)
+        role = user.get("role", "teacher")
+
+        if role == "kindergarten":
+            msg = f"✅ Профиль сохранён! Добро пожаловать, {name}! 🧸" if lang == "ru" else f"✅ Профиль сақталды! Қош келдіңіз, {name}! 🧸"
+        else:
+            msg = t(lang, "reg_done", name=name)
 
         from handlers.main_menu import MainMenuHandler
         mm = MainMenuHandler(self.db)

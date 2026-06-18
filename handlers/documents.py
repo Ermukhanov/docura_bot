@@ -6,7 +6,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from handlers.texts import t, TEXTS
-from handlers.rag_base import get_system_prompt, SELF_EVAL_PROMPT
+from handlers.rag_base import get_system_prompt, get_kg_system_prompt, SELF_EVAL_PROMPT
 from database import Database
 
 DOC_QUESTIONS = {
@@ -81,6 +81,50 @@ DOC_QUESTIONS = {
             {"key": "datetime", "q": "📅 Дата и время?\n\n_Пример: 20 ноября, 18:00_"},
             {"key": "location", "q": "📍 Место проведения?\n\n_Пример: кабинет 205, актовый зал_"},
         ],
+        # ── САДИК ──────────────────────────────────────
+        "kg_lesson_plan": [
+            {"key": "age_group", "q": "👶 Возрастная группа?\n\n_Пример: средняя группа (4-5 лет)_"},
+            {"key": "topic",     "q": "📖 Тема занятия?\n\n_Пример: Осень. Признаки осени_"},
+            {"key": "section",   "q": "📚 Образовательная область?\n\n_Пример: Познание, Творчество_"},
+            {"key": "duration",  "q": "⏱ Длительность?\n\n_Пример: 20 минут_"},
+        ],
+        "kg_tech_card": [
+            {"key": "age_group", "q": "👶 Возрастная группа?"},
+            {"key": "topic",     "q": "📖 Тема занятия?"},
+            {"key": "section",   "q": "📚 Образовательная область?"},
+            {"key": "tasks",     "q": "🎯 Задачи?\n\n_Или напишите «автоматически»_"},
+        ],
+        "kg_monthly_plan": [
+            {"key": "age_group", "q": "👶 Возрастная группа?"},
+            {"key": "month",     "q": "📅 На какой месяц?\n\n_Пример: Ноябрь 2024_"},
+            {"key": "theme",     "q": "🌟 Тема месяца?\n\n_Пример: Моя семья_"},
+        ],
+        "kg_yearly_plan": [
+            {"key": "age_group", "q": "👶 Возрастная группа?"},
+            {"key": "year",      "q": "📅 Учебный год?\n\n_Пример: 2024-2025_"},
+            {"key": "goals",     "q": "🎯 Основные цели?\n\n_Или напишите «автоматически»_"},
+        ],
+        "kg_cyclogram": [
+            {"key": "age_group", "q": "👶 Возрастная группа?"},
+            {"key": "month",     "q": "📅 Месяц?\n\n_Пример: Октябрь 2024_"},
+        ],
+        "kg_report": [
+            {"key": "age_group",  "q": "👶 Возрастная группа?"},
+            {"key": "period",     "q": "📅 За какой период?\n\n_Пример: I квартал 2024-2025_"},
+            {"key": "attendance", "q": "📊 Посещаемость?\n\n_Пример: средняя 18 детей из 22_"},
+            {"key": "extra",      "q": "🏆 Мероприятия, достижения?\n\n_Если нет — «нет»_"},
+        ],
+        "kg_characteristic": [
+            {"key": "child_name",  "q": "👶 ФИО ребёнка и возраст?"},
+            {"key": "behavior",    "q": "😊 Поведение и характер?"},
+            {"key": "development", "q": "📊 Уровень развития?\n\n_Пример: соответствует возрасту_"},
+            {"key": "purpose",     "q": "📋 Цель характеристики?\n\n_Пример: для ПМПК_"},
+        ],
+        "kg_parent_letter": [
+            {"key": "child_name", "q": "👶 ФИО ребёнка?"},
+            {"key": "topic",      "q": "📋 Тема письма?"},
+            {"key": "details",    "q": "📝 Детали?"},
+        ],
     },
     "kz": {
         "lesson_plan": [
@@ -153,6 +197,50 @@ DOC_QUESTIONS = {
             {"key": "topic",        "q": "📋 Хат тақырыбы?"},
             {"key": "details",      "q": "📝 Мәліметтер?"},
         ],
+        # ── БАЛАБАҚША ──────────────────────────────────
+        "kg_lesson_plan": [
+            {"key": "age_group", "q": "👶 Жас тобы?\n\n_Мысалы: орта топ (4-5 жас)_"},
+            {"key": "topic",     "q": "📖 Сабақ тақырыбы?"},
+            {"key": "section",   "q": "📚 Білім беру саласы?\n\n_Мысалы: Танымдық, Шығармашылық_"},
+            {"key": "duration",  "q": "⏱ Ұзақтығы?\n\n_Мысалы: 20 минут_"},
+        ],
+        "kg_tech_card": [
+            {"key": "age_group", "q": "👶 Жас тобы?"},
+            {"key": "topic",     "q": "📖 Сабақ тақырыбы?"},
+            {"key": "section",   "q": "📚 Білім беру саласы?"},
+            {"key": "tasks",     "q": "🎯 Міндеттер?\n\n_Немесе «автоматты» деп жазыңыз_"},
+        ],
+        "kg_monthly_plan": [
+            {"key": "age_group", "q": "👶 Жас тобы?"},
+            {"key": "month",     "q": "📅 Қандай ай?\n\n_Мысалы: Қараша 2024_"},
+            {"key": "theme",     "q": "🌟 Ай тақырыбы?\n\n_Мысалы: Менің отбасым_"},
+        ],
+        "kg_yearly_plan": [
+            {"key": "age_group", "q": "👶 Жас тобы?"},
+            {"key": "year",      "q": "📅 Оқу жылы?\n\n_Мысалы: 2024-2025_"},
+            {"key": "goals",     "q": "🎯 Жылдық мақсаттар?\n\n_Немесе «автоматты»_"},
+        ],
+        "kg_cyclogram": [
+            {"key": "age_group", "q": "👶 Жас тобы?"},
+            {"key": "month",     "q": "📅 Ай?\n\n_Мысалы: Қазан 2024_"},
+        ],
+        "kg_report": [
+            {"key": "age_group",  "q": "👶 Жас тобы?"},
+            {"key": "period",     "q": "📅 Қандай кезең?\n\n_Мысалы: I тоқсан 2024-2025_"},
+            {"key": "attendance", "q": "📊 Қатысуы?\n\n_Мысалы: орташа 18 бала 22-ден_"},
+            {"key": "extra",      "q": "🏆 Іс-шаралар?\n\n_Жоқ болса «жоқ»_"},
+        ],
+        "kg_characteristic": [
+            {"key": "child_name",  "q": "👶 Баланың аты-жөні және жасы?"},
+            {"key": "behavior",    "q": "😊 Мінез-құлқы?"},
+            {"key": "development", "q": "📊 Даму деңгейі?\n\n_Мысалы: жасына сай_"},
+            {"key": "purpose",     "q": "📋 Мінездеме мақсаты?\n\n_Мысалы: ПМПК үшін_"},
+        ],
+        "kg_parent_letter": [
+            {"key": "child_name", "q": "👶 Баланың аты-жөні?"},
+            {"key": "topic",      "q": "📋 Хат тақырыбы?"},
+            {"key": "details",    "q": "📝 Мәліметтер?"},
+        ],
     },
     "en": {
         "lesson_plan": [
@@ -193,6 +281,14 @@ DOC_NAMES = {
         "vacation_request": "Заявление на отпуск",
         "explanation": "Объяснительная записка",
         "announcement": "Объявление",
+        "kg_lesson_plan": "Конспект занятия (садик)",
+        "kg_tech_card": "Технологическая карта занятия",
+        "kg_monthly_plan": "Перспективный план на месяц",
+        "kg_yearly_plan": "Годовой план работы",
+        "kg_cyclogram": "Циклограмма воспитателя",
+        "kg_report": "Отчёт воспитателя",
+        "kg_characteristic": "Характеристика на ребёнка",
+        "kg_parent_letter": "Письмо родителям (садик)",
     },
     "kz": {
         "lesson_plan": "Қысқамерзімді жоспар (ҚМЖ)",
@@ -208,6 +304,14 @@ DOC_NAMES = {
         "vacation_request": "Демалыс өтініші",
         "explanation": "Түсіндірме хат",
         "announcement": "Хабарландыру",
+        "kg_lesson_plan": "Сабақ конспектісі (балабақша)",
+        "kg_tech_card": "Сабақтың технологиялық картасы",
+        "kg_monthly_plan": "Айлық перспективалық жоспар",
+        "kg_yearly_plan": "Жылдық жұмыс жоспары",
+        "kg_cyclogram": "Тәрбиешінің циклограммасы",
+        "kg_report": "Тәрбиеші есебі",
+        "kg_characteristic": "Балаға мінездеме",
+        "kg_parent_letter": "Ата-аналарға хат (балабақша)",
     },
     "en": {
         "lesson_plan": "Lesson Plan",
@@ -231,6 +335,9 @@ CAT_DOCS = {
     "reports":  ["monthly_report", "control_analysis"],
     "students": ["characteristic", "absence_cert", "discipline_act", "gratitude_letter", "parent_letter"],
     "personal": ["vacation_request", "explanation", "announcement"],
+    "kg_planning": ["kg_lesson_plan", "kg_tech_card", "kg_monthly_plan", "kg_yearly_plan", "kg_cyclogram"],
+    "kg_reports":  ["kg_report"],
+    "kg_children": ["kg_characteristic", "kg_parent_letter"],
 }
 
 # Красивые разделители для дизайна
@@ -526,7 +633,11 @@ class DocumentHandler:
         await message.reply_text(gen_msgs.get(lang, gen_msgs["ru"]), parse_mode=ParseMode.MARKDOWN)
 
         answers_text  = "\n".join(f"- {k}: {v}" for k, v in answers.items())
-        system_prompt = get_system_prompt(user, doc_lang)
+        # Выбираем промпт — садик или школа
+        if doc_type.startswith("kg_"):
+            system_prompt = get_kg_system_prompt(user, doc_lang)
+        else:
+            system_prompt = get_system_prompt(user, doc_lang)
         user_prompt   = f"Создай документ: {doc_name}\n\nДанные:\n{answers_text}"
 
         client  = anthropic.Anthropic(api_key=self.api_key)
