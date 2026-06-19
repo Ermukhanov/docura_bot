@@ -399,7 +399,7 @@ class DocumentHandler:
 
         # ── Категория документов ──
         if data.startswith("cat_"):
-            cat = data.split("_")[1]
+            cat = data[4:]  # убираем "cat_" целиком, а не split по "_"
             await self._show_doc_list(query, lang, cat)
 
         # ── Выбор конкретного документа ──
@@ -430,7 +430,23 @@ class DocumentHandler:
         names = DOC_NAMES.get(lang, DOC_NAMES["ru"])
         keyboard = [[InlineKeyboardButton(names.get(d, d), callback_data=f"doc_{d}")] for d in docs]
         keyboard.append([InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")])
-        cat_name = t(lang, f"cat_{cat}")
+
+        # Названия категорий садика и школы
+        cat_names = {
+            "ru": {
+                "planning": "Планирование", "reports": "Отчёты",
+                "students": "По ученикам", "personal": "Личные документы",
+                "kg_planning": "Планирование", "kg_reports": "Отчёты",
+                "kg_children": "По детям",
+            },
+            "kz": {
+                "planning": "Жоспарлау", "reports": "Есептер",
+                "students": "Оқушылар бойынша", "personal": "Жеке құжаттар",
+                "kg_planning": "Жоспарлау", "kg_reports": "Есептер",
+                "kg_children": "Балалар бойынша",
+            },
+        }
+        cat_name = cat_names.get(lang, cat_names["ru"]).get(cat, cat)
         header = "📂 *{cat}*\n{div}\nВыберите тип документа:" if lang == "ru" else "📂 *{cat}*\n{div}\nҚұжат түрін таңдаңыз:"
         await query.edit_message_text(
             header.format(cat=cat_name, div=DIVIDER),
