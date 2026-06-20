@@ -2,7 +2,8 @@ import aiosqlite
 import json
 from datetime import datetime
 
-DB_PATH = "docura.db"
+import os
+DB_PATH = os.path.join(os.environ.get("DATA_DIR", "."), "docura.db")
 
 class Database:
     def __init__(self):
@@ -61,6 +62,17 @@ class Database:
                     score INTEGER,
                     lang TEXT
                 );
+
+                CREATE TABLE IF NOT EXISTS samples (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    doc_type TEXT NOT NULL,
+                    lang TEXT DEFAULT 'ru',
+                    content TEXT NOT NULL,
+                    title TEXT,
+                    added_by INTEGER,
+                    is_active INTEGER DEFAULT 1,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
             """)
             await db.commit()
 
@@ -96,6 +108,11 @@ class Database:
     async def activate_subscription(self, tg_id: int):
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("UPDATE users SET subscribed=1 WHERE tg_id=?", (tg_id,))
+            await db.commit()
+
+    async def deactivate_subscription(self, tg_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE users SET subscribed=0 WHERE tg_id=?", (tg_id,))
             await db.commit()
 
     # ===== STUDENTS =====
@@ -171,6 +188,65 @@ class Database:
                 rows = await cur.fetchall()
                 return [dict(r) for r in rows]
 
+    async def get_recent_documents(self, limit: int = 20):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM documents ORDER BY created_at DESC LIMIT ?",
+                (limit,)
+            ) as cur:
+                rows = await cur.fetchall()
+                return [dict(r) for r in rows]
+
+    # ===== SAMPLES (RAG обучение) =====
+    async def add_sample(self, doc_type: str, lang: str, content: str, title: str, added_by: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "INSERT INTO samples (doc_type, lang, content, title, added_by) VALUES (?,?,?,?,?)",
+                (doc_type, lang, content, title, added_by)
+            )
+            await db.commit()
+
+    async def get_samples(self, doc_type: str, lang: str = None, limit: int = 2):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            if lang:
+                async with db.execute(
+                    "SELECT * FROM samples WHERE doc_type=? AND lang=? AND is_active=1 ORDER BY created_at DESC LIMIT ?",
+                    (doc_type, lang, limit)
+                ) as cur:
+                    rows = await cur.fetchall()
+            else:
+                async with db.execute(
+                    "SELECT * FROM samples WHERE doc_type=? AND is_active=1 ORDER BY created_at DESC LIMIT ?",
+                    (doc_type, limit)
+                ) as cur:
+                    rows = await cur.fetchall()
+            return [dict(r) for r in rows]
+
+    async def get_all_samples(self, limit: int = 100):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM samples ORDER BY created_at DESC LIMIT ?", (limit,)
+            ) as cur:
+                rows = await cur.fetchall()
+                return [dict(r) for r in rows]
+
+    async def delete_sample(self, sample_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("DELETE FROM samples WHERE id=?", (sample_id,))
+            await db.commit()
+
+    async def toggle_sample(self, sample_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT is_active FROM samples WHERE id=?", (sample_id,)) as cur:
+                row = await cur.fetchone()
+            if row:
+                new_val = 0 if row[0] else 1
+                await db.execute("UPDATE samples SET is_active=? WHERE id=?", (new_val, sample_id))
+                await db.commit()
+
     # ===== ANALYTICS =====
     async def log_analytics(self, teacher_id: int, doc_type: str, score: int, lang: str):
         async with aiosqlite.connect(self.db_path) as db:
@@ -190,6 +266,8 @@ class Database:
                 total_docs = (await cur.fetchone())[0]
             async with db.execute("SELECT COUNT(*) FROM documents WHERE date(created_at)=date('now')") as cur:
                 today_docs = (await cur.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM users WHERE date(created_at) >= date('now','-7 days')") as cur:
+                week_users = (await cur.fetchone())[0]
             async with db.execute("SELECT doc_type, COUNT(*) as cnt FROM documents GROUP BY doc_type ORDER BY cnt DESC LIMIT 5") as cur:
                 top_docs = await cur.fetchall()
         return {
@@ -197,6 +275,7 @@ class Database:
             "subscribed": subscribed,
             "total_docs": total_docs,
             "today_docs": today_docs,
+            "week_users": week_users,
             "top_docs": top_docs,
             "revenue": subscribed * 1990
         }
