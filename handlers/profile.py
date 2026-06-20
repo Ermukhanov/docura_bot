@@ -9,6 +9,18 @@ MENU_BTN = lambda lang: InlineKeyboardButton("🏠 " + ("Главное меню
 BACK_BTN = lambda lang, cb: InlineKeyboardButton("◀️ " + ("Назад" if lang == "ru" else "Артқа"), callback_data=cb)
 CANCEL_BTN = lambda lang: InlineKeyboardButton("❌ " + ("Отмена" if lang == "ru" else "Болдырмау"), callback_data="menu_main")
 
+
+def _esc(text):
+    """Экранирует символы Markdown в данных пользователя, чтобы Telegram не падал
+    на именах/школах/предметах содержащих *, _, [, ` и т.п."""
+    if text is None:
+        return "—"
+    text = str(text)
+    for ch in ["_", "*", "[", "]", "`"]:
+        text = text.replace(ch, "\\" + ch)
+    return text
+
+
 class ProfileHandler:
     def __init__(self, db: Database):
         self.db = db
@@ -18,12 +30,12 @@ class ProfileHandler:
         if not user:
             return
 
-        name     = user.get("name", "—")
-        school   = user.get("school", "—")
-        subject  = user.get("subject", "—")
-        classes  = user.get("classes", "—")
-        position = user.get("position", "—")
-        director = user.get("director", "—")
+        name     = _esc(user.get("name", "—"))
+        school   = _esc(user.get("school", "—"))
+        subject  = _esc(user.get("subject", "—"))
+        classes  = _esc(user.get("classes", "—"))
+        position = _esc(user.get("position", "—"))
+        director = _esc(user.get("director", "—"))
         is_ct    = "✅" if user.get("is_class_teacher") else "❌"
         is_pro   = user.get("subscribed", 0)
         free_used = user.get("free_used", 0)
@@ -176,7 +188,7 @@ class ProfileHandler:
         for s in students:
             grades = json.loads(s.get("grades", "{}"))
             avg = round(sum(grades.values()) / len(grades), 1) if grades else "—"
-            text += f"👤 {s['name']} • {s['class_name']} • ср.балл: {avg}\n"
+            text += f"👤 {_esc(s['name'])} • {_esc(s['class_name'])} • ср.балл: {avg}\n"
 
         for s in students:
             keyboard.append([
@@ -195,20 +207,24 @@ class ProfileHandler:
 
         grades       = json.loads(s.get("grades", "{}"))
         achievements = json.loads(s.get("achievements", "[]"))
-        grades_str   = "\n".join(f"  • {k}: {v}" for k, v in grades.items()) if grades else ("  нет данных" if lang == "ru" else "  деректер жоқ")
-        achieve_str  = "\n".join(f"  • {a}" for a in achievements) if achievements else ("  нет" if lang == "ru" else "  жоқ")
+        grades_str   = "\n".join(f"  • {_esc(k)}: {v}" for k, v in grades.items()) if grades else ("  нет данных" if lang == "ru" else "  деректер жоқ")
+        achieve_str  = "\n".join(f"  • {_esc(a)}" for a in achievements) if achievements else ("  нет" if lang == "ru" else "  жоқ")
+
+        s_name  = _esc(s['name'])
+        s_class = _esc(s['class_name'])
+        s_beh   = _esc(s.get('behavior', '—'))
 
         text = (
-            f"👤 *{s['name']}*\n"
-            f"🏷 Класс: {s['class_name']}\n"
-            f"😊 Поведение: {s.get('behavior', '—')}\n"
+            f"👤 *{s_name}*\n"
+            f"🏷 Класс: {s_class}\n"
+            f"😊 Поведение: {s_beh}\n"
             f"📅 Пропуски: {s.get('absences', 0)} дн.\n\n"
             f"📊 *Оценки:*\n{grades_str}\n\n"
             f"🏆 *Достижения:*\n{achieve_str}"
         ) if lang == "ru" else (
-            f"👤 *{s['name']}*\n"
-            f"🏷 Сынып: {s['class_name']}\n"
-            f"😊 Мінез-құлық: {s.get('behavior', '—')}\n"
+            f"👤 *{s_name}*\n"
+            f"🏷 Сынып: {s_class}\n"
+            f"😊 Мінез-құлық: {s_beh}\n"
             f"📅 Өткізулер: {s.get('absences', 0)} күн\n\n"
             f"📊 *Бағалар:*\n{grades_str}\n\n"
             f"🏆 *Жетістіктер:*\n{achieve_str}"
@@ -254,7 +270,7 @@ class ProfileHandler:
                 f"1️⃣ Переведите 1990 тг на этот номер\n"
                 f"2️⃣ Нажмите кнопку «Я оплатил» ниже\n"
                 f"3️⃣ Пришлите скриншот оплаты\n"
-                f"4️⃣ Подписка активируется автоматически в течение нескольких минут ✅"
+                f"4️⃣ Подписка активируется автоматически ✅"
             ) if lang == "ru" else (
                 f"💳 *Docura PRO жазылымы*\n\n"
                 f"Сізде *{free_left} тегін* құжат қалды.\n\n"
@@ -266,7 +282,7 @@ class ProfileHandler:
                 f"1️⃣ 1990 тг осы нөмірге аударыңыз\n"
                 f"2️⃣ Төменде «Төлем жасадым» батырмасын басыңыз\n"
                 f"3️⃣ Төлем скриншотын жіберіңіз\n"
-                f"4️⃣ Жазылым бірнеше минутта белсендіріледі ✅"
+                f"4️⃣ Жазылым автоматты белсендіріледі ✅"
             )
             keyboard = [
                 [InlineKeyboardButton(
@@ -287,13 +303,13 @@ class ProfileHandler:
 
         context.user_data["step"] = None
 
-        ADMIN_CHAT_ID = 6561112046  # tg_id Мернара — куда приходят скрины оплаты
+        ADMIN_CHAT_ID = 6561112046
 
         try:
             caption = (
                 f"💳 *Новая оплата!*\n\n"
-                f"👤 {user.get('name', 'без имени')}\n"
-                f"🏫 {user.get('school', '—')}\n"
+                f"👤 {_esc(user.get('name', 'без имени'))}\n"
+                f"🏫 {_esc(user.get('school', '—'))}\n"
                 f"🆔 `{user_id}`\n\n"
                 f"Нажми чтобы активировать PRO 👇"
             )
