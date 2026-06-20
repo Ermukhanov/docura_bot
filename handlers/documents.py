@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import anthropic
 from datetime import datetime
@@ -81,6 +82,7 @@ DOC_QUESTIONS = {
             {"key": "datetime", "q": "📅 Дата и время?\n\n_Пример: 20 ноября, 18:00_"},
             {"key": "location", "q": "📍 Место проведения?\n\n_Пример: кабинет 205, актовый зал_"},
         ],
+
         # ── САДИК ──────────────────────────────────────
         "kg_lesson_plan": [
             {"key": "age_group", "q": "👶 Возрастная группа?\n\n_Пример: средняя группа (4-5 лет)_"},
@@ -197,6 +199,7 @@ DOC_QUESTIONS = {
             {"key": "topic",        "q": "📋 Хат тақырыбы?"},
             {"key": "details",      "q": "📝 Мәліметтер?"},
         ],
+
         # ── БАЛАБАҚША ──────────────────────────────────
         "kg_lesson_plan": [
             {"key": "age_group", "q": "👶 Жас тобы?\n\n_Мысалы: орта топ (4-5 жас)_"},
@@ -399,7 +402,7 @@ class DocumentHandler:
 
         # ── Категория документов ──
         if data.startswith("cat_"):
-            cat = data[4:]  # убираем "cat_" целиком, а не split по "_"
+            cat = data[4:]  # убираем "cat_" целиком, чтобы не терять префикс kg_
             await self._show_doc_list(query, lang, cat)
 
         # ── Выбор конкретного документа ──
@@ -431,7 +434,6 @@ class DocumentHandler:
         keyboard = [[InlineKeyboardButton(names.get(d, d), callback_data=f"doc_{d}")] for d in docs]
         keyboard.append([InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")])
 
-        # Названия категорий садика и школы
         cat_names = {
             "ru": {
                 "planning": "Планирование", "reports": "Отчёты",
@@ -649,55 +651,90 @@ class DocumentHandler:
         await message.reply_text(gen_msgs.get(lang, gen_msgs["ru"]), parse_mode=ParseMode.MARKDOWN)
 
         answers_text  = "\n".join(f"- {k}: {v}" for k, v in answers.items())
+        # Загружаем образцы которые админ добавил для этого типа документа
+        custom_samples = await self.db.get_samples(doc_type, doc_lang, limit=2)
+
         # Выбираем промпт — садик или школа
         if doc_type.startswith("kg_"):
-            system_prompt = get_kg_system_prompt(user, doc_lang)
+            system_prompt = get_kg_system_prompt(user, doc_lang, custom_samples=custom_samples)
         else:
-            system_prompt = get_system_prompt(user, doc_lang)
-        user_prompt   = f"Создай документ: {doc_name}\n\nДанные:\n{answers_text}"
+            system_prompt = get_system_prompt(user, doc_lang, doc_type=doc_type, custom_samples=custom_samples)
+        user_prompt = (
+            f"Создай документ: {doc_name}\n\nДанные:\n{answers_text}\n\n"
+            f"После того как закончишь документ, на отдельной последней строке "
+            f"напиши ровно так: ОЦЕНКА: NN — где NN твоя честная самооценка от 0 до 100 "
+            f"по соответствию нормативке, полноте структуры и отсутствию выдуманных фактов. "
+            f"Эта строка не часть документа, её не должно быть видно в Word — просто отдельная "
+            f"техническая строка для внутренней проверки."
+        )
 
         client  = anthropic.Anthropic(api_key=self.api_key)
         result  = ""
         score   = 0
         attempts = 0
 
-        # Одна генерация — Sonnet 4.6 с хорошим промптом сразу даёт качество
-        # Оценку делаем Haiku — дёшево и быстро
-        while score < 85 and attempts < 2:
+        # Один проход Sonnet вместо цикла Sonnet+Haiku: модель сама пишет себе оценку
+        # в конце ответа, поэтому отдельный вызов на оценку не нужен — это и дешевле,
+        # и не провоцирует переписывание документа с нуля (где обычно рождаются выдумки)
+        while attempts < 2:
             attempts += 1
             if attempts > 1:
                 improve_msg = {
-                    "ru": "🔄 *Улучшаю качество...*\n_Аз қалды!_",
-                    "kz": "🔄 *Сапаны жақсартуда...*\n_Аз қалды!_",
-                    "en": "🔄 *Improving...*\n_Almost done!_",
+                    "ru": "🔄 *Точечно улучшаю слабые места...*",
+                    "kz": "🔄 *Сапаны жақсартуда...*",
+                    "en": "🔄 *Fine-tuning weak spots...*",
                 }
                 await message.reply_text(improve_msg.get(lang, improve_msg["ru"]), parse_mode=ParseMode.MARKDOWN)
 
-            # Основная генерация — Sonnet 4.6
+            # Основная генерация — Sonnet 4.6, лимит увеличен под длинные документы (КСП с таблицами, годовые планы)
             msg = client.messages.create(
                 model="claude-sonnet-4-6",
-                max_tokens=3000,
+                max_tokens=8000,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}]
             )
             result = msg.content[0].text
 
-            # Самооценка — Haiku (в 10 раз дешевле)
-            eval_msg = client.messages.create(
-                model="claude-haiku-4-5",
-                max_tokens=10,
-                messages=[{"role": "user", "content": SELF_EVAL_PROMPT.format(document=result[:3000])}]
-            )
-            try:
-                score = int("".join(filter(str.isdigit, eval_msg.content[0].text.strip()[:5])))
-            except:
-                score = 88
-
-            if score < 85 and attempts < 2:
-                user_prompt = (
-                    f"Улучши документ. Оценка {score}/100. "
-                    f"Заполни все пустые поля, добавь конкретику из профиля учителя.\n\n{result}"
+            # Если ответ обрезался по лимиту токенов — дописываем продолжение,
+            # не теряя уже сгенерированный текст
+            continue_rounds = 0
+            while msg.stop_reason == "max_tokens" and continue_rounds < 2:
+                continue_rounds += 1
+                continue_msg = client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=8000,
+                    system=system_prompt,
+                    messages=[
+                        {"role": "user", "content": user_prompt},
+                        {"role": "assistant", "content": result},
+                        {"role": "user", "content": "Продолжи документ с того места где остановился. Не повторяй уже написанное. Доведи до конца, включая блок подписей и финальную строку ОЦЕНКА: NN."},
+                    ]
                 )
+                result += continue_msg.content[0].text
+                msg = continue_msg
+
+            # Извлекаем встроенную самооценку из последней строки ответа
+            # и убираем её из текста — в Word она не нужна
+            score = 88
+            score_match = re.search(r"ОЦЕНКА:\s*(\d{1,3})", result)
+            if score_match:
+                score = min(100, int(score_match.group(1)))
+                result = result[:score_match.start()].rstrip()
+
+            if score >= 85 or attempts >= 2:
+                break
+
+            # Точечный фикс вместо переписывания всего документа — модель видит
+            # свой же текст и инструкцию "не выдумывай", а не "заполни всё что пусто"
+            user_prompt = (
+                f"Твой черновик документа получил самооценку {score}/100. "
+                f"Улучши его точечно: исправь структурные пробелы, уточни формулировки, "
+                f"проверь соответствие нормативке. "
+                f"НЕ придумывай факты которых не было в исходных данных — если поле не заполнено "
+                f"из-за нехватки данных, оставь плейсхолдер вида [уточнить], а не выдумывай значение.\n\n"
+                f"ЧЕРНОВИК:\n{result}\n\n"
+                f"В конце снова добавь строку ОЦЕНКА: NN с новой самооценкой."
+            )
 
         # Формируем Word документ
         wait_msg = await message.reply_text(
