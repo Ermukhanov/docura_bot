@@ -99,6 +99,18 @@ class ProfileHandler:
         elif data == "prof_sub":
             await self._show_subscription(query, user, lang)
 
+        elif data == "prof_paid":
+            context.user_data["step"] = "waiting_payment_screenshot"
+            kb = [[BACK_BTN(lang, "prof_sub")]]
+            text = (
+                "📸 Пришлите скриншот оплаты (фото).\n\n"
+                "Как только администратор увидит — подписка активируется автоматически."
+            ) if lang == "ru" else (
+                "📸 Төлем скриншотын жіберіңіз (фото).\n\n"
+                "Әкімші көрген бойда жазылым автоматты түрде белсендіріледі."
+            )
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+
         elif data == "prof_lang":
             keyboard = [
                 [InlineKeyboardButton("🇷🇺 Русский", callback_data="prof_set_lang_ru"),
@@ -222,6 +234,10 @@ class ProfileHandler:
                 "✅ 13 түрлі құжат\n"
                 "✅ Дауыстық енгізу"
             )
+            keyboard = [
+                [BACK_BTN(lang, "menu_profile")],
+                [MENU_BTN(lang)],
+            ]
         else:
             free_left = max(0, 3 - user.get("free_used", 0))
             text = (
@@ -232,24 +248,75 @@ class ProfileHandler:
                 f"✅ Все 13 типов документов\n"
                 f"✅ Голосовой ввод\n"
                 f"✅ База учеников\n\n"
-                f"💳 *Оплата:*\n"
-                f"Kaspi: +7 (XXX) XXX-XX-XX\n"
-                f"После оплаты напишите: @ваш_username\n\n"
-                f"_Активация в течение 30 минут_"
+                f"💳 *Оплата через Kaspi:*\n"
+                f"`+7 771 451 4717`\n"
+                f"_(нажмите на номер чтобы скопировать)_\n\n"
+                f"1️⃣ Переведите 1990 тг на этот номер\n"
+                f"2️⃣ Нажмите кнопку «Я оплатил» ниже\n"
+                f"3️⃣ Пришлите скриншот оплаты\n"
+                f"4️⃣ Подписка активируется автоматически в течение нескольких минут ✅"
             ) if lang == "ru" else (
                 f"💳 *Docura PRO жазылымы*\n\n"
                 f"Сізде *{free_left} тегін* құжат қалды.\n\n"
                 f"⭐ *PRO — 1990 тг/ай:*\n"
                 f"✅ Шексіз жасау\n"
                 f"✅ 13 түрлі құжат\n\n"
-                f"💳 Kaspi: +7 (XXX) XXX-XX-XX"
+                f"💳 *Kaspi арқылы төлем:*\n"
+                f"`+7 771 451 4717`\n\n"
+                f"1️⃣ 1990 тг осы нөмірге аударыңыз\n"
+                f"2️⃣ Төменде «Төлем жасадым» батырмасын басыңыз\n"
+                f"3️⃣ Төлем скриншотын жіберіңіз\n"
+                f"4️⃣ Жазылым бірнеше минутта белсендіріледі ✅"
             )
+            keyboard = [
+                [InlineKeyboardButton(
+                    "✅ Я оплатил" if lang == "ru" else "✅ Төлем жасадым",
+                    callback_data="prof_paid"
+                )],
+                [BACK_BTN(lang, "menu_profile")],
+                [MENU_BTN(lang)],
+            ]
 
-        keyboard = [
-            [BACK_BTN(lang, "menu_profile")],
-            [MENU_BTN(lang)],
-        ]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+
+    async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Получает скриншот оплаты и пересылает админу с кнопкой активации"""
+        user_id = update.effective_user.id
+        user    = await self.db.get_user(user_id)
+        lang    = user.get("lang", "ru") if user else "ru"
+
+        context.user_data["step"] = None
+
+        ADMIN_CHAT_ID = 6561112046  # tg_id Мернара — куда приходят скрины оплаты
+
+        try:
+            caption = (
+                f"💳 *Новая оплата!*\n\n"
+                f"👤 {user.get('name', 'без имени')}\n"
+                f"🏫 {user.get('school', '—')}\n"
+                f"🆔 `{user_id}`\n\n"
+                f"Нажми чтобы активировать PRO 👇"
+            )
+            kb = [[InlineKeyboardButton("✅ Активировать PRO", callback_data=f"admin_activate_id_{user_id}")]]
+            await context.bot.send_photo(
+                chat_id=ADMIN_CHAT_ID,
+                photo=update.message.photo[-1].file_id,
+                caption=caption,
+                reply_markup=InlineKeyboardMarkup(kb),
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except Exception as e:
+            print(f"Failed to forward payment screenshot: {e}")
+
+        kb_user = [[MENU_BTN(lang)]]
+        text = (
+            "✅ Скриншот получен! Подписка активируется в течение нескольких минут.\n\n"
+            "Спасибо за оплату! 🎉"
+        ) if lang == "ru" else (
+            "✅ Скриншот алынды! Жазылым бірнеше минутта белсендіріледі.\n\n"
+            "Төлеміңіз үшін рахмет! 🎉"
+        )
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb_user))
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id

@@ -194,6 +194,9 @@ async def run():
     # Голос
     app.add_handler(MessageHandler(filters.VOICE, voice.handle))
 
+    # Фото — скриншоты оплаты
+    app.add_handler(MessageHandler(filters.PHOTO, profile.handle_photo))
+
     # Колбэки
     app.add_handler(CallbackQueryHandler(onboarding.callback, pattern="^(lang_|role_|onboard_)"))
     app.add_handler(CallbackQueryHandler(main_menu.callback,  pattern="^menu_"))
