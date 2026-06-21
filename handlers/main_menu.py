@@ -103,7 +103,6 @@ class MainMenuHandler:
         is_ct = user.get("is_class_teacher", 0)
 
         if role == "kindergarten":
-            # Меню для воспитателей садика
             if lang == "ru":
                 keyboard = [
                     [InlineKeyboardButton("📝 Планирование",    callback_data="cat_kg_planning")],
@@ -121,7 +120,6 @@ class MainMenuHandler:
                     [InlineKeyboardButton("← Артқа",            callback_data="menu_main")],
                 ]
         else:
-            # Меню для учителей школы
             keyboard = [
                 [InlineKeyboardButton(t(lang, "cat_planning"), callback_data="cat_planning")],
                 [InlineKeyboardButton(t(lang, "cat_reports"),  callback_data="cat_reports")],
@@ -131,9 +129,8 @@ class MainMenuHandler:
             keyboard.append([InlineKeyboardButton(t(lang, "cat_personal"), callback_data="cat_personal")])
             keyboard.append([InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")])
 
-        title = t(lang, "choose_category")
         await query.edit_message_text(
-            title,
+            t(lang, "choose_category"),
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.MARKDOWN
         )
