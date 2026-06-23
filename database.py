@@ -1,8 +1,8 @@
 import aiosqlite
 import json
+import os
 from datetime import datetime
 
-import os
 DB_PATH = os.path.join(os.environ.get("DATA_DIR", "."), "docura.db")
 
 class Database:
@@ -25,6 +25,7 @@ class Database:
                     director TEXT,
                     role TEXT DEFAULT 'teacher',
                     subscribed INTEGER DEFAULT 0,
+                    tier TEXT DEFAULT 'free',
                     free_used INTEGER DEFAULT 0,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     notified_at TEXT
@@ -76,6 +77,16 @@ class Database:
             """)
             await db.commit()
 
+            # Миграция: добавляем колонку tier тем у кого база создана до введения тарифов.
+            # У всех кто уже был subscribed=1 раньше — это были покупатели единственного
+            # старого тарифа, по смыслу ближайший новому tier='pro', чтобы никто не потерял доступ.
+            async with db.execute("PRAGMA table_info(users)") as cur:
+                cols = [row[1] for row in await cur.fetchall()]
+            if "tier" not in cols:
+                await db.execute("ALTER TABLE users ADD COLUMN tier TEXT DEFAULT 'free'")
+                await db.execute("UPDATE users SET tier='pro' WHERE subscribed=1")
+                await db.commit()
+
     # ===== USERS =====
     async def get_user(self, tg_id: int):
         async with aiosqlite.connect(self.db_path) as db:
@@ -105,14 +116,14 @@ class Database:
             await db.execute("UPDATE users SET free_used=free_used+1 WHERE tg_id=?", (tg_id,))
             await db.commit()
 
-    async def activate_subscription(self, tg_id: int):
+    async def activate_subscription(self, tg_id: int, tier: str = "pro"):
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("UPDATE users SET subscribed=1 WHERE tg_id=?", (tg_id,))
+            await db.execute("UPDATE users SET subscribed=1, tier=? WHERE tg_id=?", (tier, tg_id))
             await db.commit()
 
     async def deactivate_subscription(self, tg_id: int):
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("UPDATE users SET subscribed=0 WHERE tg_id=?", (tg_id,))
+            await db.execute("UPDATE users SET subscribed=0, tier='free' WHERE tg_id=?", (tg_id,))
             await db.commit()
 
     # ===== STUDENTS =====
@@ -188,12 +199,50 @@ class Database:
                 rows = await cur.fetchall()
                 return [dict(r) for r in rows]
 
+    # ===== ANALYTICS =====
+    async def log_analytics(self, teacher_id: int, doc_type: str, score: int, lang: str):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "INSERT INTO analytics (teacher_id, doc_type, score, lang) VALUES (?,?,?,?)",
+                (teacher_id, doc_type, score, lang)
+            )
+            await db.commit()
+
+    async def get_admin_stats(self):
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT COUNT(*) FROM users") as cur:
+                total_users = (await cur.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM users WHERE subscribed=1") as cur:
+                subscribed = (await cur.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM users WHERE tier='basic'") as cur:
+                basic_count = (await cur.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM users WHERE tier='pro'") as cur:
+                pro_count = (await cur.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM documents") as cur:
+                total_docs = (await cur.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM documents WHERE date(created_at)=date('now')") as cur:
+                today_docs = (await cur.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM users WHERE date(created_at) >= date('now','-7 days')") as cur:
+                week_users = (await cur.fetchone())[0]
+            async with db.execute("SELECT doc_type, COUNT(*) as cnt FROM documents GROUP BY doc_type ORDER BY cnt DESC LIMIT 5") as cur:
+                top_docs = await cur.fetchall()
+        return {
+            "total_users": total_users,
+            "subscribed": subscribed,
+            "basic_count": basic_count,
+            "pro_count": pro_count,
+            "total_docs": total_docs,
+            "today_docs": today_docs,
+            "week_users": week_users,
+            "top_docs": top_docs,
+            "revenue": basic_count * 2490 + pro_count * 3990
+        }
+
     async def get_recent_documents(self, limit: int = 20):
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute(
-                "SELECT * FROM documents ORDER BY created_at DESC LIMIT ?",
-                (limit,)
+                "SELECT * FROM documents ORDER BY created_at DESC LIMIT ?", (limit,)
             ) as cur:
                 rows = await cur.fetchall()
                 return [dict(r) for r in rows]
@@ -246,39 +295,6 @@ class Database:
                 new_val = 0 if row[0] else 1
                 await db.execute("UPDATE samples SET is_active=? WHERE id=?", (new_val, sample_id))
                 await db.commit()
-
-    # ===== ANALYTICS =====
-    async def log_analytics(self, teacher_id: int, doc_type: str, score: int, lang: str):
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
-                "INSERT INTO analytics (teacher_id, doc_type, score, lang) VALUES (?,?,?,?)",
-                (teacher_id, doc_type, score, lang)
-            )
-            await db.commit()
-
-    async def get_admin_stats(self):
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT COUNT(*) FROM users") as cur:
-                total_users = (await cur.fetchone())[0]
-            async with db.execute("SELECT COUNT(*) FROM users WHERE subscribed=1") as cur:
-                subscribed = (await cur.fetchone())[0]
-            async with db.execute("SELECT COUNT(*) FROM documents") as cur:
-                total_docs = (await cur.fetchone())[0]
-            async with db.execute("SELECT COUNT(*) FROM documents WHERE date(created_at)=date('now')") as cur:
-                today_docs = (await cur.fetchone())[0]
-            async with db.execute("SELECT COUNT(*) FROM users WHERE date(created_at) >= date('now','-7 days')") as cur:
-                week_users = (await cur.fetchone())[0]
-            async with db.execute("SELECT doc_type, COUNT(*) as cnt FROM documents GROUP BY doc_type ORDER BY cnt DESC LIMIT 5") as cur:
-                top_docs = await cur.fetchall()
-        return {
-            "total_users": total_users,
-            "subscribed": subscribed,
-            "total_docs": total_docs,
-            "today_docs": today_docs,
-            "week_users": week_users,
-            "top_docs": top_docs,
-            "revenue": subscribed * 1990
-        }
 
     async def get_all_users(self, limit=50):
         async with aiosqlite.connect(self.db_path) as db:

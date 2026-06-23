@@ -33,6 +33,23 @@ class VoiceHandler:
             )
             return
 
+        # Голосовой ввод доступен только на тарифе PRO
+        if user.get("tier") != "pro":
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            kb = [[InlineKeyboardButton(
+                "⭐ Перейти на PRO" if lang == "ru" else "⭐ PRO-ға өту",
+                callback_data="prof_sub"
+            )]]
+            text = (
+                "🎤 Голосовой ввод доступен только на тарифе *PRO*.\n\n"
+                "Оформите PRO для голосового создания документов, или напишите текстом через /new."
+            ) if lang == "ru" else (
+                "🎤 Дауыстық енгізу тек *PRO* тарифінде қол жетімді.\n\n"
+                "PRO рәсімдеңіз немесе /new арқылы мәтінмен жазыңыз."
+            )
+            await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+            return
+
         proc_msg = await update.message.reply_text(
             "🎤 " + ("Слушаю..." if lang == "ru" else "Тыңдауда...")
         )

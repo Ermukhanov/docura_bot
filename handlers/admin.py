@@ -32,19 +32,34 @@ class AdminHandler:
 
         ADMIN_CHAT_ID = 6561112046  # только в этот чат шлются кнопки активации после оплаты
 
+        TIER_NAMES = {"basic": "Базовый", "pro": "PRO"}
+
         # Активация подписки по кнопке из уведомления об оплате —
-        # доступна сразу в личном чате владельца, без отдельного входа в /mernar
-        if data.startswith("admin_activate_id_") and update.effective_user.id == ADMIN_CHAT_ID:
-            tg_id = int(data.split("_")[-1])
-            await self.db.activate_subscription(tg_id)
+        # доступна сразу в личном чате владельца, без отдельного входа в /mernar.
+        # Новый формат: admin_activate_{tier}_{tg_id}. Старый формат admin_activate_id_{tg_id}
+        # (до введения тарифов) — оставлен для совместимости со старыми сообщениями, активирует PRO.
+        # admin_activate_btn — отдельная ручная кнопка ввода ID, не парсим как тариф.
+        if (data.startswith("admin_activate_") and data != "admin_activate_btn"
+                and update.effective_user.id == ADMIN_CHAT_ID):
+            rest = data[len("admin_activate_"):]
+            if rest.startswith("id_"):
+                tier = "pro"
+                tg_id = int(rest[3:])
+            else:
+                tier_part, _, tg_id_part = rest.partition("_")
+                tier = tier_part if tier_part in TIER_NAMES else "pro"
+                tg_id = int(tg_id_part) if tg_id_part else int(rest)
+
+            await self.db.activate_subscription(tg_id, tier=tier)
+            t_name = TIER_NAMES.get(tier, "PRO")
             await query.edit_message_caption(
-                caption=query.message.caption + "\n\n✅ *PRO АКТИВИРОВАН*",
+                caption=query.message.caption + f"\n\n✅ *{t_name.upper()} АКТИВИРОВАН*",
                 parse_mode=ParseMode.MARKDOWN
             )
             try:
                 await context.bot.send_message(
                     chat_id=tg_id,
-                    text="🎉 *Поздравляем! Подписка PRO активирована.*\n\nТеперь у вас безлимитная генерация документов!",
+                    text=f"🎉 *Поздравляем! Подписка {t_name} активирована.*\n\nТеперь у вас безлимитная генерация документов!",
                     parse_mode=ParseMode.MARKDOWN
                 )
             except:

@@ -11,8 +11,8 @@ CANCEL_BTN = lambda lang: InlineKeyboardButton("❌ " + ("Отмена" if lang 
 
 
 def _esc(text):
-    """Экранирует символы Markdown в данных пользователя, чтобы Telegram не падал
-    на именах/школах/предметах содержащих *, _, [, ` и т.п."""
+    """Экранирует символы Markdown в данных пользователя — без этого Telegram падает,
+    если имя/школа/предмет содержат *, _, [, `."""
     if text is None:
         return "—"
     text = str(text)
@@ -20,6 +20,12 @@ def _esc(text):
         text = text.replace(ch, "\\" + ch)
     return text
 
+
+# Тарифы
+TIERS = {
+    "basic": {"price": 2490, "name_ru": "Базовый", "name_kz": "Негізгі"},
+    "pro":   {"price": 3990, "name_ru": "PRO",     "name_kz": "PRO"},
+}
 
 class ProfileHandler:
     def __init__(self, db: Database):
@@ -30,12 +36,12 @@ class ProfileHandler:
         if not user:
             return
 
-        name     = _esc(user.get("name", "—"))
-        school   = _esc(user.get("school", "—"))
-        subject  = _esc(user.get("subject", "—"))
-        classes  = _esc(user.get("classes", "—"))
-        position = _esc(user.get("position", "—"))
-        director = _esc(user.get("director", "—"))
+        name     = user.get("name", "—")
+        school   = user.get("school", "—")
+        subject  = user.get("subject", "—")
+        classes  = user.get("classes", "—")
+        position = user.get("position", "—")
+        director = user.get("director", "—")
         is_ct    = "✅" if user.get("is_class_teacher") else "❌"
         is_pro   = user.get("subscribed", 0)
         free_used = user.get("free_used", 0)
@@ -106,21 +112,49 @@ class ProfileHandler:
             )
 
         elif data == "prof_students":
-            await self._show_students(query, user_id, lang)
+            if user.get("tier") != "pro":
+                kb = [
+                    [InlineKeyboardButton("⭐ Перейти на PRO" if lang == "ru" else "⭐ PRO-ға өту", callback_data="prof_sub")],
+                    [MENU_BTN(lang)],
+                ]
+                text = (
+                    "👥 База учеников доступна только на тарифе *PRO*.\n\n"
+                    "Перейдите на PRO чтобы добавлять учеников и использовать их данные в характеристиках."
+                ) if lang == "ru" else (
+                    "👥 Оқушылар базасы тек *PRO* тарифінде қол жетімді.\n\n"
+                    "PRO-ға өтіп, оқушыларды қосыңыз."
+                )
+                await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+            else:
+                await self._show_students(query, user_id, lang)
 
         elif data == "prof_sub":
             await self._show_subscription(query, user, lang)
 
-        elif data == "prof_paid":
+        elif data in ("prof_choose_basic", "prof_choose_pro"):
+            tier = "basic" if data == "prof_choose_basic" else "pro"
+            context.user_data["chosen_tier"] = tier
             context.user_data["step"] = "waiting_payment_screenshot"
-            kb = [[BACK_BTN(lang, "prof_sub")]]
+            t_info = TIERS[tier]
+            t_name = t_info["name_ru"] if lang == "ru" else t_info["name_kz"]
+            price = t_info["price"]
             text = (
-                "📸 Пришлите скриншот оплаты (фото).\n\n"
-                "Как только администратор увидит — подписка активируется автоматически."
+                f"💳 *Тариф {t_name} — {price} тг/мес*\n\n"
+                f"*Оплата через Kaspi:*\n"
+                f"`+7 771 451 4717`\n"
+                f"_(нажмите на номер чтобы скопировать)_\n\n"
+                f"1️⃣ Переведите {price} тг на этот номер\n"
+                f"2️⃣ Пришлите скриншот оплаты следующим сообщением\n"
+                f"3️⃣ Подписка активируется автоматически ✅"
             ) if lang == "ru" else (
-                "📸 Төлем скриншотын жіберіңіз (фото).\n\n"
-                "Әкімші көрген бойда жазылым автоматты түрде белсендіріледі."
+                f"💳 *{t_name} тарифі — {price} тг/ай*\n\n"
+                f"*Kaspi арқылы төлем:*\n"
+                f"`+7 771 451 4717`\n\n"
+                f"1️⃣ {price} тг осы нөмірге аударыңыз\n"
+                f"2️⃣ Төлем скриншотын келесі хабарламада жіберіңіз\n"
+                f"3️⃣ Жазылым автоматты белсендіріледі ✅"
             )
+            kb = [[BACK_BTN(lang, "prof_sub")]]
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
         elif data == "prof_lang":
@@ -188,7 +222,7 @@ class ProfileHandler:
         for s in students:
             grades = json.loads(s.get("grades", "{}"))
             avg = round(sum(grades.values()) / len(grades), 1) if grades else "—"
-            text += f"👤 {_esc(s['name'])} • {_esc(s['class_name'])} • ср.балл: {avg}\n"
+            text += f"👤 {s['name']} • {s['class_name']} • ср.балл: {avg}\n"
 
         for s in students:
             keyboard.append([
@@ -207,24 +241,20 @@ class ProfileHandler:
 
         grades       = json.loads(s.get("grades", "{}"))
         achievements = json.loads(s.get("achievements", "[]"))
-        grades_str   = "\n".join(f"  • {_esc(k)}: {v}" for k, v in grades.items()) if grades else ("  нет данных" if lang == "ru" else "  деректер жоқ")
-        achieve_str  = "\n".join(f"  • {_esc(a)}" for a in achievements) if achievements else ("  нет" if lang == "ru" else "  жоқ")
-
-        s_name  = _esc(s['name'])
-        s_class = _esc(s['class_name'])
-        s_beh   = _esc(s.get('behavior', '—'))
+        grades_str   = "\n".join(f"  • {k}: {v}" for k, v in grades.items()) if grades else ("  нет данных" if lang == "ru" else "  деректер жоқ")
+        achieve_str  = "\n".join(f"  • {a}" for a in achievements) if achievements else ("  нет" if lang == "ru" else "  жоқ")
 
         text = (
-            f"👤 *{s_name}*\n"
-            f"🏷 Класс: {s_class}\n"
-            f"😊 Поведение: {s_beh}\n"
+            f"👤 *{s['name']}*\n"
+            f"🏷 Класс: {s['class_name']}\n"
+            f"😊 Поведение: {s.get('behavior', '—')}\n"
             f"📅 Пропуски: {s.get('absences', 0)} дн.\n\n"
             f"📊 *Оценки:*\n{grades_str}\n\n"
             f"🏆 *Достижения:*\n{achieve_str}"
         ) if lang == "ru" else (
-            f"👤 *{s_name}*\n"
-            f"🏷 Сынып: {s_class}\n"
-            f"😊 Мінез-құлық: {s_beh}\n"
+            f"👤 *{s['name']}*\n"
+            f"🏷 Сынып: {s['class_name']}\n"
+            f"😊 Мінез-құлық: {s.get('behavior', '—')}\n"
             f"📅 Өткізулер: {s.get('absences', 0)} күн\n\n"
             f"📊 *Бағалар:*\n{grades_str}\n\n"
             f"🏆 *Жетістіктер:*\n{achieve_str}"
@@ -237,18 +267,37 @@ class ProfileHandler:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
     async def _show_subscription(self, query, user, lang):
-        if user.get("subscribed"):
+        tier = user.get("tier", "free")
+
+        if user.get("subscribed") and tier in TIERS:
+            t_info = TIERS[tier]
+            t_name = t_info["name_ru"] if lang == "ru" else t_info["name_kz"]
+            if tier == "pro":
+                feats = (
+                    "✅ Безлимитная генерация документов\n"
+                    "✅ Все 21 тип документов\n"
+                    "✅ Голосовой ввод\n"
+                    "✅ База учеников\n"
+                    "✅ Точечное редактирование документов"
+                ) if lang == "ru" else (
+                    "✅ Шексіз құжат жасау\n"
+                    "✅ 21 түрлі құжат\n"
+                    "✅ Дауыстық енгізу\n"
+                    "✅ Оқушылар базасы\n"
+                    "✅ Құжатты түзету"
+                )
+            else:
+                feats = (
+                    "✅ Безлимитная генерация документов\n"
+                    "✅ Все 21 тип документов"
+                ) if lang == "ru" else (
+                    "✅ Шексіз құжат жасау\n"
+                    "✅ 21 түрлі құжат"
+                )
             text = (
-                "⭐ *Подписка PRO активна!*\n\n"
-                "✅ Безлимитная генерация документов\n"
-                "✅ Все 13 типов документов\n"
-                "✅ Голосовой ввод\n"
-                "✅ База учеников"
-            ) if lang == "ru" else (
-                "⭐ *PRO жазылымы белсенді!*\n\n"
-                "✅ Шексіз құжат жасау\n"
-                "✅ 13 түрлі құжат\n"
-                "✅ Дауыстық енгізу"
+                f"⭐ *Подписка {t_name} активна!*\n\n{feats}"
+                if lang == "ru" else
+                f"⭐ *{t_name} жазылымы белсенді!*\n\n{feats}"
             )
             keyboard = [
                 [BACK_BTN(lang, "menu_profile")],
@@ -257,37 +306,38 @@ class ProfileHandler:
         else:
             free_left = max(0, 3 - user.get("free_used", 0))
             text = (
-                f"💳 *Подписка Docura PRO*\n\n"
+                f"💳 *Подписка Docura*\n\n"
                 f"У вас осталось *{free_left} бесплатных* документов.\n\n"
-                f"⭐ *PRO — 1990 тг/месяц:*\n"
+                f"🔹 *Базовый — 2 490 тг/мес:*\n"
                 f"✅ Безлимитная генерация\n"
-                f"✅ Все 13 типов документов\n"
+                f"✅ Все 21 тип документов\n\n"
+                f"⭐ *PRO — 3 990 тг/мес:*\n"
+                f"✅ Всё из Базового\n"
                 f"✅ Голосовой ввод\n"
-                f"✅ База учеников\n\n"
-                f"💳 *Оплата через Kaspi:*\n"
-                f"`+7 771 451 4717`\n"
-                f"_(нажмите на номер чтобы скопировать)_\n\n"
-                f"1️⃣ Переведите 1990 тг на этот номер\n"
-                f"2️⃣ Нажмите кнопку «Я оплатил» ниже\n"
-                f"3️⃣ Пришлите скриншот оплаты\n"
-                f"4️⃣ Подписка активируется автоматически ✅"
+                f"✅ База учеников\n"
+                f"✅ Точечное редактирование документов\n\n"
+                f"Выберите тариф ниже 👇"
             ) if lang == "ru" else (
-                f"💳 *Docura PRO жазылымы*\n\n"
+                f"💳 *Docura жазылымы*\n\n"
                 f"Сізде *{free_left} тегін* құжат қалды.\n\n"
-                f"⭐ *PRO — 1990 тг/ай:*\n"
+                f"🔹 *Негізгі — 2 490 тг/ай:*\n"
                 f"✅ Шексіз жасау\n"
-                f"✅ 13 түрлі құжат\n\n"
-                f"💳 *Kaspi арқылы төлем:*\n"
-                f"`+7 771 451 4717`\n\n"
-                f"1️⃣ 1990 тг осы нөмірге аударыңыз\n"
-                f"2️⃣ Төменде «Төлем жасадым» батырмасын басыңыз\n"
-                f"3️⃣ Төлем скриншотын жіберіңіз\n"
-                f"4️⃣ Жазылым автоматты белсендіріледі ✅"
+                f"✅ 21 түрлі құжат\n\n"
+                f"⭐ *PRO — 3 990 тг/ай:*\n"
+                f"✅ Негізгінің бәрі\n"
+                f"✅ Дауыстық енгізу\n"
+                f"✅ Оқушылар базасы\n"
+                f"✅ Құжатты түзету\n\n"
+                f"Тарифті таңдаңыз 👇"
             )
             keyboard = [
                 [InlineKeyboardButton(
-                    "✅ Я оплатил" if lang == "ru" else "✅ Төлем жасадым",
-                    callback_data="prof_paid"
+                    "🔹 Базовый — 2 490 тг" if lang == "ru" else "🔹 Негізгі — 2 490 тг",
+                    callback_data="prof_choose_basic"
+                )],
+                [InlineKeyboardButton(
+                    "⭐ PRO — 3 990 тг" if lang == "ru" else "⭐ PRO — 3 990 тг",
+                    callback_data="prof_choose_pro"
                 )],
                 [BACK_BTN(lang, "menu_profile")],
                 [MENU_BTN(lang)],
@@ -296,24 +346,30 @@ class ProfileHandler:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
     async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Получает скриншот оплаты и пересылает админу с кнопкой активации"""
+        """Получает скриншот оплаты и пересылает админу с кнопкой активации нужного тарифа"""
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
+        tier    = context.user_data.get("chosen_tier", "pro")
 
         context.user_data["step"] = None
 
         ADMIN_CHAT_ID = 6561112046
+        t_info = TIERS.get(tier, TIERS["pro"])
 
         try:
             caption = (
                 f"💳 *Новая оплата!*\n\n"
                 f"👤 {_esc(user.get('name', 'без имени'))}\n"
                 f"🏫 {_esc(user.get('school', '—'))}\n"
-                f"🆔 `{user_id}`\n\n"
-                f"Нажми чтобы активировать PRO 👇"
+                f"🆔 `{user_id}`\n"
+                f"📦 Тариф: *{t_info['name_ru']}* ({t_info['price']} тг)\n\n"
+                f"Нажми чтобы активировать 👇"
             )
-            kb = [[InlineKeyboardButton("✅ Активировать PRO", callback_data=f"admin_activate_id_{user_id}")]]
+            kb = [[InlineKeyboardButton(
+                f"✅ Активировать {t_info['name_ru']}",
+                callback_data=f"admin_activate_{tier}_{user_id}"
+            )]]
             await context.bot.send_photo(
                 chat_id=ADMIN_CHAT_ID,
                 photo=update.message.photo[-1].file_id,

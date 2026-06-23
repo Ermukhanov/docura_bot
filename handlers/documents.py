@@ -82,7 +82,6 @@ DOC_QUESTIONS = {
             {"key": "datetime", "q": "📅 Дата и время?\n\n_Пример: 20 ноября, 18:00_"},
             {"key": "location", "q": "📍 Место проведения?\n\n_Пример: кабинет 205, актовый зал_"},
         ],
-
         # ── САДИК ──────────────────────────────────────
         "kg_lesson_plan": [
             {"key": "age_group", "q": "👶 Возрастная группа?\n\n_Пример: средняя группа (4-5 лет)_"},
@@ -199,7 +198,6 @@ DOC_QUESTIONS = {
             {"key": "topic",        "q": "📋 Хат тақырыбы?"},
             {"key": "details",      "q": "📝 Мәліметтер?"},
         ],
-
         # ── БАЛАБАҚША ──────────────────────────────────
         "kg_lesson_plan": [
             {"key": "age_group", "q": "👶 Жас тобы?\n\n_Мысалы: орта топ (4-5 жас)_"},
@@ -380,32 +378,36 @@ class DocumentHandler:
             )
             return
 
-        # ── Начать правку только что сгенерированного документа ──
+        # ── Точечное редактирование готового документа (только PRO) ──
         if data == "doc_edit_start":
             if not context.user_data.get("last_doc_content"):
-                await query.answer("Документ не найден, создайте новый." if lang == "ru" else "Құжат табылмады.", show_alert=True)
+                await query.edit_message_text(
+                    "⚠️ Документ для редактирования не найден. Создайте новый документ." if lang == "ru"
+                    else "⚠️ Түзетуге құжат табылмады."
+                )
+                return
+            if user.get("tier") != "pro":
+                kb = [[InlineKeyboardButton(
+                    "⭐ Перейти на PRO" if lang == "ru" else "⭐ PRO-ға өту",
+                    callback_data="prof_sub"
+                )]]
+                text = (
+                    "✏️ Редактирование документов доступно только на тарифе *PRO*.\n\n"
+                    "Перейдите на PRO чтобы точечно исправлять готовые документы без пересоздания."
+                ) if lang == "ru" else (
+                    "✏️ Құжатты түзету тек *PRO* тарифінде қол жетімді."
+                )
+                await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
                 return
             context.user_data["step"] = "doc_editing"
-            doc_name = context.user_data.get("last_doc_name", "")
-            kb = [[InlineKeyboardButton("❌ " + t(lang, "cancel"), callback_data="doc_edit_cancel")]]
+            kb = [[InlineKeyboardButton("❌ " + t(lang, "cancel"), callback_data="doc_cancel")]]
             text = (
-                f"✏️ *Правка документа «{doc_name}»*\n\n"
-                f"Напишите что нужно исправить, например:\n"
-                f"_«замени дату на 15 ноября»_\n"
-                f"_«добавь что ученик участвовал в олимпиаде»_\n"
-                f"_«исправь класс на 8Б»_"
+                "✏️ Напишите что нужно исправить в документе.\n\n"
+                "_Например: «замени дату на 15 марта» или «добавь предложение про участие в олимпиаде»_"
             ) if lang == "ru" else (
-                f"✏️ *«{doc_name}» құжатын түзету*\n\n"
-                f"Не түзету керектігін жазыңыз."
+                "✏️ Құжатта не түзету керектігін жазыңыз."
             )
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
-            return
-
-        if data == "doc_edit_cancel":
-            context.user_data["step"] = None
-            from handlers.main_menu import MainMenuHandler
-            await query.edit_message_text("❌ Отменено." if lang == "ru" else "❌ Болдырылмады.")
-            await MainMenuHandler(self.db)._send_main_menu(query.message.chat_id, context, user_id, lang)
             return
 
         # ── Выбор языка документа ──
@@ -430,7 +432,7 @@ class DocumentHandler:
 
         # ── Категория документов ──
         if data.startswith("cat_"):
-            cat = data[4:]  # убираем "cat_" целиком, чтобы не терять префикс kg_
+            cat = data[4:]  # убираем "cat_" целиком, а не split по "_", чтобы не терять kg_-префикс
             await self._show_doc_list(query, lang, cat)
 
         # ── Выбор конкретного документа ──
@@ -500,9 +502,9 @@ class DocumentHandler:
             )
             return
 
-        # Для документов по ученикам — предложить выбрать из базы
+        # Для документов по ученикам — предложить выбрать из базы (только PRO)
         if doc_type in ["characteristic", "absence_cert", "discipline_act", "gratitude_letter", "parent_letter"]:
-            if user.get("is_class_teacher"):
+            if user.get("is_class_teacher") and user.get("tier") == "pro":
                 students = await self.db.get_students(user_id)
                 if students:
                     keyboard = []
@@ -617,10 +619,11 @@ class DocumentHandler:
         text    = update.message.text.strip()
         step    = context.user_data.get("step", "")
 
+        max_len = 1500 if step == "doc_editing" else 500
         if len(text) < 1:
             await update.message.reply_text(t(lang, "val_too_short"))
             return
-        if len(text) > 500:
+        if len(text) > max_len:
             await update.message.reply_text(t(lang, "val_too_long"))
             return
 
@@ -638,89 +641,7 @@ class DocumentHandler:
             await self._handle_help_write(update, context, user, lang, text)
 
         elif step == "doc_editing":
-            await self._apply_edit(update, context, user, lang, text)
-
-    async def _apply_edit(self, update, context, user, lang, edit_request):
-        """Точечно правит уже сгенерированный документ по запросу пользователя.
-        Использует Haiku — это короткая правка существующего текста, а не
-        генерация с нуля, поэтому дёшево и не нужен полный промпт с нормативкой."""
-        original = context.user_data.get("last_doc_content", "")
-        doc_name = context.user_data.get("last_doc_name", "")
-        doc_type = context.user_data.get("last_doc_type", "")
-        doc_lang = context.user_data.get("last_doc_lang", lang)
-
-        if not original:
-            await update.message.reply_text("Документ не найден." if lang == "ru" else "Құжат табылмады.")
-            return
-
-        wait_msg = await update.message.reply_text(
-            "✏️ Применяю правку..." if lang == "ru" else "✏️ Түзету енгізілуде..."
-        )
-
-        client = anthropic.Anthropic(api_key=self.api_key)
-        edit_prompt = (
-            f"Вот официальный документ. Внеси ТОЛЬКО запрошенное изменение, "
-            f"не трогай остальной текст, не меняй структуру и форматирование "
-            f"(никаких ##, **, markdown символов — обычный текст как в оригинале).\n\n"
-            f"ЗАПРОС НА ПРАВКУ: {edit_request}\n\n"
-            f"ИСХОДНЫЙ ДОКУМЕНТ:\n{original}\n\n"
-            f"Верни ПОЛНЫЙ текст документа с внесённым изменением, без комментариев."
-        )
-
-        try:
-            msg = client.messages.create(
-                model="claude-haiku-4-5",
-                max_tokens=4000,
-                messages=[{"role": "user", "content": edit_prompt}]
-            )
-            edited = msg.content[0].text
-
-            # Если правка обрезалась — допишем (на случай длинных документов)
-            if msg.stop_reason == "max_tokens":
-                cont = client.messages.create(
-                    model="claude-haiku-4-5",
-                    max_tokens=4000,
-                    messages=[
-                        {"role": "user", "content": edit_prompt},
-                        {"role": "assistant", "content": edited},
-                        {"role": "user", "content": "Продолжи с места обрыва, не повторяя написанное."},
-                    ]
-                )
-                edited += cont.content[0].text
-
-            context.user_data["last_doc_content"] = edited
-
-            from handlers.word_generator import generate_word
-            filename = generate_word(edited, doc_name, user.get("name", ""))
-            with open(filename, "rb") as f:
-                await update.message.reply_document(
-                    document=f,
-                    filename=f"{doc_name}_{datetime.now().strftime('%d%m%Y')}.docx",
-                    caption=f"✅ *{doc_name}* — правка применена" if lang == "ru" else f"✅ *{doc_name}* — түзетілді",
-                    parse_mode=ParseMode.MARKDOWN
-                )
-            os.remove(filename)
-
-            context.user_data["step"] = "doc_editing"
-            kb = [
-                [InlineKeyboardButton("✏️ Исправить ещё" if lang == "ru" else "✏️ Тағы түзету", callback_data="doc_edit_start")],
-                [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
-            ]
-            await update.message.reply_text(
-                "Нужно что-то ещё исправить?" if lang == "ru" else "Тағы түзету керек пе?",
-                reply_markup=InlineKeyboardMarkup(kb)
-            )
-        except Exception as e:
-            print(f"Edit error: {e}")
-            await update.message.reply_text(
-                "❌ Не получилось применить правку. Попробуйте переформулировать." if lang == "ru"
-                else "❌ Түзету сәтсіз. Қайталап көріңіз."
-            )
-        finally:
-            try:
-                await wait_msg.delete()
-            except:
-                pass
+            await self._handle_edit_request(update, context, user, lang, text)
 
     async def _handle_help_write(self, update, context, user, lang, user_input):
         field    = context.user_data.get("help_field", "")
@@ -755,7 +676,6 @@ class DocumentHandler:
         answers  = context.user_data.get("doc_answers", {})
         doc_name = DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
 
-        # Красивое сообщение о генерации
         gen_msgs = {
             "ru": f"⚙️ *Генерирую {doc_name}...*\n\n🌐 Язык: {_doc_lang_name(doc_lang)}\n⭐ Качество: автоматическая проверка\n\n_Напиши /cancel чтобы отменить_",
             "kz": f"⚙️ *{doc_name} жасалуда...*\n\n🌐 Тіл: {_doc_lang_name(doc_lang)}\n⭐ Сапа: автоматты тексеру\n\n_Болдырмау үшін /cancel жазыңыз_",
@@ -763,7 +683,8 @@ class DocumentHandler:
         }
         await message.reply_text(gen_msgs.get(lang, gen_msgs["ru"]), parse_mode=ParseMode.MARKDOWN)
 
-        answers_text  = "\n".join(f"- {k}: {v}" for k, v in answers.items())
+        answers_text = "\n".join(f"- {k}: {v}" for k, v in answers.items())
+
         # Загружаем образцы которые админ добавил для этого типа документа
         custom_samples = await self.db.get_samples(doc_type, doc_lang, limit=2)
 
@@ -772,23 +693,23 @@ class DocumentHandler:
             system_prompt = get_kg_system_prompt(user, doc_lang, custom_samples=custom_samples)
         else:
             system_prompt = get_system_prompt(user, doc_lang, doc_type=doc_type, custom_samples=custom_samples)
+
         user_prompt = (
             f"Создай документ: {doc_name}\n\nДанные:\n{answers_text}\n\n"
             f"После того как закончишь документ, на отдельной последней строке "
             f"напиши ровно так: ОЦЕНКА: NN — где NN твоя честная самооценка от 0 до 100 "
             f"по соответствию нормативке, полноте структуры и отсутствию выдуманных фактов. "
-            f"Эта строка не часть документа, её не должно быть видно в Word — просто отдельная "
-            f"техническая строка для внутренней проверки."
+            f"Эта строка не часть документа, её не должно быть видно в Word."
         )
 
         client  = anthropic.Anthropic(api_key=self.api_key)
         result  = ""
-        score   = 0
+        score   = 88
         attempts = 0
 
         # Один проход Sonnet вместо цикла Sonnet+Haiku: модель сама пишет себе оценку
-        # в конце ответа, поэтому отдельный вызов на оценку не нужен — это и дешевле,
-        # и не провоцирует переписывание документа с нуля (где обычно рождаются выдумки)
+        # в конце ответа — дешевле и не провоцирует переписывание документа с нуля
+        # (где обычно рождаются выдумки фактов)
         while attempts < 2:
             attempts += 1
             if attempts > 1:
@@ -799,7 +720,6 @@ class DocumentHandler:
                 }
                 await message.reply_text(improve_msg.get(lang, improve_msg["ru"]), parse_mode=ParseMode.MARKDOWN)
 
-            # Основная генерация — Sonnet 4.6, лимит увеличен под длинные документы (КСП с таблицами, годовые планы)
             msg = client.messages.create(
                 model="claude-sonnet-4-6",
                 max_tokens=8000,
@@ -808,8 +728,6 @@ class DocumentHandler:
             )
             result = msg.content[0].text
 
-            # Если ответ обрезался по лимиту токенов — дописываем продолжение,
-            # не теряя уже сгенерированный текст
             continue_rounds = 0
             while msg.stop_reason == "max_tokens" and continue_rounds < 2:
                 continue_rounds += 1
@@ -826,19 +744,16 @@ class DocumentHandler:
                 result += continue_msg.content[0].text
                 msg = continue_msg
 
-            # Извлекаем встроенную самооценку из последней строки ответа
-            # и убираем её из текста — в Word она не нужна
-            score = 88
             score_match = re.search(r"ОЦЕНКА:\s*(\d{1,3})", result)
             if score_match:
                 score = min(100, int(score_match.group(1)))
                 result = result[:score_match.start()].rstrip()
+            else:
+                score = 88
 
             if score >= 85 or attempts >= 2:
                 break
 
-            # Точечный фикс вместо переписывания всего документа — модель видит
-            # свой же текст и инструкцию "не выдумывай", а не "заполни всё что пусто"
             user_prompt = (
                 f"Твой черновик документа получил самооценку {score}/100. "
                 f"Улучши его точечно: исправь структурные пробелы, уточни формулировки, "
@@ -849,10 +764,22 @@ class DocumentHandler:
                 f"В конце снова добавь строку ОЦЕНКА: NN с новой самооценкой."
             )
 
-        # Формируем Word документ
+        context.user_data["last_doc_content"] = result
+        context.user_data["last_doc_type"]     = doc_type
+        context.user_data["last_doc_name"]     = doc_name
+        context.user_data["last_doc_lang"]     = doc_lang
+
+        await self._send_document(message, context, lang, doc_type, doc_name, doc_lang, result, score, user_id)
+
+    async def _send_document(self, message, context, lang, doc_type, doc_name, doc_lang, result, score, user_id):
+        """Формирует Word и отправляет — общий путь для первой генерации и для редактирования"""
+        user = await self.db.get_user(user_id)
+
         wait_msg = await message.reply_text(
             "📄 Формирую документ..." if lang == "ru" else "📄 Құжат жасалуда..."
         )
+
+        edit_btn_text = "✏️ Исправить документ" if lang == "ru" else "✏️ Құжатты түзету"
 
         try:
             from handlers.word_generator import generate_word
@@ -862,10 +789,12 @@ class DocumentHandler:
                     "ru": f"📄 *{doc_name}*\n✅ Готов к печати • Docura.kz",
                     "kz": f"📄 *{doc_name}*\n✅ Басуға дайын • Docura.kz",
                 }
+                kb_doc = [[InlineKeyboardButton(edit_btn_text, callback_data="doc_edit_start")]]
                 await message.reply_document(
                     document=f,
                     filename=f"{doc_name}_{datetime.now().strftime('%d%m%Y')}.docx",
                     caption=caption.get(lang, caption["ru"]),
+                    reply_markup=InlineKeyboardMarkup(kb_doc),
                     parse_mode=ParseMode.MARKDOWN
                 )
             os.remove(filename)
@@ -873,7 +802,6 @@ class DocumentHandler:
             print(f"Word error: {e}")
             import traceback
             traceback.print_exc()
-            # Запасной вариант — отправляем текст
             for chunk in range(0, len(result), 4000):
                 await message.reply_text(result[chunk:chunk+4000])
 
@@ -882,31 +810,39 @@ class DocumentHandler:
         except:
             pass
 
-        # Сохранить в БД
         await self.db.save_document(user_id, doc_type, doc_name, result, score)
         await self.db.log_analytics(user_id, doc_type, score, doc_lang)
 
-        # Обновляем счётчик бесплатных — берём свежие данные из БД
+        is_edit = context.user_data.get("_is_edit_pass", False)
         fresh_user = await self.db.get_user(user_id)
+
+        if is_edit:
+            context.user_data["_is_edit_pass"] = False
+            kb_after = [[InlineKeyboardButton("✏️ Исправить ещё" if lang == "ru" else "✏️ Тағы түзету", callback_data="doc_edit_start")],
+                        [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")]]
+            await message.reply_text(
+                "✅ Документ обновлён!" if lang == "ru" else "✅ Құжат жаңартылды!",
+                reply_markup=InlineKeyboardMarkup(kb_after)
+            )
+            return
+
         if not fresh_user.get("subscribed"):
             await self.db.increment_free(user_id)
-            fresh_user = await self.db.get_user(user_id)  # обновляем снова
+            fresh_user = await self.db.get_user(user_id)
             free_used = fresh_user.get("free_used", 0)
             free_left = max(0, 3 - free_used)
 
             if free_left == 0:
                 kb_after = [
-                    [InlineKeyboardButton("✏️ Исправить документ" if lang == "ru" else "✏️ Құжатты түзету", callback_data="doc_edit_start")],
-                    [InlineKeyboardButton("⭐ Оформить PRO — безлимит", callback_data="prof_sub")],
+                    [InlineKeyboardButton("⭐ Оформить подписку", callback_data="prof_sub")],
                     [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
                 ]
                 note = ("⚠️ *Бесплатные документы исчерпаны!*\n"
-                        "Оформите подписку PRO для безлимитного доступа.") if lang == "ru" else \
+                        "Оформите подписку для безлимитного доступа.") if lang == "ru" else \
                        ("⚠️ *Тегін құжаттар таусылды!*\n"
-                        "PRO жазылымын рәсімдеңіз.")
+                        "Жазылым рәсімдеңіз.")
             else:
                 kb_after = [
-                    [InlineKeyboardButton("✏️ Исправить документ" if lang == "ru" else "✏️ Құжатты түзету", callback_data="doc_edit_start")],
                     [InlineKeyboardButton("📄 Создать ещё", callback_data="menu_create")],
                     [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
                 ]
@@ -914,25 +850,94 @@ class DocumentHandler:
                        (f"🆓 Қалған тегін: *{free_left}/3*")
         else:
             kb_after = [
-                [InlineKeyboardButton("✏️ Исправить документ" if lang == "ru" else "✏️ Құжатты түзету", callback_data="doc_edit_start")],
                 [InlineKeyboardButton("📄 Создать ещё", callback_data="menu_create")],
                 [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
             ]
-            note = "⭐ *PRO* — безлимитный доступ" if lang == "ru" else "⭐ *PRO* — шексіз қол жеткізу"
+            tier_label = "PRO" if fresh_user.get("tier") == "pro" else ("Базовый" if lang == "ru" else "Негізгі")
+            note = f"⭐ *{tier_label}* — безлимитный доступ" if lang == "ru" else f"⭐ *{tier_label}* — шексіз қол жеткізу"
 
         await message.reply_text(
             note,
             reply_markup=InlineKeyboardMarkup(kb_after),
             parse_mode=ParseMode.MARKDOWN
         )
-
-        # Сохраняем документ для возможной правки — НЕ очищаем сразу,
-        # чтобы кнопка "Исправить" знала какой текст редактировать
         context.user_data.clear()
-        context.user_data["last_doc_content"] = result
-        context.user_data["last_doc_name"]     = doc_name
-        context.user_data["last_doc_type"]      = doc_type
-        context.user_data["last_doc_lang"]      = doc_lang
+
+    async def _handle_edit_request(self, update, context, user, lang, edit_request):
+        """Точечно исправляет уже сгенерированный документ. Использует Haiku — это
+        редактирование, а не генерация с нуля, поэтому дешевле."""
+        original = context.user_data.get("last_doc_content", "")
+        doc_type = context.user_data.get("last_doc_type", "")
+        doc_name = context.user_data.get("last_doc_name", "")
+        doc_lang = context.user_data.get("last_doc_lang", lang)
+        user_id  = update.effective_user.id
+
+        if not original:
+            await update.message.reply_text(
+                "⚠️ Документ для редактирования не найден." if lang == "ru" else "⚠️ Құжат табылмады."
+            )
+            context.user_data["step"] = None
+            return
+
+        wait_msg = await update.message.reply_text(
+            "✏️ Применяю правку..." if lang == "ru" else "✏️ Түзету енгізілуде..."
+        )
+
+        client = anthropic.Anthropic(api_key=self.api_key)
+        prompt = (
+            f"Вот готовый документ. Пользователь попросил внести правку:\n«{edit_request}»\n\n"
+            f"Примени ТОЛЬКО эту правку. Весь остальной текст оставь побуквенно без изменений — "
+            f"не переписывай, не улучшай, не дополняй то, о чём не просили. "
+            f"Не выдумывай новые факты которых не было в документе или в запросе пользователя.\n\n"
+            f"ДОКУМЕНТ:\n{original}\n\n"
+            f"Верни полный текст документа целиком с применённой правкой, без каких-либо комментариев "
+            f"до или после текста."
+        )
+
+        try:
+            msg = client.messages.create(
+                model="claude-haiku-4-5",
+                max_tokens=8000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            edited = msg.content[0].text
+
+            continue_rounds = 0
+            while msg.stop_reason == "max_tokens" and continue_rounds < 1:
+                continue_rounds += 1
+                continue_msg = client.messages.create(
+                    model="claude-haiku-4-5",
+                    max_tokens=8000,
+                    messages=[
+                        {"role": "user", "content": prompt},
+                        {"role": "assistant", "content": edited},
+                        {"role": "user", "content": "Продолжи документ с того места где остановился, не повторяя написанное."},
+                    ]
+                )
+                edited += continue_msg.content[0].text
+                msg = continue_msg
+
+        except Exception as e:
+            print(f"Edit error: {e}")
+            try:
+                await wait_msg.delete()
+            except:
+                pass
+            await update.message.reply_text(
+                "❌ Не удалось применить правку. Попробуйте ещё раз." if lang == "ru" else "❌ Қате."
+            )
+            return
+
+        try:
+            await wait_msg.delete()
+        except:
+            pass
+
+        context.user_data["last_doc_content"] = edited
+        context.user_data["_is_edit_pass"] = True
+        context.user_data["step"] = None
+
+        await self._send_document(update.message, context, lang, doc_type, doc_name, doc_lang, edited, 90, user_id)
 
     async def _create_word(self, content: str, title: str) -> str:
         from docx import Document as DocxDocument
