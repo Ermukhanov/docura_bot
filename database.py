@@ -1,9 +1,8 @@
 import aiosqlite
 import json
-import os
 from datetime import datetime
 
-DB_PATH = os.path.join(os.environ.get("DATA_DIR", "."), "docura.db")
+DB_PATH = "docura.db"
 
 class Database:
     def __init__(self):
@@ -25,7 +24,6 @@ class Database:
                     director TEXT,
                     role TEXT DEFAULT 'teacher',
                     subscribed INTEGER DEFAULT 0,
-                    tier TEXT DEFAULT 'free',
                     free_used INTEGER DEFAULT 0,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     notified_at TEXT
@@ -64,22 +62,18 @@ class Database:
                     lang TEXT
                 );
 
-                CREATE TABLE IF NOT EXISTS samples (
+                CREATE TABLE IF NOT EXISTS receipts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    doc_type TEXT NOT NULL,
-                    lang TEXT DEFAULT 'ru',
-                    content TEXT NOT NULL,
-                    title TEXT,
-                    added_by INTEGER,
-                    is_active INTEGER DEFAULT 1,
+                    hash TEXT UNIQUE NOT NULL,
+                    tg_id INTEGER,
+                    tier TEXT,
+                    amount INTEGER,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
             """)
             await db.commit()
 
-            # Миграция: добавляем колонку tier тем у кого база создана до введения тарифов.
-            # У всех кто уже был subscribed=1 раньше — это были покупатели единственного
-            # старого тарифа, по смыслу ближайший новому tier='pro', чтобы никто не потерял доступ.
+            # Миграция: добавляем tier если базы старая
             async with db.execute("PRAGMA table_info(users)") as cur:
                 cols = [row[1] for row in await cur.fetchall()]
             if "tier" not in cols:
@@ -124,6 +118,21 @@ class Database:
     async def deactivate_subscription(self, tg_id: int):
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("UPDATE users SET subscribed=0, tier='free' WHERE tg_id=?", (tg_id,))
+            await db.commit()
+
+    async def is_receipt_used(self, receipt_hash: str) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(
+                "SELECT id FROM receipts WHERE hash=?", (receipt_hash,)
+            ) as cur:
+                return (await cur.fetchone()) is not None
+
+    async def save_receipt_hash(self, receipt_hash: str, tg_id: int, tier: str, amount: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "INSERT OR IGNORE INTO receipts (hash, tg_id, tier, amount) VALUES (?,?,?,?)",
+                (receipt_hash, tg_id, tier, amount)
+            )
             await db.commit()
 
     # ===== STUDENTS =====
@@ -214,87 +223,20 @@ class Database:
                 total_users = (await cur.fetchone())[0]
             async with db.execute("SELECT COUNT(*) FROM users WHERE subscribed=1") as cur:
                 subscribed = (await cur.fetchone())[0]
-            async with db.execute("SELECT COUNT(*) FROM users WHERE tier='basic'") as cur:
-                basic_count = (await cur.fetchone())[0]
-            async with db.execute("SELECT COUNT(*) FROM users WHERE tier='pro'") as cur:
-                pro_count = (await cur.fetchone())[0]
             async with db.execute("SELECT COUNT(*) FROM documents") as cur:
                 total_docs = (await cur.fetchone())[0]
             async with db.execute("SELECT COUNT(*) FROM documents WHERE date(created_at)=date('now')") as cur:
                 today_docs = (await cur.fetchone())[0]
-            async with db.execute("SELECT COUNT(*) FROM users WHERE date(created_at) >= date('now','-7 days')") as cur:
-                week_users = (await cur.fetchone())[0]
             async with db.execute("SELECT doc_type, COUNT(*) as cnt FROM documents GROUP BY doc_type ORDER BY cnt DESC LIMIT 5") as cur:
                 top_docs = await cur.fetchall()
         return {
             "total_users": total_users,
             "subscribed": subscribed,
-            "basic_count": basic_count,
-            "pro_count": pro_count,
             "total_docs": total_docs,
             "today_docs": today_docs,
-            "week_users": week_users,
             "top_docs": top_docs,
-            "revenue": basic_count * 2490 + pro_count * 3990
+            "revenue": subscribed * 1990
         }
-
-    async def get_recent_documents(self, limit: int = 20):
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute(
-                "SELECT * FROM documents ORDER BY created_at DESC LIMIT ?", (limit,)
-            ) as cur:
-                rows = await cur.fetchall()
-                return [dict(r) for r in rows]
-
-    # ===== SAMPLES (RAG обучение) =====
-    async def add_sample(self, doc_type: str, lang: str, content: str, title: str, added_by: int):
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
-                "INSERT INTO samples (doc_type, lang, content, title, added_by) VALUES (?,?,?,?,?)",
-                (doc_type, lang, content, title, added_by)
-            )
-            await db.commit()
-
-    async def get_samples(self, doc_type: str, lang: str = None, limit: int = 2):
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            if lang:
-                async with db.execute(
-                    "SELECT * FROM samples WHERE doc_type=? AND lang=? AND is_active=1 ORDER BY created_at DESC LIMIT ?",
-                    (doc_type, lang, limit)
-                ) as cur:
-                    rows = await cur.fetchall()
-            else:
-                async with db.execute(
-                    "SELECT * FROM samples WHERE doc_type=? AND is_active=1 ORDER BY created_at DESC LIMIT ?",
-                    (doc_type, limit)
-                ) as cur:
-                    rows = await cur.fetchall()
-            return [dict(r) for r in rows]
-
-    async def get_all_samples(self, limit: int = 100):
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute(
-                "SELECT * FROM samples ORDER BY created_at DESC LIMIT ?", (limit,)
-            ) as cur:
-                rows = await cur.fetchall()
-                return [dict(r) for r in rows]
-
-    async def delete_sample(self, sample_id: int):
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("DELETE FROM samples WHERE id=?", (sample_id,))
-            await db.commit()
-
-    async def toggle_sample(self, sample_id: int):
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT is_active FROM samples WHERE id=?", (sample_id,)) as cur:
-                row = await cur.fetchone()
-            if row:
-                new_val = 0 if row[0] else 1
-                await db.execute("UPDATE samples SET is_active=? WHERE id=?", (new_val, sample_id))
-                await db.commit()
 
     async def get_all_users(self, limit=50):
         async with aiosqlite.connect(self.db_path) as db:

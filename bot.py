@@ -130,7 +130,7 @@ async def _route_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif step.startswith("doc_") or step == "waiting_answer":
         await DocumentHandler(db, context.application.bot_data["anthropic_key"]).handle_text(update, context)
     elif step.startswith("prof_") or step.startswith("student_"):
-        await ProfileHandler(db).handle_text(update, context)
+        await ProfileHandler(db, context.application.bot_data.get("anthropic_key", "")).handle_text(update, context)
     elif step.startswith("admin_"):
         await AdminHandler(db).handle_text(update, context)
     else:
@@ -177,7 +177,7 @@ async def run():
     onboarding = OnboardingHandler(db)
     main_menu  = MainMenuHandler(db)
     documents  = DocumentHandler(db, ANTHROPIC_API_KEY)
-    profile    = ProfileHandler(db)
+    profile    = ProfileHandler(db, ANTHROPIC_API_KEY)
     admin      = AdminHandler(db)
     voice      = VoiceHandler(db, ANTHROPIC_API_KEY)
 
@@ -194,8 +194,9 @@ async def run():
     # Голос
     app.add_handler(MessageHandler(filters.VOICE, voice.handle))
 
-    # Фото — скриншоты оплаты
+    # Фото и файлы — чеки оплаты Kaspi
     app.add_handler(MessageHandler(filters.PHOTO, profile.handle_photo))
+    app.add_handler(MessageHandler(filters.Document.ALL, profile.handle_document))
 
     # Колбэки
     app.add_handler(CallbackQueryHandler(onboarding.callback, pattern="^(lang_|role_|onboard_)"))

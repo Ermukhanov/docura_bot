@@ -1,35 +1,33 @@
 import json
+import base64
+import hashlib
+import anthropic
+from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from handlers.texts import t
 from database import Database
 
-MENU_BTN = lambda lang: InlineKeyboardButton("🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"), callback_data="menu_main")
-BACK_BTN = lambda lang, cb: InlineKeyboardButton("◀️ " + ("Назад" if lang == "ru" else "Артқа"), callback_data=cb)
+MENU_BTN   = lambda lang: InlineKeyboardButton("🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"), callback_data="menu_main")
+BACK_BTN   = lambda lang, cb: InlineKeyboardButton("◀️ " + ("Назад" if lang == "ru" else "Артқа"), callback_data=cb)
 CANCEL_BTN = lambda lang: InlineKeyboardButton("❌ " + ("Отмена" if lang == "ru" else "Болдырмау"), callback_data="menu_main")
 
+KASPI_NUMBER = "+7 771 451 4717"
+TIER_AMOUNTS = {2490: "basic", 3990: "pro"}
+TIER_NAMES   = {"basic": "Базовый", "pro": "PRO"}
 
 def _esc(text):
-    """Экранирует символы Markdown в данных пользователя — без этого Telegram падает,
-    если имя/школа/предмет содержат *, _, [, `."""
-    if text is None:
-        return "—"
+    if text is None: return "—"
     text = str(text)
     for ch in ["_", "*", "[", "]", "`"]:
         text = text.replace(ch, "\\" + ch)
     return text
 
-
-# Тарифы
-TIERS = {
-    "basic": {"price": 2490, "name_ru": "Базовый", "name_kz": "Негізгі"},
-    "pro":   {"price": 3990, "name_ru": "PRO",     "name_kz": "PRO"},
-}
-
 class ProfileHandler:
-    def __init__(self, db: Database):
-        self.db = db
+    def __init__(self, db: Database, api_key: str = ""):
+        self.db      = db
+        self.api_key = api_key
 
     async def show(self, query, user_id, lang):
         user = await self.db.get_user(user_id)
@@ -112,21 +110,7 @@ class ProfileHandler:
             )
 
         elif data == "prof_students":
-            if user.get("tier") != "pro":
-                kb = [
-                    [InlineKeyboardButton("⭐ Перейти на PRO" if lang == "ru" else "⭐ PRO-ға өту", callback_data="prof_sub")],
-                    [MENU_BTN(lang)],
-                ]
-                text = (
-                    "👥 База учеников доступна только на тарифе *PRO*.\n\n"
-                    "Перейдите на PRO чтобы добавлять учеников и использовать их данные в характеристиках."
-                ) if lang == "ru" else (
-                    "👥 Оқушылар базасы тек *PRO* тарифінде қол жетімді.\n\n"
-                    "PRO-ға өтіп, оқушыларды қосыңыз."
-                )
-                await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
-            else:
-                await self._show_students(query, user_id, lang)
+            await self._show_students(query, user_id, lang)
 
         elif data == "prof_sub":
             await self._show_subscription(query, user, lang)
@@ -134,25 +118,21 @@ class ProfileHandler:
         elif data in ("prof_choose_basic", "prof_choose_pro"):
             tier = "basic" if data == "prof_choose_basic" else "pro"
             context.user_data["chosen_tier"] = tier
-            context.user_data["step"] = "waiting_payment_screenshot"
-            t_info = TIERS[tier]
-            t_name = t_info["name_ru"] if lang == "ru" else t_info["name_kz"]
-            price = t_info["price"]
+            context.user_data["step"] = "waiting_payment_receipt"
+            price = 2490 if tier == "basic" else 3990
+            t_name = TIER_NAMES[tier]
             text = (
                 f"💳 *Тариф {t_name} — {price} тг/мес*\n\n"
-                f"*Оплата через Kaspi:*\n"
-                f"`+7 771 451 4717`\n"
-                f"_(нажмите на номер чтобы скопировать)_\n\n"
-                f"1️⃣ Переведите {price} тг на этот номер\n"
-                f"2️⃣ Пришлите скриншот оплаты следующим сообщением\n"
-                f"3️⃣ Подписка активируется автоматически ✅"
+                f"Переведите *{price} тг* на Kaspi:\n"
+                f"`{KASPI_NUMBER}`\n"
+                f"_(нажмите чтобы скопировать)_\n\n"
+                f"Затем пришлите *скриншот или файл чека* — подписка активируется автоматически ✅\n\n"
+                f"_Бот сам проверит сумму и получателя_"
             ) if lang == "ru" else (
                 f"💳 *{t_name} тарифі — {price} тг/ай*\n\n"
-                f"*Kaspi арқылы төлем:*\n"
-                f"`+7 771 451 4717`\n\n"
-                f"1️⃣ {price} тг осы нөмірге аударыңыз\n"
-                f"2️⃣ Төлем скриншотын келесі хабарламада жіберіңіз\n"
-                f"3️⃣ Жазылым автоматты белсендіріледі ✅"
+                f"*{price} тг* осы нөмірге аударыңыз:\n"
+                f"`{KASPI_NUMBER}`\n\n"
+                f"Чек скриншотын немесе файлын жіберіңіз — жазылым автоматты белсендіріледі ✅"
             )
             kb = [[BACK_BTN(lang, "prof_sub")]]
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
@@ -269,76 +249,48 @@ class ProfileHandler:
     async def _show_subscription(self, query, user, lang):
         tier = user.get("tier", "free")
 
-        if user.get("subscribed") and tier in TIERS:
-            t_info = TIERS[tier]
-            t_name = t_info["name_ru"] if lang == "ru" else t_info["name_kz"]
-            if tier == "pro":
-                feats = (
-                    "✅ Безлимитная генерация документов\n"
-                    "✅ Все 21 тип документов\n"
-                    "✅ Голосовой ввод\n"
-                    "✅ База учеников\n"
-                    "✅ Точечное редактирование документов"
-                ) if lang == "ru" else (
-                    "✅ Шексіз құжат жасау\n"
-                    "✅ 21 түрлі құжат\n"
-                    "✅ Дауыстық енгізу\n"
-                    "✅ Оқушылар базасы\n"
-                    "✅ Құжатты түзету"
-                )
-            else:
-                feats = (
-                    "✅ Безлимитная генерация документов\n"
-                    "✅ Все 21 тип документов"
-                ) if lang == "ru" else (
-                    "✅ Шексіз құжат жасау\n"
-                    "✅ 21 түрлі құжат"
-                )
-            text = (
-                f"⭐ *Подписка {t_name} активна!*\n\n{feats}"
-                if lang == "ru" else
-                f"⭐ *{t_name} жазылымы белсенді!*\n\n{feats}"
+        if user.get("subscribed") and tier in TIER_NAMES:
+            t_name = TIER_NAMES[tier]
+            feats = (
+                "✅ Безлимитная генерация документов\n"
+                "✅ Все 21 тип документов\n"
+                + ("✅ Голосовой ввод\n✅ База учеников\n✅ Точечное редактирование" if tier == "pro" else "")
+            ) if lang == "ru" else (
+                "✅ Шексіз құжат жасау\n"
+                "✅ 21 түрлі құжат\n"
+                + ("✅ Дауыстық енгізу\n✅ Оқушылар базасы\n✅ Түзету" if tier == "pro" else "")
             )
-            keyboard = [
-                [BACK_BTN(lang, "menu_profile")],
-                [MENU_BTN(lang)],
-            ]
+            text = (f"⭐ *{t_name} подписка активна!*\n\n{feats}" if lang == "ru"
+                    else f"⭐ *{t_name} жазылымы белсенді!*\n\n{feats}")
+            keyboard = [[BACK_BTN(lang, "menu_profile")], [MENU_BTN(lang)]]
         else:
             free_left = max(0, 3 - user.get("free_used", 0))
             text = (
                 f"💳 *Подписка Docura*\n\n"
-                f"У вас осталось *{free_left} бесплатных* документов.\n\n"
-                f"🔹 *Базовый — 2 490 тг/мес:*\n"
+                f"Осталось бесплатных: *{free_left}/3*\n\n"
+                f"🔹 *Базовый — 2 490 тг/мес*\n"
                 f"✅ Безлимитная генерация\n"
                 f"✅ Все 21 тип документов\n\n"
-                f"⭐ *PRO — 3 990 тг/мес:*\n"
+                f"⭐ *PRO — 3 990 тг/мес*\n"
                 f"✅ Всё из Базового\n"
                 f"✅ Голосовой ввод\n"
                 f"✅ База учеников\n"
-                f"✅ Точечное редактирование документов\n\n"
-                f"Выберите тариф ниже 👇"
+                f"✅ Точечное редактирование\n\n"
+                f"👇 Выберите тариф — после оплаты пришлите чек и подписка активируется автоматически"
             ) if lang == "ru" else (
                 f"💳 *Docura жазылымы*\n\n"
-                f"Сізде *{free_left} тегін* құжат қалды.\n\n"
-                f"🔹 *Негізгі — 2 490 тг/ай:*\n"
+                f"Тегін қалды: *{free_left}/3*\n\n"
+                f"🔹 *Негізгі — 2 490 тг/ай*\n"
                 f"✅ Шексіз жасау\n"
                 f"✅ 21 түрлі құжат\n\n"
-                f"⭐ *PRO — 3 990 тг/ай:*\n"
-                f"✅ Негізгінің бәрі\n"
+                f"⭐ *PRO — 3 990 тг/ай*\n"
                 f"✅ Дауыстық енгізу\n"
-                f"✅ Оқушылар базасы\n"
-                f"✅ Құжатты түзету\n\n"
-                f"Тарифті таңдаңыз 👇"
+                f"✅ Оқушылар базасы\n\n"
+                f"👇 Тарифті таңдаңыз"
             )
             keyboard = [
-                [InlineKeyboardButton(
-                    "🔹 Базовый — 2 490 тг" if lang == "ru" else "🔹 Негізгі — 2 490 тг",
-                    callback_data="prof_choose_basic"
-                )],
-                [InlineKeyboardButton(
-                    "⭐ PRO — 3 990 тг" if lang == "ru" else "⭐ PRO — 3 990 тг",
-                    callback_data="prof_choose_pro"
-                )],
+                [InlineKeyboardButton("🔹 Базовый — 2 490 тг" if lang == "ru" else "🔹 Негізгі — 2 490 тг", callback_data="prof_choose_basic")],
+                [InlineKeyboardButton("⭐ PRO — 3 990 тг", callback_data="prof_choose_pro")],
                 [BACK_BTN(lang, "menu_profile")],
                 [MENU_BTN(lang)],
             ]
@@ -346,49 +298,151 @@ class ProfileHandler:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
     async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Получает скриншот оплаты и пересылает админу с кнопкой активации нужного тарифа"""
+        """Получает скриншот чека Kaspi и проверяет его через Claude Vision"""
+        await self._process_receipt(update, context, source="photo")
+
+    async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Получает файл чека Kaspi (PDF или изображение) и проверяет через Claude Vision"""
+        doc = update.message.document
+        if not doc:
+            return
+        mime = doc.mime_type or ""
+        if not any(x in mime for x in ["image", "pdf", "jpeg", "png"]):
+            return
+        await self._process_receipt(update, context, source="document")
+
+    async def _process_receipt(self, update: Update, context: ContextTypes.DEFAULT_TYPE, source: str):
+        """Основная логика: скачать чек → проверить через Claude → активировать подписку"""
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
         tier    = context.user_data.get("chosen_tier", "pro")
 
-        context.user_data["step"] = None
-
-        ADMIN_CHAT_ID = 6561112046
-        t_info = TIERS.get(tier, TIERS["pro"])
+        # Можно прислать чек в любой момент без выбора тарифа — по умолчанию PRO
+        wait_msg = await update.message.reply_text(
+            "🔍 Проверяю чек..." if lang == "ru" else "🔍 Чек тексерілуде..."
+        )
 
         try:
-            caption = (
-                f"💳 *Новая оплата!*\n\n"
-                f"👤 {_esc(user.get('name', 'без имени'))}\n"
-                f"🏫 {_esc(user.get('school', '—'))}\n"
-                f"🆔 `{user_id}`\n"
-                f"📦 Тариф: *{t_info['name_ru']}* ({t_info['price']} тг)\n\n"
-                f"Нажми чтобы активировать 👇"
-            )
-            kb = [[InlineKeyboardButton(
-                f"✅ Активировать {t_info['name_ru']}",
-                callback_data=f"admin_activate_{tier}_{user_id}"
-            )]]
-            await context.bot.send_photo(
-                chat_id=ADMIN_CHAT_ID,
-                photo=update.message.photo[-1].file_id,
-                caption=caption,
-                reply_markup=InlineKeyboardMarkup(kb),
-                parse_mode=ParseMode.MARKDOWN
-            )
-        except Exception as e:
-            print(f"Failed to forward payment screenshot: {e}")
+            # Скачиваем файл
+            if source == "photo":
+                file_obj = await update.message.photo[-1].get_file()
+                media_type = "image/jpeg"
+            else:
+                file_obj = await update.message.document.get_file()
+                mime = update.message.document.mime_type or "image/jpeg"
+                media_type = mime if "pdf" not in mime else "image/jpeg"
 
-        kb_user = [[MENU_BTN(lang)]]
-        text = (
-            "✅ Скриншот получен! Подписка активируется в течение нескольких минут.\n\n"
-            "Спасибо за оплату! 🎉"
-        ) if lang == "ru" else (
-            "✅ Скриншот алынды! Жазылым бірнеше минутта белсендіріледі.\n\n"
-            "Төлеміңіз үшін рахмет! 🎉"
+            import tempfile, os
+            suffix = ".jpg" if "image" in media_type else ".pdf"
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                await file_obj.download_to_drive(tmp.name)
+                tmp_path = tmp.name
+
+            with open(tmp_path, "rb") as f:
+                img_data = base64.standard_b64encode(f.read()).decode("utf-8")
+
+            # Хэш для защиты от повторного использования одного чека
+            receipt_hash = hashlib.sha256(img_data.encode()).hexdigest()[:16]
+            os.unlink(tmp_path)
+
+            # Проверяем не использован ли уже этот чек
+            used = await self.db.is_receipt_used(receipt_hash)
+            if used:
+                await wait_msg.delete()
+                await update.message.reply_text(
+                    "❌ Этот чек уже был использован для активации." if lang == "ru"
+                    else "❌ Бұл чек бұрын қолданылған."
+                )
+                return
+
+            # Проверяем чек через Claude Vision
+            today = datetime.now().strftime("%d.%m.%Y")
+            client = anthropic.Anthropic(api_key=self.api_key)
+
+            prompt = f"""Это чек оплаты Kaspi. Проверь следующее:
+1. Получатель содержит номер телефона: {KASPI_NUMBER} (может быть записан без пробелов, с дефисами или скобками — это нормально)
+2. Сумма равна одному из значений: {list(TIER_AMOUNTS.keys())} тенге
+3. Дата операции — сегодня ({today}) или вчера (допустимо)
+
+Ответь ТОЛЬКО в формате JSON без markdown:
+{{"valid": true/false, "amount": число_или_null, "reason": "причина если false"}}
+
+Если чек нечёткий или текст плохо читается — valid: false, reason: "нечёткий чек"."""
+
+            response = client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=150,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_data}},
+                        {"type": "text", "text": prompt}
+                    ]
+                }]
+            )
+
+            import re as re_mod
+            raw = response.content[0].text.strip()
+            raw = re_mod.sub(r"```[a-z]*", "", raw).strip("` \n")
+            result = json.loads(raw)
+
+        except Exception as e:
+            print(f"Receipt check error: {e}")
+            await wait_msg.delete()
+            await update.message.reply_text(
+                "❌ Не удалось прочитать чек. Пришлите более чёткий скриншот." if lang == "ru"
+                else "❌ Чекті оқу мүмкін болмады. Нақтырақ скриншот жіберіңіз."
+            )
+            return
+
+        await wait_msg.delete()
+
+        if not result.get("valid"):
+            reason_map = {
+                "ru": {
+                    "нечёткий чек": "Чек нечёткий — сделайте более чёткий скриншот.",
+                    "неверная сумма": f"Неверная сумма. Нужно {list(TIER_AMOUNTS.keys())} тг.",
+                    "другой получатель": f"Получатель не совпадает. Переводите на {KASPI_NUMBER}.",
+                    "старый чек": "Чек устарел. Нужна оплата сегодняшним числом.",
+                },
+                "kz": {
+                    "нечёткий чек": "Чек анық емес — нақтырақ скриншот жіберіңіз.",
+                    "неверная сумма": f"Сумма дұрыс емес. {list(TIER_AMOUNTS.keys())} тг керек.",
+                    "другой получатель": f"Алушы сәйкес емес. {KASPI_NUMBER} нөміріне аударыңыз.",
+                    "старый чек": "Чек ескірген. Бүгінгі күнмен төлем керек.",
+                }
+            }
+            reason = result.get("reason", "")
+            msg_map = reason_map.get(lang, reason_map["ru"])
+            friendly = next((v for k, v in msg_map.items() if k in reason.lower()), reason)
+            kb = [[InlineKeyboardButton("💳 Выбрать тариф" if lang == "ru" else "💳 Тариф таңдау", callback_data="prof_sub")]]
+            await update.message.reply_text(
+                f"❌ Чек не прошёл проверку.\n\n{friendly}" if lang == "ru"
+                else f"❌ Чек тексеруден өтпеді.\n\n{friendly}",
+                reply_markup=InlineKeyboardMarkup(kb)
+            )
+            return
+
+        # Чек валидный — определяем тариф по сумме
+        amount = result.get("amount", 0)
+        tier = TIER_AMOUNTS.get(int(amount), context.user_data.get("chosen_tier", "pro"))
+        t_name = TIER_NAMES.get(tier, "PRO")
+
+        # Сохраняем хэш чека и активируем подписку
+        await self.db.save_receipt_hash(receipt_hash, user_id, tier, amount)
+        await self.db.activate_subscription(user_id, tier=tier)
+
+        context.user_data.pop("chosen_tier", None)
+        context.user_data.pop("step", None)
+
+        kb = [[MENU_BTN(lang)]]
+        await update.message.reply_text(
+            f"🎉 *{t_name} активирован!*\n\nТеперь у вас безлимитный доступ к Docura.kz. Спасибо за оплату!" if lang == "ru"
+            else f"🎉 *{t_name} белсендірілді!*\n\nEndi Docura.kz-де шексіз қол жеткізу бар. Рахмет!",
+            reply_markup=InlineKeyboardMarkup(kb),
+            parse_mode=ParseMode.MARKDOWN
         )
-        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb_user))
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
