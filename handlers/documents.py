@@ -1,5 +1,4 @@
 import os
-import re
 import json
 import anthropic
 from datetime import datetime
@@ -7,7 +6,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from handlers.texts import t, TEXTS
-from handlers.rag_base import get_system_prompt, get_kg_system_prompt, SELF_EVAL_PROMPT
+from handlers.rag_base import get_system_prompt, SELF_EVAL_PROMPT
 from database import Database
 
 DOC_QUESTIONS = {
@@ -82,50 +81,6 @@ DOC_QUESTIONS = {
             {"key": "datetime", "q": "📅 Дата и время?\n\n_Пример: 20 ноября, 18:00_"},
             {"key": "location", "q": "📍 Место проведения?\n\n_Пример: кабинет 205, актовый зал_"},
         ],
-        # ── САДИК ──────────────────────────────────────
-        "kg_lesson_plan": [
-            {"key": "age_group", "q": "👶 Возрастная группа?\n\n_Пример: средняя группа (4-5 лет)_"},
-            {"key": "topic",     "q": "📖 Тема занятия?\n\n_Пример: Осень. Признаки осени_"},
-            {"key": "section",   "q": "📚 Образовательная область?\n\n_Пример: Познание, Творчество_"},
-            {"key": "duration",  "q": "⏱ Длительность?\n\n_Пример: 20 минут_"},
-        ],
-        "kg_tech_card": [
-            {"key": "age_group", "q": "👶 Возрастная группа?"},
-            {"key": "topic",     "q": "📖 Тема занятия?"},
-            {"key": "section",   "q": "📚 Образовательная область?"},
-            {"key": "tasks",     "q": "🎯 Задачи?\n\n_Или напишите «автоматически»_"},
-        ],
-        "kg_monthly_plan": [
-            {"key": "age_group", "q": "👶 Возрастная группа?"},
-            {"key": "month",     "q": "📅 На какой месяц?\n\n_Пример: Ноябрь 2024_"},
-            {"key": "theme",     "q": "🌟 Тема месяца?\n\n_Пример: Моя семья_"},
-        ],
-        "kg_yearly_plan": [
-            {"key": "age_group", "q": "👶 Возрастная группа?"},
-            {"key": "year",      "q": "📅 Учебный год?\n\n_Пример: 2024-2025_"},
-            {"key": "goals",     "q": "🎯 Основные цели?\n\n_Или напишите «автоматически»_"},
-        ],
-        "kg_cyclogram": [
-            {"key": "age_group", "q": "👶 Возрастная группа?"},
-            {"key": "month",     "q": "📅 Месяц?\n\n_Пример: Октябрь 2024_"},
-        ],
-        "kg_report": [
-            {"key": "age_group",  "q": "👶 Возрастная группа?"},
-            {"key": "period",     "q": "📅 За какой период?\n\n_Пример: I квартал 2024-2025_"},
-            {"key": "attendance", "q": "📊 Посещаемость?\n\n_Пример: средняя 18 детей из 22_"},
-            {"key": "extra",      "q": "🏆 Мероприятия, достижения?\n\n_Если нет — «нет»_"},
-        ],
-        "kg_characteristic": [
-            {"key": "child_name",  "q": "👶 ФИО ребёнка и возраст?"},
-            {"key": "behavior",    "q": "😊 Поведение и характер?"},
-            {"key": "development", "q": "📊 Уровень развития?\n\n_Пример: соответствует возрасту_"},
-            {"key": "purpose",     "q": "📋 Цель характеристики?\n\n_Пример: для ПМПК_"},
-        ],
-        "kg_parent_letter": [
-            {"key": "child_name", "q": "👶 ФИО ребёнка?"},
-            {"key": "topic",      "q": "📋 Тема письма?"},
-            {"key": "details",    "q": "📝 Детали?"},
-        ],
     },
     "kz": {
         "lesson_plan": [
@@ -198,50 +153,6 @@ DOC_QUESTIONS = {
             {"key": "topic",        "q": "📋 Хат тақырыбы?"},
             {"key": "details",      "q": "📝 Мәліметтер?"},
         ],
-        # ── БАЛАБАҚША ──────────────────────────────────
-        "kg_lesson_plan": [
-            {"key": "age_group", "q": "👶 Жас тобы?\n\n_Мысалы: орта топ (4-5 жас)_"},
-            {"key": "topic",     "q": "📖 Сабақ тақырыбы?"},
-            {"key": "section",   "q": "📚 Білім беру саласы?\n\n_Мысалы: Танымдық, Шығармашылық_"},
-            {"key": "duration",  "q": "⏱ Ұзақтығы?\n\n_Мысалы: 20 минут_"},
-        ],
-        "kg_tech_card": [
-            {"key": "age_group", "q": "👶 Жас тобы?"},
-            {"key": "topic",     "q": "📖 Сабақ тақырыбы?"},
-            {"key": "section",   "q": "📚 Білім беру саласы?"},
-            {"key": "tasks",     "q": "🎯 Міндеттер?\n\n_Немесе «автоматты» деп жазыңыз_"},
-        ],
-        "kg_monthly_plan": [
-            {"key": "age_group", "q": "👶 Жас тобы?"},
-            {"key": "month",     "q": "📅 Қандай ай?\n\n_Мысалы: Қараша 2024_"},
-            {"key": "theme",     "q": "🌟 Ай тақырыбы?\n\n_Мысалы: Менің отбасым_"},
-        ],
-        "kg_yearly_plan": [
-            {"key": "age_group", "q": "👶 Жас тобы?"},
-            {"key": "year",      "q": "📅 Оқу жылы?\n\n_Мысалы: 2024-2025_"},
-            {"key": "goals",     "q": "🎯 Жылдық мақсаттар?\n\n_Немесе «автоматты»_"},
-        ],
-        "kg_cyclogram": [
-            {"key": "age_group", "q": "👶 Жас тобы?"},
-            {"key": "month",     "q": "📅 Ай?\n\n_Мысалы: Қазан 2024_"},
-        ],
-        "kg_report": [
-            {"key": "age_group",  "q": "👶 Жас тобы?"},
-            {"key": "period",     "q": "📅 Қандай кезең?\n\n_Мысалы: I тоқсан 2024-2025_"},
-            {"key": "attendance", "q": "📊 Қатысуы?\n\n_Мысалы: орташа 18 бала 22-ден_"},
-            {"key": "extra",      "q": "🏆 Іс-шаралар?\n\n_Жоқ болса «жоқ»_"},
-        ],
-        "kg_characteristic": [
-            {"key": "child_name",  "q": "👶 Баланың аты-жөні және жасы?"},
-            {"key": "behavior",    "q": "😊 Мінез-құлқы?"},
-            {"key": "development", "q": "📊 Даму деңгейі?\n\n_Мысалы: жасына сай_"},
-            {"key": "purpose",     "q": "📋 Мінездеме мақсаты?\n\n_Мысалы: ПМПК үшін_"},
-        ],
-        "kg_parent_letter": [
-            {"key": "child_name", "q": "👶 Баланың аты-жөні?"},
-            {"key": "topic",      "q": "📋 Хат тақырыбы?"},
-            {"key": "details",    "q": "📝 Мәліметтер?"},
-        ],
     },
     "en": {
         "lesson_plan": [
@@ -282,14 +193,6 @@ DOC_NAMES = {
         "vacation_request": "Заявление на отпуск",
         "explanation": "Объяснительная записка",
         "announcement": "Объявление",
-        "kg_lesson_plan": "Конспект занятия (садик)",
-        "kg_tech_card": "Технологическая карта занятия",
-        "kg_monthly_plan": "Перспективный план на месяц",
-        "kg_yearly_plan": "Годовой план работы",
-        "kg_cyclogram": "Циклограмма воспитателя",
-        "kg_report": "Отчёт воспитателя",
-        "kg_characteristic": "Характеристика на ребёнка",
-        "kg_parent_letter": "Письмо родителям (садик)",
     },
     "kz": {
         "lesson_plan": "Қысқамерзімді жоспар (ҚМЖ)",
@@ -305,14 +208,6 @@ DOC_NAMES = {
         "vacation_request": "Демалыс өтініші",
         "explanation": "Түсіндірме хат",
         "announcement": "Хабарландыру",
-        "kg_lesson_plan": "Сабақ конспектісі (балабақша)",
-        "kg_tech_card": "Сабақтың технологиялық картасы",
-        "kg_monthly_plan": "Айлық перспективалық жоспар",
-        "kg_yearly_plan": "Жылдық жұмыс жоспары",
-        "kg_cyclogram": "Тәрбиешінің циклограммасы",
-        "kg_report": "Тәрбиеші есебі",
-        "kg_characteristic": "Балаға мінездеме",
-        "kg_parent_letter": "Ата-аналарға хат (балабақша)",
     },
     "en": {
         "lesson_plan": "Lesson Plan",
@@ -336,13 +231,39 @@ CAT_DOCS = {
     "reports":  ["monthly_report", "control_analysis"],
     "students": ["characteristic", "absence_cert", "discipline_act", "gratitude_letter", "parent_letter"],
     "personal": ["vacation_request", "explanation", "announcement"],
-    "kg_planning": ["kg_lesson_plan", "kg_tech_card", "kg_monthly_plan", "kg_yearly_plan", "kg_cyclogram"],
-    "kg_reports":  ["kg_report"],
-    "kg_children": ["kg_characteristic", "kg_parent_letter"],
 }
 
 # Красивые разделители для дизайна
 DIVIDER = "─" * 20
+
+def _build_profile_context(user: dict, lang: str) -> str:
+    """Собирает полный профиль пользователя для подстановки в промпт.
+    Чем больше данных — тем меньше бот спрашивает и тем точнее документ."""
+    role = user.get("role", "teacher")
+
+    if role == "kindergarten":
+        lines = [
+            "ПРОФИЛЬ ВОСПИТАТЕЛЯ (используй эти данные автоматически):",
+            f"- ФИО: {user.get('name') or '[не указано]'}",
+            f"- Детский сад: {user.get('school') or '[не указано]'}",
+            f"- Должность: {user.get('position') or 'воспитатель'}",
+            f"- Заведующая: {user.get('director') or '[не указано]'}",
+        ]
+    else:
+        is_ct = "Да" if user.get("is_class_teacher") else "Нет"
+        lines = [
+            "ПРОФИЛЬ УЧИТЕЛЯ (используй эти данные автоматически):",
+            f"- ФИО: {user.get('name') or '[не указано]'}",
+            f"- Школа: {user.get('school') or '[не указано]'}",
+            f"- Должность: {user.get('position') or 'учитель'}",
+            f"- Предмет: {user.get('subject') or '[не указано]'}",
+            f"- Классы: {user.get('classes') or '[не указано]'}",
+            f"- Классный руководитель: {is_ct}",
+            f"- Директор: {user.get('director') or '[не указано]'}",
+        ]
+
+    return "\n".join(lines)
+
 
 def _progress_bar(current, total):
     filled = "█" * current
@@ -378,38 +299,6 @@ class DocumentHandler:
             )
             return
 
-        # ── Точечное редактирование готового документа (только PRO) ──
-        if data == "doc_edit_start":
-            if not context.user_data.get("last_doc_content"):
-                await query.edit_message_text(
-                    "⚠️ Документ для редактирования не найден. Создайте новый документ." if lang == "ru"
-                    else "⚠️ Түзетуге құжат табылмады."
-                )
-                return
-            if user.get("tier") != "pro":
-                kb = [[InlineKeyboardButton(
-                    "⭐ Перейти на PRO" if lang == "ru" else "⭐ PRO-ға өту",
-                    callback_data="prof_sub"
-                )]]
-                text = (
-                    "✏️ Редактирование документов доступно только на тарифе *PRO*.\n\n"
-                    "Перейдите на PRO чтобы точечно исправлять готовые документы без пересоздания."
-                ) if lang == "ru" else (
-                    "✏️ Құжатты түзету тек *PRO* тарифінде қол жетімді."
-                )
-                await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
-                return
-            context.user_data["step"] = "doc_editing"
-            kb = [[InlineKeyboardButton("❌ " + t(lang, "cancel"), callback_data="doc_cancel")]]
-            text = (
-                "✏️ Напишите что нужно исправить в документе.\n\n"
-                "_Например: «замени дату на 15 марта» или «добавь предложение про участие в олимпиаде»_"
-            ) if lang == "ru" else (
-                "✏️ Құжатта не түзету керектігін жазыңыз."
-            )
-            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
-            return
-
         # ── Выбор языка документа ──
         if data.startswith("doc_lang_"):
             doc_lang = data.split("_")[2]
@@ -432,7 +321,7 @@ class DocumentHandler:
 
         # ── Категория документов ──
         if data.startswith("cat_"):
-            cat = data[4:]  # убираем "cat_" целиком, а не split по "_", чтобы не терять kg_-префикс
+            cat = data.split("_")[1]
             await self._show_doc_list(query, lang, cat)
 
         # ── Выбор конкретного документа ──
@@ -463,22 +352,7 @@ class DocumentHandler:
         names = DOC_NAMES.get(lang, DOC_NAMES["ru"])
         keyboard = [[InlineKeyboardButton(names.get(d, d), callback_data=f"doc_{d}")] for d in docs]
         keyboard.append([InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")])
-
-        cat_names = {
-            "ru": {
-                "planning": "Планирование", "reports": "Отчёты",
-                "students": "По ученикам", "personal": "Личные документы",
-                "kg_planning": "Планирование", "kg_reports": "Отчёты",
-                "kg_children": "По детям",
-            },
-            "kz": {
-                "planning": "Жоспарлау", "reports": "Есептер",
-                "students": "Оқушылар бойынша", "personal": "Жеке құжаттар",
-                "kg_planning": "Жоспарлау", "kg_reports": "Есептер",
-                "kg_children": "Балалар бойынша",
-            },
-        }
-        cat_name = cat_names.get(lang, cat_names["ru"]).get(cat, cat)
+        cat_name = t(lang, f"cat_{cat}")
         header = "📂 *{cat}*\n{div}\nВыберите тип документа:" if lang == "ru" else "📂 *{cat}*\n{div}\nҚұжат түрін таңдаңыз:"
         await query.edit_message_text(
             header.format(cat=cat_name, div=DIVIDER),
@@ -502,9 +376,9 @@ class DocumentHandler:
             )
             return
 
-        # Для документов по ученикам — предложить выбрать из базы (только PRO)
+        # Для документов по ученикам — предложить выбрать из базы
         if doc_type in ["characteristic", "absence_cert", "discipline_act", "gratitude_letter", "parent_letter"]:
-            if user.get("is_class_teacher") and user.get("tier") == "pro":
+            if user.get("is_class_teacher"):
                 students = await self.db.get_students(user_id)
                 if students:
                     keyboard = []
@@ -619,11 +493,10 @@ class DocumentHandler:
         text    = update.message.text.strip()
         step    = context.user_data.get("step", "")
 
-        max_len = 1500 if step == "doc_editing" else 500
         if len(text) < 1:
             await update.message.reply_text(t(lang, "val_too_short"))
             return
-        if len(text) > max_len:
+        if len(text) > 500:
             await update.message.reply_text(t(lang, "val_too_long"))
             return
 
@@ -639,9 +512,6 @@ class DocumentHandler:
 
         elif step == "help_write":
             await self._handle_help_write(update, context, user, lang, text)
-
-        elif step == "doc_editing":
-            await self._handle_edit_request(update, context, user, lang, text)
 
     async def _handle_help_write(self, update, context, user, lang, user_input):
         field    = context.user_data.get("help_field", "")
@@ -676,6 +546,7 @@ class DocumentHandler:
         answers  = context.user_data.get("doc_answers", {})
         doc_name = DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
 
+        # Красивое сообщение о генерации
         gen_msgs = {
             "ru": f"⚙️ *Генерирую {doc_name}...*\n\n🌐 Язык: {_doc_lang_name(doc_lang)}\n⭐ Качество: автоматическая проверка\n\n_Напиши /cancel чтобы отменить_",
             "kz": f"⚙️ *{doc_name} жасалуда...*\n\n🌐 Тіл: {_doc_lang_name(doc_lang)}\n⭐ Сапа: автоматты тексеру\n\n_Болдырмау үшін /cancel жазыңыз_",
@@ -683,103 +554,68 @@ class DocumentHandler:
         }
         await message.reply_text(gen_msgs.get(lang, gen_msgs["ru"]), parse_mode=ParseMode.MARKDOWN)
 
-        answers_text = "\n".join(f"- {k}: {v}" for k, v in answers.items())
+        answers_text  = "\n".join(f"- {k}: {v}" for k, v in answers.items())
 
-        # Загружаем образцы которые админ добавил для этого типа документа
-        custom_samples = await self.db.get_samples(doc_type, doc_lang, limit=2)
+        # Собираем ВСЕ данные профиля пользователя из БД
+        # чтобы бот не спрашивал то, что уже знает
+        profile_ctx = _build_profile_context(user, lang)
 
-        # Выбираем промпт — садик или школа
-        if doc_type.startswith("kg_"):
-            system_prompt = get_kg_system_prompt(user, doc_lang, custom_samples=custom_samples)
-        else:
-            system_prompt = get_system_prompt(user, doc_lang, doc_type=doc_type, custom_samples=custom_samples)
-
-        user_prompt = (
-            f"Создай документ: {doc_name}\n\nДанные:\n{answers_text}\n\n"
-            f"После того как закончишь документ, на отдельной последней строке "
-            f"напиши ровно так: ОЦЕНКА: NN — где NN твоя честная самооценка от 0 до 100 "
-            f"по соответствию нормативке, полноте структуры и отсутствию выдуманных фактов. "
-            f"Эта строка не часть документа, её не должно быть видно в Word."
+        system_prompt = get_system_prompt(user, doc_lang)
+        user_prompt   = (
+            f"Создай документ: {doc_name}\n\n"
+            f"{profile_ctx}\n\n"
+            f"Данные для этого документа (введены пользователем):\n{answers_text}\n\n"
+            f"Используй данные профиля автоматически — не оставляй поля пустыми если данные есть выше. "
+            f"Если данных не хватает — пиши [уточнить], не выдумывай."
         )
 
         client  = anthropic.Anthropic(api_key=self.api_key)
         result  = ""
-        score   = 88
+        score   = 0
         attempts = 0
 
-        # Один проход Sonnet вместо цикла Sonnet+Haiku: модель сама пишет себе оценку
-        # в конце ответа — дешевле и не провоцирует переписывание документа с нуля
-        # (где обычно рождаются выдумки фактов)
-        while attempts < 2:
+        # Одна генерация — Sonnet 4.6 с хорошим промптом сразу даёт качество
+        # Оценку делаем Haiku — дёшево и быстро
+        while score < 85 and attempts < 2:
             attempts += 1
             if attempts > 1:
                 improve_msg = {
-                    "ru": "🔄 *Точечно улучшаю слабые места...*",
-                    "kz": "🔄 *Сапаны жақсартуда...*",
-                    "en": "🔄 *Fine-tuning weak spots...*",
+                    "ru": "🔄 *Улучшаю качество...*\n_Аз қалды!_",
+                    "kz": "🔄 *Сапаны жақсартуда...*\n_Аз қалды!_",
+                    "en": "🔄 *Improving...*\n_Almost done!_",
                 }
                 await message.reply_text(improve_msg.get(lang, improve_msg["ru"]), parse_mode=ParseMode.MARKDOWN)
 
+            # Основная генерация — Sonnet 4.6
             msg = client.messages.create(
                 model="claude-sonnet-4-6",
-                max_tokens=8000,
+                max_tokens=3000,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}]
             )
             result = msg.content[0].text
 
-            continue_rounds = 0
-            while msg.stop_reason == "max_tokens" and continue_rounds < 2:
-                continue_rounds += 1
-                continue_msg = client.messages.create(
-                    model="claude-sonnet-4-6",
-                    max_tokens=8000,
-                    system=system_prompt,
-                    messages=[
-                        {"role": "user", "content": user_prompt},
-                        {"role": "assistant", "content": result},
-                        {"role": "user", "content": "Продолжи документ с того места где остановился. Не повторяй уже написанное. Доведи до конца, включая блок подписей и финальную строку ОЦЕНКА: NN."},
-                    ]
-                )
-                result += continue_msg.content[0].text
-                msg = continue_msg
-
-            score_match = re.search(r"ОЦЕНКА:\s*(\d{1,3})", result)
-            if score_match:
-                score = min(100, int(score_match.group(1)))
-                result = result[:score_match.start()].rstrip()
-            else:
+            # Самооценка — Haiku (в 10 раз дешевле)
+            eval_msg = client.messages.create(
+                model="claude-haiku-4-5",
+                max_tokens=10,
+                messages=[{"role": "user", "content": SELF_EVAL_PROMPT.format(document=result[:3000])}]
+            )
+            try:
+                score = int("".join(filter(str.isdigit, eval_msg.content[0].text.strip()[:5])))
+            except:
                 score = 88
 
-            if score >= 85 or attempts >= 2:
-                break
+            if score < 85 and attempts < 2:
+                user_prompt = (
+                    f"Улучши документ. Оценка {score}/100. "
+                    f"Заполни все пустые поля, добавь конкретику из профиля учителя.\n\n{result}"
+                )
 
-            user_prompt = (
-                f"Твой черновик документа получил самооценку {score}/100. "
-                f"Улучши его точечно: исправь структурные пробелы, уточни формулировки, "
-                f"проверь соответствие нормативке. "
-                f"НЕ придумывай факты которых не было в исходных данных — если поле не заполнено "
-                f"из-за нехватки данных, оставь плейсхолдер вида [уточнить], а не выдумывай значение.\n\n"
-                f"ЧЕРНОВИК:\n{result}\n\n"
-                f"В конце снова добавь строку ОЦЕНКА: NN с новой самооценкой."
-            )
-
-        context.user_data["last_doc_content"] = result
-        context.user_data["last_doc_type"]     = doc_type
-        context.user_data["last_doc_name"]     = doc_name
-        context.user_data["last_doc_lang"]     = doc_lang
-
-        await self._send_document(message, context, lang, doc_type, doc_name, doc_lang, result, score, user_id)
-
-    async def _send_document(self, message, context, lang, doc_type, doc_name, doc_lang, result, score, user_id):
-        """Формирует Word и отправляет — общий путь для первой генерации и для редактирования"""
-        user = await self.db.get_user(user_id)
-
+        # Формируем Word документ
         wait_msg = await message.reply_text(
             "📄 Формирую документ..." if lang == "ru" else "📄 Құжат жасалуда..."
         )
-
-        edit_btn_text = "✏️ Исправить документ" if lang == "ru" else "✏️ Құжатты түзету"
 
         try:
             from handlers.word_generator import generate_word
@@ -789,12 +625,10 @@ class DocumentHandler:
                     "ru": f"📄 *{doc_name}*\n✅ Готов к печати • Docura.kz",
                     "kz": f"📄 *{doc_name}*\n✅ Басуға дайын • Docura.kz",
                 }
-                kb_doc = [[InlineKeyboardButton(edit_btn_text, callback_data="doc_edit_start")]]
                 await message.reply_document(
                     document=f,
                     filename=f"{doc_name}_{datetime.now().strftime('%d%m%Y')}.docx",
                     caption=caption.get(lang, caption["ru"]),
-                    reply_markup=InlineKeyboardMarkup(kb_doc),
                     parse_mode=ParseMode.MARKDOWN
                 )
             os.remove(filename)
@@ -802,6 +636,7 @@ class DocumentHandler:
             print(f"Word error: {e}")
             import traceback
             traceback.print_exc()
+            # Запасной вариант — отправляем текст
             for chunk in range(0, len(result), 4000):
                 await message.reply_text(result[chunk:chunk+4000])
 
@@ -810,37 +645,27 @@ class DocumentHandler:
         except:
             pass
 
+        # Сохранить в БД
         await self.db.save_document(user_id, doc_type, doc_name, result, score)
         await self.db.log_analytics(user_id, doc_type, score, doc_lang)
 
-        is_edit = context.user_data.get("_is_edit_pass", False)
+        # Обновляем счётчик бесплатных — берём свежие данные из БД
         fresh_user = await self.db.get_user(user_id)
-
-        if is_edit:
-            context.user_data["_is_edit_pass"] = False
-            kb_after = [[InlineKeyboardButton("✏️ Исправить ещё" if lang == "ru" else "✏️ Тағы түзету", callback_data="doc_edit_start")],
-                        [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")]]
-            await message.reply_text(
-                "✅ Документ обновлён!" if lang == "ru" else "✅ Құжат жаңартылды!",
-                reply_markup=InlineKeyboardMarkup(kb_after)
-            )
-            return
-
         if not fresh_user.get("subscribed"):
             await self.db.increment_free(user_id)
-            fresh_user = await self.db.get_user(user_id)
+            fresh_user = await self.db.get_user(user_id)  # обновляем снова
             free_used = fresh_user.get("free_used", 0)
             free_left = max(0, 3 - free_used)
 
             if free_left == 0:
                 kb_after = [
-                    [InlineKeyboardButton("⭐ Оформить подписку", callback_data="prof_sub")],
+                    [InlineKeyboardButton("⭐ Оформить PRO — безлимит", callback_data="prof_sub")],
                     [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
                 ]
                 note = ("⚠️ *Бесплатные документы исчерпаны!*\n"
-                        "Оформите подписку для безлимитного доступа.") if lang == "ru" else \
+                        "Оформите подписку PRO для безлимитного доступа.") if lang == "ru" else \
                        ("⚠️ *Тегін құжаттар таусылды!*\n"
-                        "Жазылым рәсімдеңіз.")
+                        "PRO жазылымын рәсімдеңіз.")
             else:
                 kb_after = [
                     [InlineKeyboardButton("📄 Создать ещё", callback_data="menu_create")],
@@ -853,8 +678,7 @@ class DocumentHandler:
                 [InlineKeyboardButton("📄 Создать ещё", callback_data="menu_create")],
                 [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
             ]
-            tier_label = "PRO" if fresh_user.get("tier") == "pro" else ("Базовый" if lang == "ru" else "Негізгі")
-            note = f"⭐ *{tier_label}* — безлимитный доступ" if lang == "ru" else f"⭐ *{tier_label}* — шексіз қол жеткізу"
+            note = "⭐ *PRO* — безлимитный доступ" if lang == "ru" else "⭐ *PRO* — шексіз қол жеткізу"
 
         await message.reply_text(
             note,
@@ -862,82 +686,6 @@ class DocumentHandler:
             parse_mode=ParseMode.MARKDOWN
         )
         context.user_data.clear()
-
-    async def _handle_edit_request(self, update, context, user, lang, edit_request):
-        """Точечно исправляет уже сгенерированный документ. Использует Haiku — это
-        редактирование, а не генерация с нуля, поэтому дешевле."""
-        original = context.user_data.get("last_doc_content", "")
-        doc_type = context.user_data.get("last_doc_type", "")
-        doc_name = context.user_data.get("last_doc_name", "")
-        doc_lang = context.user_data.get("last_doc_lang", lang)
-        user_id  = update.effective_user.id
-
-        if not original:
-            await update.message.reply_text(
-                "⚠️ Документ для редактирования не найден." if lang == "ru" else "⚠️ Құжат табылмады."
-            )
-            context.user_data["step"] = None
-            return
-
-        wait_msg = await update.message.reply_text(
-            "✏️ Применяю правку..." if lang == "ru" else "✏️ Түзету енгізілуде..."
-        )
-
-        client = anthropic.Anthropic(api_key=self.api_key)
-        prompt = (
-            f"Вот готовый документ. Пользователь попросил внести правку:\n«{edit_request}»\n\n"
-            f"Примени ТОЛЬКО эту правку. Весь остальной текст оставь побуквенно без изменений — "
-            f"не переписывай, не улучшай, не дополняй то, о чём не просили. "
-            f"Не выдумывай новые факты которых не было в документе или в запросе пользователя.\n\n"
-            f"ДОКУМЕНТ:\n{original}\n\n"
-            f"Верни полный текст документа целиком с применённой правкой, без каких-либо комментариев "
-            f"до или после текста."
-        )
-
-        try:
-            msg = client.messages.create(
-                model="claude-haiku-4-5",
-                max_tokens=8000,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            edited = msg.content[0].text
-
-            continue_rounds = 0
-            while msg.stop_reason == "max_tokens" and continue_rounds < 1:
-                continue_rounds += 1
-                continue_msg = client.messages.create(
-                    model="claude-haiku-4-5",
-                    max_tokens=8000,
-                    messages=[
-                        {"role": "user", "content": prompt},
-                        {"role": "assistant", "content": edited},
-                        {"role": "user", "content": "Продолжи документ с того места где остановился, не повторяя написанное."},
-                    ]
-                )
-                edited += continue_msg.content[0].text
-                msg = continue_msg
-
-        except Exception as e:
-            print(f"Edit error: {e}")
-            try:
-                await wait_msg.delete()
-            except:
-                pass
-            await update.message.reply_text(
-                "❌ Не удалось применить правку. Попробуйте ещё раз." if lang == "ru" else "❌ Қате."
-            )
-            return
-
-        try:
-            await wait_msg.delete()
-        except:
-            pass
-
-        context.user_data["last_doc_content"] = edited
-        context.user_data["_is_edit_pass"] = True
-        context.user_data["step"] = None
-
-        await self._send_document(update.message, context, lang, doc_type, doc_name, doc_lang, edited, 90, user_id)
 
     async def _create_word(self, content: str, title: str) -> str:
         from docx import Document as DocxDocument
