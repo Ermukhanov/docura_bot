@@ -62,24 +62,19 @@ class Database:
                     lang TEXT
                 );
 
-                CREATE TABLE IF NOT EXISTS receipts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    hash TEXT UNIQUE NOT NULL,
-                    tg_id INTEGER,
-                    tier TEXT,
-                    amount INTEGER,
-                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                CREATE TABLE IF NOT EXISTS schedules (
+                    tg_id INTEGER PRIMARY KEY,
+                    schedule_data TEXT NOT NULL,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS agent_memory (
+                    tg_id INTEGER PRIMARY KEY,
+                    context_data TEXT DEFAULT '{}',
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
             """)
             await db.commit()
-
-            # Миграция: добавляем tier если базы старая
-            async with db.execute("PRAGMA table_info(users)") as cur:
-                cols = [row[1] for row in await cur.fetchall()]
-            if "tier" not in cols:
-                await db.execute("ALTER TABLE users ADD COLUMN tier TEXT DEFAULT 'free'")
-                await db.execute("UPDATE users SET tier='pro' WHERE subscribed=1")
-                await db.commit()
 
     # ===== USERS =====
     async def get_user(self, tg_id: int):
@@ -110,29 +105,9 @@ class Database:
             await db.execute("UPDATE users SET free_used=free_used+1 WHERE tg_id=?", (tg_id,))
             await db.commit()
 
-    async def activate_subscription(self, tg_id: int, tier: str = "pro"):
+    async def activate_subscription(self, tg_id: int):
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("UPDATE users SET subscribed=1, tier=? WHERE tg_id=?", (tier, tg_id))
-            await db.commit()
-
-    async def deactivate_subscription(self, tg_id: int):
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("UPDATE users SET subscribed=0, tier='free' WHERE tg_id=?", (tg_id,))
-            await db.commit()
-
-    async def is_receipt_used(self, receipt_hash: str) -> bool:
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute(
-                "SELECT id FROM receipts WHERE hash=?", (receipt_hash,)
-            ) as cur:
-                return (await cur.fetchone()) is not None
-
-    async def save_receipt_hash(self, receipt_hash: str, tg_id: int, tier: str, amount: int):
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
-                "INSERT OR IGNORE INTO receipts (hash, tg_id, tier, amount) VALUES (?,?,?,?)",
-                (receipt_hash, tg_id, tier, amount)
-            )
+            await db.execute("UPDATE users SET subscribed=1 WHERE tg_id=?", (tg_id,))
             await db.commit()
 
     # ===== STUDENTS =====
@@ -261,3 +236,46 @@ class Database:
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("UPDATE users SET notified_at=? WHERE tg_id=?", (datetime.now().isoformat(), tg_id))
             await db.commit()
+
+    # ===== SCHEDULE (Расписание) =====
+    async def save_schedule(self, tg_id: int, schedule_json: str):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                INSERT INTO schedules (tg_id, schedule_data)
+                VALUES (?, ?)
+                ON CONFLICT(tg_id) DO UPDATE SET schedule_data=excluded.schedule_data, updated_at=CURRENT_TIMESTAMP
+            """, (tg_id, schedule_json))
+            await db.commit()
+
+    async def get_schedule(self, tg_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT schedule_data FROM schedules WHERE tg_id=?", (tg_id,)) as cur:
+                row = await cur.fetchone()
+                return row["schedule_data"] if row else None
+
+    # ===== AGENT MEMORY (Контекст агента) =====
+    async def save_agent_context(self, tg_id: int, context_json: str):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                INSERT INTO agent_memory (tg_id, context_data)
+                VALUES (?, ?)
+                ON CONFLICT(tg_id) DO UPDATE SET context_data=excluded.context_data, updated_at=CURRENT_TIMESTAMP
+            """, (tg_id, context_json))
+            await db.commit()
+
+    async def get_agent_context(self, tg_id: int) -> dict:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT context_data FROM agent_memory WHERE tg_id=?", (tg_id,)) as cur:
+                row = await cur.fetchone()
+                if row:
+                    import json
+                    return json.loads(row["context_data"])
+                return {}
+
+    async def update_agent_context(self, tg_id: int, updates: dict):
+        import json
+        current = await self.get_agent_context(tg_id)
+        current.update(updates)
+        await self.save_agent_context(tg_id, json.dumps(current, ensure_ascii=False))

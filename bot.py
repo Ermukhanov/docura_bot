@@ -17,6 +17,7 @@ from handlers.documents import DocumentHandler
 from handlers.profile import ProfileHandler
 from handlers.admin import AdminHandler
 from handlers.voice import VoiceHandler
+from handlers.agent import AgentHandler
 from handlers.notifications import send_reminders
 
 logging.basicConfig(
@@ -124,15 +125,18 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def _route_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     step = context.user_data.get("step", "")
     db   = context.application.bot_data["db"]
+    key  = context.application.bot_data["anthropic_key"]
 
     if step.startswith("onboard_") or step.startswith("reg_"):
         await OnboardingHandler(db).handle_text(update, context)
     elif step.startswith("doc_") or step == "waiting_answer":
-        await DocumentHandler(db, context.application.bot_data["anthropic_key"]).handle_text(update, context)
+        await DocumentHandler(db, key).handle_text(update, context)
     elif step.startswith("prof_") or step.startswith("student_"):
-        await ProfileHandler(db, context.application.bot_data.get("anthropic_key", "")).handle_text(update, context)
+        await ProfileHandler(db).handle_text(update, context)
     elif step.startswith("admin_"):
         await AdminHandler(db).handle_text(update, context)
+    elif step.startswith("agent_"):
+        await AgentHandler(db, key).handle_text(update, context)
     else:
         await MainMenuHandler(db).show(update, context)
 
@@ -177,9 +181,10 @@ async def run():
     onboarding = OnboardingHandler(db)
     main_menu  = MainMenuHandler(db)
     documents  = DocumentHandler(db, ANTHROPIC_API_KEY)
-    profile    = ProfileHandler(db, ANTHROPIC_API_KEY)
+    profile    = ProfileHandler(db)
     admin      = AdminHandler(db)
     voice      = VoiceHandler(db, ANTHROPIC_API_KEY)
+    agent      = AgentHandler(db, ANTHROPIC_API_KEY)
 
     # Команды
     app.add_handler(CommandHandler("start",   onboarding.start))
@@ -194,9 +199,14 @@ async def run():
     # Голос
     app.add_handler(MessageHandler(filters.VOICE, voice.handle))
 
-    # Фото и файлы — чеки оплаты Kaspi
-    app.add_handler(MessageHandler(filters.PHOTO, profile.handle_photo))
-    app.add_handler(MessageHandler(filters.Document.ALL, profile.handle_document))
+    # Фото — расписание или чек
+    async def _handle_photo(update, context):
+        if await agent.handle_photo(update, context):
+            return
+        # иначе это чек оплаты — обрабатывает profile
+        from handlers.profile import ProfileHandler as PH
+        await PH(db).handle_photo(update, context)
+    app.add_handler(MessageHandler(filters.PHOTO, _handle_photo))
 
     # Колбэки
     app.add_handler(CallbackQueryHandler(onboarding.callback, pattern="^(lang_|role_|onboard_)"))
@@ -204,6 +214,7 @@ async def run():
     app.add_handler(CallbackQueryHandler(documents.callback,  pattern="^(doc_|cat_|ans_|gen_)"))
     app.add_handler(CallbackQueryHandler(profile.callback,    pattern="^(prof_|sub_|student_)"))
     app.add_handler(CallbackQueryHandler(admin.callback,      pattern="^admin_"))
+    app.add_handler(CallbackQueryHandler(agent.callback,      pattern="^agent_"))
 
     # Текст
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _route_text))

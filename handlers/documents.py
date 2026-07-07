@@ -237,13 +237,11 @@ CAT_DOCS = {
 DIVIDER = "─" * 20
 
 def _build_profile_context(user: dict, lang: str) -> str:
-    """Собирает полный профиль пользователя для подстановки в промпт.
-    Чем больше данных — тем меньше бот спрашивает и тем точнее документ."""
+    """Собирает весь профиль пользователя для автоподстановки в промпт."""
     role = user.get("role", "teacher")
-
     if role == "kindergarten":
         lines = [
-            "ПРОФИЛЬ ВОСПИТАТЕЛЯ (используй эти данные автоматически):",
+            "ПРОФИЛЬ ВОСПИТАТЕЛЯ (используй автоматически):",
             f"- ФИО: {user.get('name') or '[не указано]'}",
             f"- Детский сад: {user.get('school') or '[не указано]'}",
             f"- Должность: {user.get('position') or 'воспитатель'}",
@@ -252,7 +250,7 @@ def _build_profile_context(user: dict, lang: str) -> str:
     else:
         is_ct = "Да" if user.get("is_class_teacher") else "Нет"
         lines = [
-            "ПРОФИЛЬ УЧИТЕЛЯ (используй эти данные автоматически):",
+            "ПРОФИЛЬ УЧИТЕЛЯ (используй автоматически):",
             f"- ФИО: {user.get('name') or '[не указано]'}",
             f"- Школа: {user.get('school') or '[не указано]'}",
             f"- Должность: {user.get('position') or 'учитель'}",
@@ -261,9 +259,7 @@ def _build_profile_context(user: dict, lang: str) -> str:
             f"- Классный руководитель: {is_ct}",
             f"- Директор: {user.get('director') or '[не указано]'}",
         ]
-
     return "\n".join(lines)
-
 
 def _progress_bar(current, total):
     filled = "█" * current
@@ -556,17 +552,24 @@ class DocumentHandler:
 
         answers_text  = "\n".join(f"- {k}: {v}" for k, v in answers.items())
 
-        # Собираем ВСЕ данные профиля пользователя из БД
-        # чтобы бот не спрашивал то, что уже знает
+        # Профиль пользователя — подставляем автоматически
         profile_ctx = _build_profile_context(user, lang)
 
+        # Расписание из агентной памяти (если загружено)
+        schedule_ctx = ""
+        try:
+            from handlers.agent import AgentHandler
+            schedule_ctx = await AgentHandler(self.db, self.api_key).get_context_for_generation(user_id)
+        except Exception:
+            pass
+
         system_prompt = get_system_prompt(user, doc_lang)
-        user_prompt   = (
+        user_prompt = (
             f"Создай документ: {doc_name}\n\n"
-            f"{profile_ctx}\n\n"
-            f"Данные для этого документа (введены пользователем):\n{answers_text}\n\n"
-            f"Используй данные профиля автоматически — не оставляй поля пустыми если данные есть выше. "
-            f"Если данных не хватает — пиши [уточнить], не выдумывай."
+            f"{profile_ctx}\n"
+            f"{schedule_ctx}\n\n"
+            f"Данные для этого документа:\n{answers_text}\n\n"
+            f"Используй профиль автоматически. Если данных не хватает — пиши [уточнить], не выдумывай."
         )
 
         client  = anthropic.Anthropic(api_key=self.api_key)
