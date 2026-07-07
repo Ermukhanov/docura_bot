@@ -23,15 +23,22 @@ class MainMenuHandler:
         subscribed = user.get("subscribed", 0)
         free_used  = user.get("free_used", 0)
         free_left  = max(0, 3 - free_used)
+        is_kg      = user.get("role") == "kindergarten"
 
         if subscribed:
             status = t(lang, "status_pro")
         else:
             status = t(lang, "status_free", n=free_left)
 
+        schedule_btn_text = (
+            ("📅 Режим дня / занятия" if lang == "ru" else "📅 Күн тәртібі")
+            if is_kg else
+            ("📅 Расписание" if lang == "ru" else "📅 Кесте")
+        )
+
         keyboard = [
             [InlineKeyboardButton(t(lang, "btn_create"),  callback_data="menu_create")],
-            [InlineKeyboardButton("📅 " + ("Расписание" if lang == "ru" else "Кесте"), callback_data="agent_schedule")],
+            [InlineKeyboardButton(schedule_btn_text, callback_data="agent_schedule")],
             [InlineKeyboardButton(t(lang, "btn_history"), callback_data="menu_history"),
              InlineKeyboardButton(t(lang, "btn_profile"), callback_data="menu_profile")],
             [InlineKeyboardButton(t(lang, "btn_help"),    callback_data="menu_help")],
@@ -73,9 +80,16 @@ class MainMenuHandler:
             subscribed = user.get("subscribed", 0)
             free_used  = user.get("free_used", 0)
             free_left  = max(0, 3 - free_used)
+            is_kg      = user.get("role") == "kindergarten"
             status = t(lang, "status_pro") if subscribed else t(lang, "status_free", n=free_left)
+            schedule_btn_text = (
+                ("📅 Режим дня / занятия" if lang == "ru" else "📅 Күн тәртібі")
+                if is_kg else
+                ("📅 Расписание" if lang == "ru" else "📅 Кесте")
+            )
             keyboard = [
                 [InlineKeyboardButton(t(lang, "btn_create"),  callback_data="menu_create")],
+                [InlineKeyboardButton(schedule_btn_text, callback_data="agent_schedule")],
                 [InlineKeyboardButton(t(lang, "btn_history"), callback_data="menu_history"),
                  InlineKeyboardButton(t(lang, "btn_profile"), callback_data="menu_profile")],
                 [InlineKeyboardButton(t(lang, "btn_help"),    callback_data="menu_help")],
@@ -87,14 +101,31 @@ class MainMenuHandler:
             )
 
     async def _show_categories(self, query, lang, user):
-        is_ct = user.get("is_class_teacher", 0)
-        keyboard = [
-            [InlineKeyboardButton(t(lang, "cat_planning"),  callback_data="cat_planning")],
-            [InlineKeyboardButton(t(lang, "cat_reports"),   callback_data="cat_reports")],
-        ]
-        if is_ct:
-            keyboard.append([InlineKeyboardButton(t(lang, "cat_students"), callback_data="cat_students")])
-        keyboard.append([InlineKeyboardButton(t(lang, "cat_personal"), callback_data="cat_personal")])
+        """
+        ВАЖНО: категории теперь зависят от роли пользователя.
+        Раньше здесь всегда показывались школьные категории (cat_planning/cat_reports/...)
+        независимо от роли — из-за этого у воспитателей документы выходили "школьными",
+        а категория для садика (cat_kg_*) не имела списка документов.
+        """
+        is_kg = user.get("role") == "kindergarten"
+
+        if is_kg:
+            keyboard = [
+                [InlineKeyboardButton(t(lang, "cat_kg_planning"), callback_data="cat_kg_planning")],
+                [InlineKeyboardButton(t(lang, "cat_kg_reports"),  callback_data="cat_kg_reports")],
+                [InlineKeyboardButton(t(lang, "cat_kg_children"), callback_data="cat_kg_children")],
+                [InlineKeyboardButton(t(lang, "cat_kg_personal"), callback_data="cat_kg_personal")],
+            ]
+        else:
+            is_ct = user.get("is_class_teacher", 0)
+            keyboard = [
+                [InlineKeyboardButton(t(lang, "cat_planning"),  callback_data="cat_planning")],
+                [InlineKeyboardButton(t(lang, "cat_reports"),   callback_data="cat_reports")],
+            ]
+            if is_ct:
+                keyboard.append([InlineKeyboardButton(t(lang, "cat_students"), callback_data="cat_students")])
+            keyboard.append([InlineKeyboardButton(t(lang, "cat_personal"), callback_data="cat_personal")])
+
         keyboard.append([InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")])
 
         await query.edit_message_text(

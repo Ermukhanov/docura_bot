@@ -8,13 +8,50 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from handlers.texts import t
-from handlers.rag_base import VOICE_UNDERSTAND_PROMPT
 from database import Database
 
 MENU_BTN = lambda lang: InlineKeyboardButton(
     "🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"),
     callback_data="menu_main"
 )
+
+VOICE_UNDERSTAND_PROMPT_TEACHER = """Учитель отправил голосовое сообщение:
+"{voice_text}"
+
+Данные учителя:
+- Предмет: {subject}
+- Классы: {classes}
+- Классный руководитель: {is_ct}
+
+Определи:
+1. Какой документ нужно создать (один из: lesson_plan, calendar_plan, lesson_summary, monthly_report, control_analysis, characteristic, absence_cert, discipline_act, gratitude_letter, parent_letter, vacation_request, explanation, announcement)
+2. Какие данные уже есть в запросе
+3. Каких данных не хватает (задай только НЕОБХОДИМЫЕ вопросы, максимум 3)
+
+Ответь в формате JSON:
+{{
+  "doc_type": "тип документа",
+  "known_data": {{"ключ": "значение"}},
+  "missing_questions": ["вопрос 1", "вопрос 2"]
+}}"""
+
+VOICE_UNDERSTAND_PROMPT_KG = """Воспитатель детского сада отправил голосовое сообщение:
+"{voice_text}"
+
+Данные воспитателя:
+- Возрастная группа: {classes}
+
+Определи:
+1. Какой документ нужно создать (один из: kg_thematic_plan, kg_activity_summary, kg_monthly_report, kg_child_characteristic, kg_parent_letter, kg_absence_cert, kg_vacation_request, kg_explanation, kg_announcement)
+2. Какие данные уже есть в запросе
+3. Каких данных не хватает (задай только НЕОБХОДИМЫЕ вопросы, максимум 3)
+
+Ответь в формате JSON:
+{{
+  "doc_type": "тип документа",
+  "known_data": {{"ключ": "значение"}},
+  "missing_questions": ["вопрос 1", "вопрос 2"]
+}}"""
 
 class VoiceHandler:
     def __init__(self, db: Database, anthropic_key: str, openai_key: str = ""):
@@ -25,6 +62,7 @@ class VoiceHandler:
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
+        is_kg   = (user or {}).get("role") == "kindergarten"
 
         if not user or not user.get("name"):
             await update.message.reply_text(
@@ -55,13 +93,11 @@ class VoiceHandler:
         )
 
         try:
-            # Скачать голосовое
             voice_file = await update.message.voice.get_file()
             with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
                 await voice_file.download_to_drive(tmp.name)
                 tmp_path = tmp.name
 
-            # Транскрибация — пробуем разные методы
             voice_text = await asyncio.get_event_loop().run_in_executor(
                 None, self._transcribe_best, tmp_path
             )
@@ -90,20 +126,25 @@ class VoiceHandler:
                 )
                 return
 
-            # Показываем что распознали
             await update.message.reply_text(
                 f"🎤 *{'Распознано' if lang == 'ru' else 'Танылды'}:*\n_{voice_text}_",
                 parse_mode=ParseMode.MARKDOWN
             )
 
-            # Понять запрос через Claude Haiku (дёшево)
             client = anthropic.Anthropic(api_key=self.anthropic_key)
-            prompt = VOICE_UNDERSTAND_PROMPT.format(
-                voice_text=voice_text,
-                subject=user.get("subject", ""),
-                classes=user.get("classes", ""),
-                is_ct="да" if user.get("is_class_teacher") else "нет"
-            )
+
+            if is_kg:
+                prompt = VOICE_UNDERSTAND_PROMPT_KG.format(
+                    voice_text=voice_text,
+                    classes=user.get("age_group", ""),
+                )
+            else:
+                prompt = VOICE_UNDERSTAND_PROMPT_TEACHER.format(
+                    voice_text=voice_text,
+                    subject=user.get("subject", ""),
+                    classes=user.get("classes", ""),
+                    is_ct="да" if user.get("is_class_teacher") else "нет"
+                )
 
             msg = client.messages.create(
                 model="claude-haiku-4-5",
@@ -117,7 +158,6 @@ class VoiceHandler:
             try:
                 parsed = json.loads(raw)
             except json.JSONDecodeError:
-                # Если JSON не распарсился — предлагаем выбрать документ вручную
                 kb = [[MENU_BTN(lang)]]
                 await update.message.reply_text(
                     ("Не смог определить тип документа.\n"
@@ -134,12 +174,17 @@ class VoiceHandler:
 
             if not doc_type:
                 kb = [[MENU_BTN(lang)]]
-                await update.message.reply_text(
-                    ("Не смог определить тип документа.\n\n"
-                     "Попробуйте сказать точнее:\n"
-                     "- *'Сделай КСП по математике для 7 класса'*\n"
+                example_text = (
+                    ("- *«Тематический план на ноябрь для старшей группы»*\n"
+                     "- *«Характеристика на воспитанника Ерасыла»*\n"
+                     "- *«Заявление на отпуск»*") if is_kg else
+                    ("- *'Сделай КСП по математике для 7 класса'*\n"
                      "- *'Характеристика на ученика Асылбека'*\n"
-                     "- *'Заявление на отпуск'*") if lang == "ru" else
+                     "- *'Заявление на отпуск'*")
+                )
+                await update.message.reply_text(
+                    (f"Не смог определить тип документа.\n\n"
+                     f"Попробуйте сказать точнее:\n{example_text}") if lang == "ru" else
                     ("Құжат түрін анықтай алмадым.\n"
                      "Нақтырақ айтып көріңіз."),
                     reply_markup=InlineKeyboardMarkup(kb),
@@ -191,19 +236,15 @@ class VoiceHandler:
         2. SpeechRecognition (если установлен)
         3. Возвращает пустую строку
         """
-
-        # Метод 1: faster-whisper
         try:
             from faster_whisper import WhisperModel
             print("Используем faster-whisper...")
-            # Маленькая модель 'tiny' — быстро, работает на CPU
-            # При первом запуске скачает ~75МБ
             model = WhisperModel("tiny", device="cpu", compute_type="int8")
             segments, info = model.transcribe(
                 file_path,
                 language="ru",
                 beam_size=3,
-                vad_filter=True,  # фильтр тишины
+                vad_filter=True,
             )
             text = " ".join(seg.text.strip() for seg in segments).strip()
             if text:
@@ -214,12 +255,10 @@ class VoiceHandler:
         except Exception as e:
             print(f"faster-whisper error: {e}")
 
-        # Метод 2: SpeechRecognition через Google (бесплатно, нужен интернет)
         try:
             import speech_recognition as sr
             import subprocess
 
-            # Конвертируем ogg в wav
             wav_path = file_path.replace(".ogg", ".wav")
             result = subprocess.run(
                 ["ffmpeg", "-i", file_path, "-ar", "16000", "-ac", "1",

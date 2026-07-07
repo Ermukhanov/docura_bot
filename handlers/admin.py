@@ -2,14 +2,14 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from database import Database
-from handlers.documents import DOC_NAMES, CAT_DOCS
+from handlers.documents import DOC_NAMES, CAT_DOCS_ALL
 
 ADMIN_LOGIN    = "Unicorn"
 ADMIN_PASSWORD = "Gulkhan"
 
-# Список всех типов документов для выбора при загрузке образца
+# Список всех типов документов (школа + садик) для выбора при загрузке образца
 ALL_DOC_TYPES = []
-for cat_list in CAT_DOCS.values():
+for cat_list in CAT_DOCS_ALL.values():
     for d in cat_list:
         if d not in ALL_DOC_TYPES:
             ALL_DOC_TYPES.append(d)
@@ -97,7 +97,7 @@ class AdminHandler:
         elif data == "admin_menu":
             await self._show_menu(query)
 
-        # ── ОБУЧЕНИЕ БОТА (образцы документов) ──
+        # ── ОБУЧЕНИЕ БОТА (образцы документов — школа + садик) ──
         elif data == "admin_samples":
             await self._show_samples_menu(query)
         elif data == "admin_samples_add":
@@ -333,8 +333,8 @@ class AdminHandler:
         text = (
             f"🎓 *Обучение бота*\n{'─'*22}\n\n"
             f"Загружено образцов: *{len(samples)}*\n\n"
-            f"Загрузи реальный, качественный документ — бот будет генерировать "
-            f"новые документы того же типа, ориентируясь на стиль и структуру твоего образца.\n\n"
+            f"Загрузи реальный, качественный документ (школьный или садиковский) — бот будет "
+            f"генерировать новые документы того же типа, ориентируясь на стиль и структуру твоего образца.\n\n"
             f"Чем больше хороших образцов — тем точнее генерация."
         )
         kb = [
@@ -362,7 +362,7 @@ class AdminHandler:
         kb.append([InlineKeyboardButton("← Назад", callback_data="admin_samples")])
 
         await query.edit_message_text(
-            "📄 Выберите тип документа для образца:",
+            "📄 Выберите тип документа для образца (школа + садик):",
             reply_markup=InlineKeyboardMarkup(kb)
         )
 

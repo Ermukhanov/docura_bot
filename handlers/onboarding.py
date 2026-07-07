@@ -116,7 +116,7 @@ class OnboardingHandler:
 
     async def _start_registration(self, query, context, lang, role="teacher"):
         if role == "kindergarten":
-            # Для садика спрашиваем имя и садик
+            # Для садика — отдельная анкета без класс-руководства и школьных полей
             context.user_data["step"] = "reg_name"
             context.user_data["role"] = "kindergarten"
             kb = [[CANCEL_BTN(lang)]]
@@ -149,11 +149,29 @@ class OnboardingHandler:
             return
 
         if role == "kindergarten":
-            # Упрощённый онбординг для садика
+            # Отдельный (упрощённый) онбординг для садика:
+            # ФИО -> название садика -> возрастная группа -> должность -> заведующая
             kg_steps = {
-                "reg_name":     ("name",     "reg_school",   ("🏫 Название детского сада?" if lang == "ru" else "🏫 Балабақшаның атауы?")),
-                "reg_school":   ("school",   "reg_position", ("💼 Ваша должность?\n\n_Пример: воспитатель старшей группы_" if lang == "ru" else "💼 Лауазымыңыз?")),
-                "reg_position": ("position", "reg_director", ("👔 ФИО заведующей?\n\n_Пример: Иванова А.Б._" if lang == "ru" else "👔 Меңгерушінің аты-жөні?")),
+                "reg_name": (
+                    "name", "reg_school",
+                    "🏫 Название детского сада?" if lang == "ru" else "🏫 Балабақшаның атауы?"
+                ),
+                "reg_school": (
+                    "school", "reg_age_group",
+                    ("👶 Какая возрастная группа?\n\n_Пример: младшая группа (3-4 года), средняя группа (4-5 лет)_"
+                     if lang == "ru" else
+                     "👶 Қандай жас тобы?\n\n_Мысалы: кіші топ (3-4 жас)_")
+                ),
+                "reg_age_group": (
+                    "age_group", "reg_position",
+                    ("💼 Ваша должность?\n\n_Пример: воспитатель старшей группы_"
+                     if lang == "ru" else "💼 Лауазымыңыз?")
+                ),
+                "reg_position": (
+                    "position", "reg_director",
+                    ("👔 ФИО заведующей?\n\n_Пример: Иванова А.Б._"
+                     if lang == "ru" else "👔 Меңгерушінің аты-жөні?")
+                ),
             }
             if step in kg_steps:
                 field, next_step, next_q = kg_steps[step]
@@ -164,7 +182,7 @@ class OnboardingHandler:
                 await self.db.upsert_user(user_id, {"director": text})
                 await self._finish_registration(None, context, user_id, lang, update=update)
         else:
-            # Стандартный онбординг для учителей
+            # Стандартный онбординг для учителей школы
             steps_flow = {
                 "reg_name":     ("name",     "reg_school",   t(lang, "reg_school")),
                 "reg_school":   ("school",   "reg_subject",  t(lang, "reg_subject")),

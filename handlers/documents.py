@@ -9,6 +9,9 @@ from handlers.texts import t, TEXTS
 from handlers.rag_base import get_system_prompt, SELF_EVAL_PROMPT
 from database import Database
 
+# ══════════════════════════════════════════════════════════════
+# ВОПРОСЫ ДЛЯ ДОКУМЕНТОВ УЧИТЕЛЯ (школа)
+# ══════════════════════════════════════════════════════════════
 DOC_QUESTIONS = {
     "ru": {
         "lesson_plan": [
@@ -80,6 +83,55 @@ DOC_QUESTIONS = {
             {"key": "event",    "q": "📢 Что за мероприятие?\n\n_Пример: родительское собрание, олимпиада_"},
             {"key": "datetime", "q": "📅 Дата и время?\n\n_Пример: 20 ноября, 18:00_"},
             {"key": "location", "q": "📍 Место проведения?\n\n_Пример: кабинет 205, актовый зал_"},
+        ],
+
+        # ── ДОКУМЕНТЫ ДЛЯ САДИКА ──
+        "kg_thematic_plan": [
+            {"key": "age_group",  "q": "👶 Возрастная группа?\n\n_Пример: средняя группа (4-5 лет)_"},
+            {"key": "month",      "q": "📅 На какой месяц?\n\n_Пример: Ноябрь 2024_"},
+            {"key": "topics",     "q": "📋 Темы недель через запятую\n\n_Или напишите «по программе»_"},
+        ],
+        "kg_activity_summary": [
+            {"key": "age_group", "q": "👶 Возрастная группа?"},
+            {"key": "topic",     "q": "📖 Тема занятия?\n\n_Пример: «Осень золотая» (ознакомление с природой)_"},
+            {"key": "goals",     "q": "🎯 Цель занятия?\n\n_Или напишите «автоматически»_"},
+        ],
+        "kg_monthly_report": [
+            {"key": "period",    "q": "📅 За какой период?\n\n_Пример: Октябрь 2024_"},
+            {"key": "age_group", "q": "👶 Группа?\n\n_Пример: старшая группа «Ромашка»_"},
+            {"key": "progress",  "q": "📊 Освоение программы детьми (кратко)?\n\n_Пример: большинство детей усвоили материал по ФЭМП_"},
+            {"key": "extra",     "q": "🏆 Мероприятия, утренники, конкурсы?\n\n_Если нет — напишите «нет»_"},
+        ],
+        "kg_child_characteristic": [
+            {"key": "student_name", "q": "👤 Имя ребёнка, возраст, группа?\n\n_Или выберите из базы ниже_"},
+            {"key": "performance",  "q": "📊 Освоение программы?\n\n_Пример: хорошо усваивает материал_"},
+            {"key": "behavior",     "q": "😊 Поведение и характер?\n\n_Пример: общительный, любознательный_"},
+            {"key": "activities",   "q": "🏆 Достижения, участие в утренниках?\n\n_Если нет — напишите «нет»_"},
+            {"key": "purpose",      "q": "📋 Цель характеристики?\n\n_Пример: для психолога, по месту требования_"},
+        ],
+        "kg_parent_letter": [
+            {"key": "student_name", "q": "👤 Имя ребёнка и группа?"},
+            {"key": "topic",        "q": "📋 Тема письма?\n\n_Пример: адаптация, поведение, успехи_"},
+            {"key": "details",      "q": "📝 Детали письма?"},
+        ],
+        "kg_absence_cert": [
+            {"key": "student_name",  "q": "👤 Имя ребёнка и группа?"},
+            {"key": "absence_dates", "q": "📅 Даты отсутствия?"},
+            {"key": "reason",        "q": "❓ Причина?\n\n_Пример: болезнь (справка есть)_"},
+        ],
+        "kg_vacation_request": [
+            {"key": "vacation_type", "q": "🏖 Вид отпуска?\n\n1️⃣ Ежегодный трудовой\n2️⃣ За свой счёт\n\n_Напишите номер или название_"},
+            {"key": "dates",         "q": "📅 Даты?\n\n_Пример: с 01.07.2025 по 25.08.2025_"},
+        ],
+        "kg_explanation": [
+            {"key": "absence_date", "q": "📅 Дата отсутствия или опоздания?"},
+            {"key": "reason",       "q": "❓ Причина?"},
+            {"key": "documents",    "q": "📎 Есть подтверждающие документы?\n\n_Если нет — напишите «нет»_"},
+        ],
+        "kg_announcement": [
+            {"key": "event",    "q": "📢 Что за мероприятие?\n\n_Пример: утренник, родительское собрание_"},
+            {"key": "datetime", "q": "📅 Дата и время?"},
+            {"key": "location", "q": "📍 Место проведения?\n\n_Пример: музыкальный зал_"},
         ],
     },
     "kz": {
@@ -153,6 +205,55 @@ DOC_QUESTIONS = {
             {"key": "topic",        "q": "📋 Хат тақырыбы?"},
             {"key": "details",      "q": "📝 Мәліметтер?"},
         ],
+
+        # ── САДИК (KZ) ──
+        "kg_thematic_plan": [
+            {"key": "age_group", "q": "👶 Жас тобы?"},
+            {"key": "month",     "q": "📅 Қандай ай?"},
+            {"key": "topics",    "q": "📋 Апталық тақырыптар немесе «бағдарлама бойынша»"},
+        ],
+        "kg_activity_summary": [
+            {"key": "age_group", "q": "👶 Жас тобы?"},
+            {"key": "topic",     "q": "📖 Сабақтың тақырыбы?"},
+            {"key": "goals",     "q": "🎯 Сабақтың мақсаты немесе «автоматты»?"},
+        ],
+        "kg_monthly_report": [
+            {"key": "period",    "q": "📅 Қандай кезең?"},
+            {"key": "age_group", "q": "👶 Топ?"},
+            {"key": "progress",  "q": "📊 Балалардың бағдарламаны меңгеруі?"},
+            {"key": "extra",     "q": "🏆 Іс-шаралар, мерекелер?\n\n_Жоқ болса «жоқ»_"},
+        ],
+        "kg_child_characteristic": [
+            {"key": "student_name", "q": "👤 Баланың аты, жасы, тобы?"},
+            {"key": "performance",  "q": "📊 Бағдарламаны меңгеруі?"},
+            {"key": "behavior",     "q": "😊 Мінез-құлқы?"},
+            {"key": "activities",   "q": "🏆 Жетістіктері?\n\n_Жоқ болса «жоқ»_"},
+            {"key": "purpose",      "q": "📋 Мінездеме мақсаты?"},
+        ],
+        "kg_parent_letter": [
+            {"key": "student_name", "q": "👤 Баланың аты және тобы?"},
+            {"key": "topic",        "q": "📋 Хат тақырыбы?"},
+            {"key": "details",      "q": "📝 Мәліметтер?"},
+        ],
+        "kg_absence_cert": [
+            {"key": "student_name",  "q": "👤 Баланың аты және тобы?"},
+            {"key": "absence_dates", "q": "📅 Болмаған күндер?"},
+            {"key": "reason",        "q": "❓ Себебі?"},
+        ],
+        "kg_vacation_request": [
+            {"key": "vacation_type", "q": "🏖 Демалыс түрі?"},
+            {"key": "dates",         "q": "📅 Күндері?"},
+        ],
+        "kg_explanation": [
+            {"key": "absence_date", "q": "📅 Болмаған күн?"},
+            {"key": "reason",       "q": "❓ Себебі?"},
+            {"key": "documents",    "q": "📎 Растайтын құжаттар?\n\n_Жоқ болса «жоқ»_"},
+        ],
+        "kg_announcement": [
+            {"key": "event",    "q": "📢 Іс-шара?\n\n_Мысалы: мереке, ата-аналар жиналысы_"},
+            {"key": "datetime", "q": "📅 Күні мен уақыты?"},
+            {"key": "location", "q": "📍 Орны?"},
+        ],
     },
     "en": {
         "lesson_plan": [
@@ -193,6 +294,16 @@ DOC_NAMES = {
         "vacation_request": "Заявление на отпуск",
         "explanation": "Объяснительная записка",
         "announcement": "Объявление",
+        # садик
+        "kg_thematic_plan": "Тематический план занятий",
+        "kg_activity_summary": "Конспект занятия",
+        "kg_monthly_report": "Отчёт воспитателя",
+        "kg_child_characteristic": "Характеристика воспитанника",
+        "kg_parent_letter": "Письмо родителям",
+        "kg_absence_cert": "Справка об отсутствии ребёнка",
+        "kg_vacation_request": "Заявление на отпуск",
+        "kg_explanation": "Объяснительная записка",
+        "kg_announcement": "Объявление для родителей",
     },
     "kz": {
         "lesson_plan": "Қысқамерзімді жоспар (ҚМЖ)",
@@ -208,6 +319,16 @@ DOC_NAMES = {
         "vacation_request": "Демалыс өтініші",
         "explanation": "Түсіндірме хат",
         "announcement": "Хабарландыру",
+        # балабақша
+        "kg_thematic_plan": "Тақырыптық жоспар",
+        "kg_activity_summary": "Сабақ конспектісі",
+        "kg_monthly_report": "Тәрбиеші есебі",
+        "kg_child_characteristic": "Тәрбиеленуші мінездемесі",
+        "kg_parent_letter": "Ата-аналарға хат",
+        "kg_absence_cert": "Баланың болмағаны туралы анықтама",
+        "kg_vacation_request": "Демалыс өтініші",
+        "kg_explanation": "Түсіндірме хат",
+        "kg_announcement": "Ата-аналарға хабарландыру",
     },
     "en": {
         "lesson_plan": "Lesson Plan",
@@ -223,15 +344,43 @@ DOC_NAMES = {
         "vacation_request": "Leave Application",
         "explanation": "Explanatory Note",
         "announcement": "Announcement",
+        "kg_thematic_plan": "Thematic Activity Plan",
+        "kg_activity_summary": "Activity Summary",
+        "kg_monthly_report": "Kindergarten Teacher Report",
+        "kg_child_characteristic": "Child Reference",
+        "kg_parent_letter": "Letter to Parents",
+        "kg_absence_cert": "Child Absence Certificate",
+        "kg_vacation_request": "Leave Application",
+        "kg_explanation": "Explanatory Note",
+        "kg_announcement": "Announcement for Parents",
     }
 }
 
+# Категории документов учителя (школа)
 CAT_DOCS = {
     "planning": ["lesson_plan", "calendar_plan", "lesson_summary"],
     "reports":  ["monthly_report", "control_analysis"],
     "students": ["characteristic", "absence_cert", "discipline_act", "gratitude_letter", "parent_letter"],
     "personal": ["vacation_request", "explanation", "announcement"],
 }
+
+# Категории документов садика (полностью отдельный набор — НЕ школьные типы)
+CAT_DOCS_KG = {
+    "kg_planning": ["kg_thematic_plan", "kg_activity_summary"],
+    "kg_reports":  ["kg_monthly_report"],
+    "kg_children": ["kg_child_characteristic", "kg_parent_letter", "kg_absence_cert"],
+    "kg_personal": ["kg_vacation_request", "kg_explanation", "kg_announcement"],
+}
+
+# Объединённый словарь категорий — используется при поиске документов по категории,
+# независимо от роли (роль определяет только какое меню категорий показать)
+CAT_DOCS_ALL = {**CAT_DOCS, **CAT_DOCS_KG}
+
+# Типы документов, для которых предлагается выбор ребёнка/ученика из базы
+STUDENT_LINKED_DOC_TYPES = [
+    "characteristic", "absence_cert", "discipline_act", "gratitude_letter", "parent_letter",
+    "kg_child_characteristic", "kg_parent_letter", "kg_absence_cert",
+]
 
 # Красивые разделители для дизайна
 DIVIDER = "─" * 20
@@ -244,6 +393,7 @@ def _build_profile_context(user: dict, lang: str) -> str:
             "ПРОФИЛЬ ВОСПИТАТЕЛЯ (используй автоматически):",
             f"- ФИО: {user.get('name') or '[не указано]'}",
             f"- Детский сад: {user.get('school') or '[не указано]'}",
+            f"- Возрастная группа: {user.get('age_group') or '[не указано]'}",
             f"- Должность: {user.get('position') or 'воспитатель'}",
             f"- Заведующая: {user.get('director') or '[не указано]'}",
         ]
@@ -315,9 +465,9 @@ class DocumentHandler:
             await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=doc_name)
             return
 
-        # ── Категория документов ──
+        # ── Категория документов (и школьная, и садиковская — cat_planning / cat_kg_planning и т.д.) ──
         if data.startswith("cat_"):
-            cat = data.split("_")[1]
+            cat = data[len("cat_"):]
             await self._show_doc_list(query, lang, cat)
 
         # ── Выбор конкретного документа ──
@@ -338,18 +488,32 @@ class DocumentHandler:
             kb = [[InlineKeyboardButton("❌ Отмена", callback_data="menu_main")]]
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
-        # ── Выбрать ученика из базы ──
+        # ── Выбрать ученика/воспитанника из базы ──
         elif data.startswith("gen_student_"):
             student_id = int(data[12:])
             await self._use_student_data(query, context, user_id, user, lang, student_id)
 
     async def _show_doc_list(self, query, lang, cat):
-        docs  = CAT_DOCS.get(cat, [])
+        docs  = CAT_DOCS_ALL.get(cat, [])
         names = DOC_NAMES.get(lang, DOC_NAMES["ru"])
         keyboard = [[InlineKeyboardButton(names.get(d, d), callback_data=f"doc_{d}")] for d in docs]
         keyboard.append([InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")])
+
         cat_name = t(lang, f"cat_{cat}")
         header = "📂 *{cat}*\n{div}\nВыберите тип документа:" if lang == "ru" else "📂 *{cat}*\n{div}\nҚұжат түрін таңдаңыз:"
+
+        if not docs:
+            # Защита от несуществующей/незаполненной категории — не показываем пустой экран молча
+            empty_text = (
+                "⚠️ Для этой категории пока нет документов." if lang == "ru"
+                else "⚠️ Бұл санатта әзірге құжат жоқ."
+            )
+            await query.edit_message_text(
+                empty_text,
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")]])
+            )
+            return
+
         await query.edit_message_text(
             header.format(cat=cat_name, div=DIVIDER),
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -372,25 +536,26 @@ class DocumentHandler:
             )
             return
 
-        # Для документов по ученикам — предложить выбрать из базы
-        if doc_type in ["characteristic", "absence_cert", "discipline_act", "gratitude_letter", "parent_letter"]:
-            if user.get("is_class_teacher"):
-                students = await self.db.get_students(user_id)
-                if students:
-                    keyboard = []
-                    for s in students[:8]:
-                        keyboard.append([InlineKeyboardButton(
-                            f"👤 {s['name']} ({s['class_name']})",
-                            callback_data=f"gen_student_{s['id']}"
-                        )])
+        # Для документов по ученику/ребёнку — предложить выбрать из базы
+        if doc_type in STUDENT_LINKED_DOC_TYPES:
+            students = await self.db.get_students(user_id)
+            if students:
+                keyboard = []
+                for s in students[:8]:
                     keyboard.append([InlineKeyboardButton(
-                        "✍️ Ввести вручную" if lang == "ru" else "✍️ Қолмен енгізу",
-                        callback_data="gen_student_0"
+                        f"👤 {s['name']} ({s['class_name']})",
+                        callback_data=f"gen_student_{s['id']}"
                     )])
-                    context.user_data["doc_type"] = doc_type
-                    text = "👥 *Выберите ученика из базы:*" if lang == "ru" else "👥 *Базадан оқушыны таңдаңыз:*"
-                    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
-                    return
+                keyboard.append([InlineKeyboardButton(
+                    "✍️ Ввести вручную" if lang == "ru" else "✍️ Қолмен енгізу",
+                    callback_data="gen_student_0"
+                )])
+                context.user_data["doc_type"] = doc_type
+                is_kg = user.get("role") == "kindergarten"
+                title = ("👥 *Выберите воспитанника из базы:*" if is_kg else "👥 *Выберите ученика из базы:*") if lang == "ru" \
+                    else ("👥 *Базадан баланы таңдаңыз:*" if is_kg else "👥 *Базадан оқушыны таңдаңыз:*")
+                await query.edit_message_text(title, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+                return
 
         context.user_data["doc_type"]    = doc_type
         context.user_data["doc_answers"] = {}
@@ -429,7 +594,7 @@ class DocumentHandler:
                 achievements = json.loads(student.get("achievements", "[]"))
                 grades_str   = ", ".join(f"{k}-{v}" for k, v in grades.items()) if grades else "нет данных"
                 achieve_str  = ", ".join(achievements) if achievements else "нет"
-                context.user_data["doc_answers"]["student_name"] = f"{student['name']}, {student['class_name']} класс"
+                context.user_data["doc_answers"]["student_name"] = f"{student['name']}, {student['class_name']}"
                 context.user_data["doc_answers"]["performance"]  = grades_str
                 context.user_data["doc_answers"]["activities"]   = achieve_str
                 context.user_data["doc_answers"]["behavior"]     = student.get("behavior", "хорошее")
@@ -555,7 +720,7 @@ class DocumentHandler:
         # Профиль пользователя — подставляем автоматически
         profile_ctx = _build_profile_context(user, lang)
 
-        # Расписание из агентной памяти (если загружено)
+        # Расписание из агентной памяти (если загружено) — только если реально есть данные
         schedule_ctx = ""
         try:
             from handlers.agent import AgentHandler
@@ -564,10 +729,21 @@ class DocumentHandler:
             pass
 
         system_prompt = get_system_prompt(user, doc_lang)
+
+        # Образцы, загруженные админом для этого типа документа — добавляем как эталон
+        samples_ctx = ""
+        try:
+            samples = await self.db.get_samples_for_type(doc_type, doc_lang, limit=1)
+            if samples:
+                samples_ctx = "\nЭТАЛОННЫЙ ОБРАЗЕЦ (ориентируйся на структуру и стиль):\n" + samples[0]["content"][:3000]
+        except Exception:
+            pass
+
         user_prompt = (
             f"Создай документ: {doc_name}\n\n"
             f"{profile_ctx}\n"
-            f"{schedule_ctx}\n\n"
+            f"{schedule_ctx}\n"
+            f"{samples_ctx}\n\n"
             f"Данные для этого документа:\n{answers_text}\n\n"
             f"Используй профиль автоматически. Если данных не хватает — пиши [уточнить], не выдумывай."
         )
@@ -577,8 +753,6 @@ class DocumentHandler:
         score   = 0
         attempts = 0
 
-        # Одна генерация — Sonnet 4.6 с хорошим промптом сразу даёт качество
-        # Оценку делаем Haiku — дёшево и быстро
         while score < 85 and attempts < 2:
             attempts += 1
             if attempts > 1:
@@ -589,7 +763,6 @@ class DocumentHandler:
                 }
                 await message.reply_text(improve_msg.get(lang, improve_msg["ru"]), parse_mode=ParseMode.MARKDOWN)
 
-            # Основная генерация — Sonnet 4.6
             msg = client.messages.create(
                 model="claude-sonnet-4-6",
                 max_tokens=3000,
@@ -598,7 +771,6 @@ class DocumentHandler:
             )
             result = msg.content[0].text
 
-            # Самооценка — Haiku (в 10 раз дешевле)
             eval_msg = client.messages.create(
                 model="claude-haiku-4-5",
                 max_tokens=10,
@@ -612,7 +784,7 @@ class DocumentHandler:
             if score < 85 and attempts < 2:
                 user_prompt = (
                     f"Улучши документ. Оценка {score}/100. "
-                    f"Заполни все пустые поля, добавь конкретику из профиля учителя.\n\n{result}"
+                    f"Заполни все пустые поля, добавь конкретику из профиля.\n\n{result}"
                 )
 
         # Формируем Word документ
@@ -639,7 +811,6 @@ class DocumentHandler:
             print(f"Word error: {e}")
             import traceback
             traceback.print_exc()
-            # Запасной вариант — отправляем текст
             for chunk in range(0, len(result), 4000):
                 await message.reply_text(result[chunk:chunk+4000])
 
@@ -656,7 +827,7 @@ class DocumentHandler:
         fresh_user = await self.db.get_user(user_id)
         if not fresh_user.get("subscribed"):
             await self.db.increment_free(user_id)
-            fresh_user = await self.db.get_user(user_id)  # обновляем снова
+            fresh_user = await self.db.get_user(user_id)
             free_used = fresh_user.get("free_used", 0)
             free_left = max(0, 3 - free_used)
 
@@ -689,339 +860,3 @@ class DocumentHandler:
             parse_mode=ParseMode.MARKDOWN
         )
         context.user_data.clear()
-
-    async def _create_word(self, content: str, title: str) -> str:
-        from docx import Document as DocxDocument
-        from docx.shared import Pt, RGBColor, Cm
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-        from docx.oxml.ns import qn
-        from docx.oxml import OxmlElement
-        import re
-
-        # ── Цвета бренда Docura ───────────────────────────
-        NAVY       = RGBColor(0x1A, 0x2E, 0x5A)   # тёмно-синий заголовки
-        ACCENT     = RGBColor(0x2E, 0x75, 0xB6)   # синий акцент
-        GRAY       = RGBColor(0x59, 0x59, 0x59)   # тёмно-серый текст
-        LIGHT_GRAY = RGBColor(0xA0, 0xA0, 0xA0)   # светло-серый
-        WHITE      = RGBColor(0xFF, 0xFF, 0xFF)
-        ROW_ALT    = "EBF3FB"   # светло-голубой для чётных строк таблицы
-        HEADER_BG  = "1A2E5A"   # фон шапки таблицы
-
-        doc     = DocxDocument()
-        section = doc.sections[0]
-
-        # Поля: 30мм лево, 15мм право, 20мм верх/низ (стандарт РК)
-        section.left_margin   = Cm(3.0)
-        section.right_margin  = Cm(1.5)
-        section.top_margin    = Cm(2.0)
-        section.bottom_margin = Cm(2.0)
-
-        # Стиль Normal
-        normal = doc.styles["Normal"]
-        normal.font.name = "Times New Roman"
-        normal.font.size = Pt(12)
-        normal.font.color.rgb = GRAY
-        normal.paragraph_format.line_spacing = Pt(18)
-        normal.paragraph_format.space_after  = Pt(0)
-
-        # ── Вспомогательные функции ───────────────────────
-
-        def set_cell_bg(cell, hex_color):
-            tc = cell._tc
-            tcPr = tc.get_or_add_tcPr()
-            # удаляем старый shd
-            for old in tcPr.findall(qn("w:shd")):
-                tcPr.remove(old)
-            shd = OxmlElement("w:shd")
-            shd.set(qn("w:val"),   "clear")
-            shd.set(qn("w:color"), "auto")
-            shd.set(qn("w:fill"),  hex_color)
-            tcPr.append(shd)
-
-        def set_cell_border(cell, hex_color="C0C0C0"):
-            tc = cell._tc
-            tcPr = tc.get_or_add_tcPr()
-            tcBorders = OxmlElement("w:tcBorders")
-            for side in ("top", "bottom", "left", "right"):
-                el = OxmlElement(f"w:{side}")
-                el.set(qn("w:val"),   "single")
-                el.set(qn("w:sz"),    "4")
-                el.set(qn("w:space"), "0")
-                el.set(qn("w:color"), hex_color)
-                tcBorders.append(el)
-            tcPr.append(tcBorders)
-
-        def add_hrule(doc, color="2E75B6", sz="12"):
-            p = doc.add_paragraph()
-            pPr = p._p.get_or_add_pPr()
-            pBdr = OxmlElement("w:pBdr")
-            bottom = OxmlElement("w:bottom")
-            bottom.set(qn("w:val"),   "single")
-            bottom.set(qn("w:sz"),    sz)
-            bottom.set(qn("w:space"), "1")
-            bottom.set(qn("w:color"), color)
-            pBdr.append(bottom)
-            pPr.append(pBdr)
-            p.paragraph_format.space_after  = Pt(0)
-            p.paragraph_format.space_before = Pt(0)
-            return p
-
-        def add_colored_block(doc, text, bg_hex, text_color, font_size=11, bold=False):
-            """Цветной прямоугольный блок через однострочную таблицу"""
-            tbl = doc.add_table(rows=1, cols=1)
-            tbl.style = "Table Grid"
-            cell = tbl.rows[0].cells[0]
-            set_cell_bg(cell, bg_hex)
-            set_cell_border(cell, bg_hex)
-            cell.add_paragraph()  # отступ сверху
-            p = cell.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            run = p.add_run(text)
-            run.bold           = bold
-            run.font.name      = "Times New Roman"
-            run.font.size      = Pt(font_size)
-            run.font.color.rgb = text_color
-            cell.add_paragraph()  # отступ снизу
-            return tbl
-
-        # ══════════════════════════════════════════════════
-        # ШАПКА — цветной блок с названием сервиса
-        # ══════════════════════════════════════════════════
-        add_colored_block(
-            doc,
-            f"DOCURA.KZ  •  Профессиональные документы для учителей",
-            bg_hex="1A2E5A", text_color=WHITE, font_size=9
-        )
-        sp = doc.add_paragraph()
-        sp.paragraph_format.space_after = Pt(4)
-
-        # ══════════════════════════════════════════════════
-        # ЗАГОЛОВОК ДОКУМЕНТА
-        # ══════════════════════════════════════════════════
-        title_p = doc.add_paragraph()
-        title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        title_p.paragraph_format.space_before = Pt(14)
-        title_p.paragraph_format.space_after  = Pt(6)
-        title_run = title_p.add_run(title.upper())
-        title_run.bold           = True
-        title_run.font.name      = "Times New Roman"
-        title_run.font.size      = Pt(15)
-        title_run.font.color.rgb = NAVY
-
-        # Тонкая синяя линия под заголовком
-        add_hrule(doc, color="2E75B6", sz="8")
-
-        sp2 = doc.add_paragraph()
-        sp2.paragraph_format.space_after = Pt(8)
-
-        # ══════════════════════════════════════════════════
-        # ПАРСИНГ И ФОРМАТИРОВАНИЕ СОДЕРЖИМОГО
-        # ══════════════════════════════════════════════════
-        lines = content.split("\n")
-
-        def is_section_header(s):
-            if not s or len(s) < 3:
-                return False
-            # Полностью заглавные (кириллица/латиница), не число
-            if s == s.upper() and re.search(r'[А-ЯA-Z]{3,}', s):
-                return True
-            # Нумерованный: "1. РАЗДЕЛ" или "I. РАЗДЕЛ"
-            if re.match(r'^(\d+\.|[IVX]+\.)\s+[А-ЯA-Z\u04b0-\u04b1]', s):
-                return True
-            return False
-
-        def is_subheader(s):
-            return (s.endswith(":") and 4 < len(s) < 80
-                    and not s.startswith(("-", "•", "*")))
-
-        def is_bullet(s):
-            return s.startswith(("- ", "• ", "* ", "– ", "· "))
-
-        def is_table_row(s):
-            return s.count("|") >= 2
-
-        def is_signature(s):
-            keywords = ["подпись", "директор", "учитель", "кл.рук", "классный руководитель",
-                        "дата:", "м.п.", "печать", "қолы", "мұғалім", "күні:"]
-            return any(k in s.lower() for k in keywords)
-
-        def add_section_header(doc, text):
-            """Секция с цветной полоской слева"""
-            p = doc.add_paragraph()
-            p.paragraph_format.space_before = Pt(14)
-            p.paragraph_format.space_after  = Pt(4)
-            # Левая граница как акцент
-            pPr = p._p.get_or_add_pPr()
-            pBdr = OxmlElement("w:pBdr")
-            left = OxmlElement("w:left")
-            left.set(qn("w:val"),   "single")
-            left.set(qn("w:sz"),    "18")
-            left.set(qn("w:space"), "8")
-            left.set(qn("w:color"), "2E75B6")
-            pBdr.append(left)
-            pPr.append(pBdr)
-            run = p.add_run("  " + text)
-            run.bold           = True
-            run.font.name      = "Times New Roman"
-            run.font.size      = Pt(12)
-            run.font.color.rgb = NAVY
-            return p
-
-        i = 0
-        prev_empty = False
-        while i < len(lines):
-            line    = lines[i]
-            stripped = line.strip()
-
-            # Пустая строка
-            if not stripped:
-                if not prev_empty:
-                    sp = doc.add_paragraph()
-                    sp.paragraph_format.space_after = Pt(2)
-                prev_empty = True
-                i += 1
-                continue
-            prev_empty = False
-
-            # ── Markdown таблица ──
-            if is_table_row(stripped):
-                table_lines = []
-                while i < len(lines) and (is_table_row(lines[i]) or
-                                           lines[i].strip().startswith("|---") or
-                                           lines[i].strip().startswith("| ---")):
-                    raw = lines[i]
-                    if not re.match(r'^\s*\|[\s\-:]+\|', raw):
-                        table_lines.append(raw)
-                    i += 1
-                if table_lines:
-                    _add_beautiful_table(doc, table_lines, ROW_ALT, HEADER_BG,
-                                         NAVY, WHITE, GRAY, set_cell_bg, set_cell_border)
-                    doc.add_paragraph().paragraph_format.space_after = Pt(6)
-                continue
-
-            # ── Заголовок раздела ──
-            if is_section_header(stripped):
-                add_section_header(doc, stripped)
-                i += 1
-                continue
-
-            # ── Подзаголовок ──
-            if is_subheader(stripped):
-                p = doc.add_paragraph()
-                p.paragraph_format.space_before = Pt(8)
-                p.paragraph_format.space_after  = Pt(2)
-                run = p.add_run(stripped)
-                run.bold           = True
-                run.font.name      = "Times New Roman"
-                run.font.size      = Pt(12)
-                run.font.color.rgb = GRAY
-                i += 1
-                continue
-
-            # ── Буллет ──
-            if is_bullet(stripped):
-                text = re.sub(r'^[-•*–·]\s+', '', stripped)
-                p = doc.add_paragraph()
-                p.paragraph_format.left_indent    = Cm(1.2)
-                p.paragraph_format.first_line_indent = Cm(-0.5)
-                p.paragraph_format.space_after    = Pt(2)
-                bullet_run = p.add_run("▸  ")
-                bullet_run.font.name      = "Arial"
-                bullet_run.font.size      = Pt(10)
-                bullet_run.font.color.rgb = ACCENT
-                text_run = p.add_run(text)
-                text_run.font.name      = "Times New Roman"
-                text_run.font.size      = Pt(12)
-                text_run.font.color.rgb = GRAY
-                i += 1
-                continue
-
-            # ── Строка подписи ──
-            if is_signature(stripped):
-                p = doc.add_paragraph()
-                p.paragraph_format.space_before = Pt(4)
-                p.paragraph_format.space_after  = Pt(2)
-                run = p.add_run(stripped)
-                run.font.name      = "Times New Roman"
-                run.font.size      = Pt(12)
-                run.font.color.rgb = GRAY
-                i += 1
-                continue
-
-            # ── Обычный абзац ──
-            p = doc.add_paragraph()
-            p.paragraph_format.first_line_indent = Cm(1.25)
-            p.paragraph_format.alignment         = WD_ALIGN_PARAGRAPH.JUSTIFY
-            p.paragraph_format.space_after        = Pt(2)
-            run = p.add_run(stripped)
-            run.font.name      = "Times New Roman"
-            run.font.size      = Pt(12)
-            run.font.color.rgb = GRAY
-            i += 1
-
-        # ══════════════════════════════════════════════════
-        # ПОДВАЛ
-        # ══════════════════════════════════════════════════
-        doc.add_paragraph().paragraph_format.space_before = Pt(16)
-        add_hrule(doc, color="1A2E5A", sz="6")
-        footer_p = doc.add_paragraph()
-        footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        footer_p.paragraph_format.space_before = Pt(4)
-        footer_run = footer_p.add_run(
-            f"Сгенерировано сервисом Docura.kz  •  {datetime.now().strftime('%d.%m.%Y %H:%M')}"
-        )
-        footer_run.font.name      = "Times New Roman"
-        footer_run.font.size      = Pt(8)
-        footer_run.font.color.rgb = LIGHT_GRAY
-
-        fname = f"/tmp/docura_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
-        doc.save(fname)
-        return fname
-
-
-def _add_beautiful_table(doc, table_lines, row_alt, header_bg,
-                          navy, white, gray, set_cell_bg, set_cell_border):
-    """Красивая таблица с чередующимися строками"""
-    from docx.shared import Pt
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-
-    rows_data = []
-    for line in table_lines:
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        rows_data.append(cells)
-
-    if not rows_data:
-        return
-
-    max_cols = max(len(r) for r in rows_data)
-    # выравниваем строки
-    rows_data = [r + [""] * (max_cols - len(r)) for r in rows_data]
-
-    table = doc.add_table(rows=len(rows_data), cols=max_cols)
-    table.style = "Table Grid"
-
-    for r_idx, row_data in enumerate(rows_data):
-        row = table.rows[r_idx]
-        is_header = (r_idx == 0)
-        bg = header_bg if is_header else (row_alt if r_idx % 2 == 0 else "FFFFFF")
-
-        for c_idx, cell_text in enumerate(row_data):
-            cell = row.cells[c_idx]
-            # очистим текст по умолчанию
-            for para in cell.paragraphs:
-                for run in para.runs:
-                    run.text = ""
-
-            set_cell_bg(cell, bg)
-            set_cell_border(cell, "C8D8E8" if not is_header else header_bg)
-
-            p = cell.paragraphs[0]
-            p.paragraph_format.space_before = Pt(4)
-            p.paragraph_format.space_after  = Pt(4)
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER if is_header else WD_ALIGN_PARAGRAPH.LEFT
-
-            run = p.add_run(cell_text)
-            run.bold           = is_header
-            run.font.name      = "Times New Roman"
-            run.font.size      = Pt(11)
-            run.font.color.rgb = white if is_header else gray

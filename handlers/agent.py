@@ -1,6 +1,6 @@
 """
 Docura.kz — AI-агент с памятью
-Загружает расписание, помнит контекст, предлагает нужные документы
+Загружает расписание/режим дня, помнит контекст, предлагает нужные документы
 """
 import json
 import base64
@@ -26,34 +26,52 @@ class AgentHandler:
         self.api_key = api_key
 
     # ══════════════════════════════════════════════════════
-    # ЗАГРУЗКА РАСПИСАНИЯ
+    # ЗАГРУЗКА РАСПИСАНИЯ / РЕЖИМА ДНЯ
     # ══════════════════════════════════════════════════════
 
-    async def show_schedule_menu(self, update_or_query, context, lang):
-        """Меню управления расписанием"""
-        text = (
-            "📅 *Расписание*\n\n"
-            "Загрузи своё расписание — бот будет автоматически подставлять "
-            "нужные данные в документы.\n\n"
-            "Можно прислать:\n"
-            "📸 Фото расписания из журнала\n"
-            "📄 Файл Excel/CSV\n"
-            "✍️ Или ввести текстом"
-        ) if lang == "ru" else (
-            "📅 *Кесте*\n\n"
-            "Кестеңізді жүктеңіз — бот деректерді автоматты түрде құжаттарға қосады."
-        )
+    async def show_schedule_menu(self, update_or_query, context, lang, is_kg=False):
+        """Меню управления расписанием (для сада — режим дня и занятия по группе)"""
+        if is_kg:
+            text = (
+                "📅 *Режим дня и занятия*\n\n"
+                "Загрузи расписание занятий своей группы — бот будет автоматически "
+                "подставлять нужные данные в тематические планы и конспекты.\n\n"
+                "Можно прислать:\n"
+                "📸 Фото расписания из группы\n"
+                "✍️ Или ввести текстом"
+            ) if lang == "ru" else (
+                "📅 *Күн тәртібі мен сабақтар*\n\n"
+                "Тобыңыздың сабақ кестесін жүктеңіз — бот деректерді жоспарларға автоматты қосады."
+            )
+        else:
+            text = (
+                "📅 *Расписание*\n\n"
+                "Загрузи своё расписание — бот будет автоматически подставлять "
+                "нужные данные в документы.\n\n"
+                "Можно прислать:\n"
+                "📸 Фото расписания из журнала\n"
+                "📄 Файл Excel/CSV\n"
+                "✍️ Или ввести текстом"
+            ) if lang == "ru" else (
+                "📅 *Кесте*\n\n"
+                "Кестеңізді жүктеңіз — бот деректерді автоматты түрде құжаттарға қосады."
+            )
+
+        photo_btn = ("📸 Фото режима дня" if lang == "ru" else "📸 Күн тәртібінің суреті") if is_kg \
+            else ("📸 Фото расписания" if lang == "ru" else "📸 Кесте суреті")
+        view_btn = ("📋 Мой режим дня" if lang == "ru" else "📋 Менің күн тәртібім") if is_kg \
+            else ("📋 Моё расписание" if lang == "ru" else "📋 Менің кестем")
+
         kb = [
-            [InlineKeyboardButton("📸 Фото расписания" if lang == "ru" else "📸 Кесте суреті", callback_data="agent_schedule_photo")],
+            [InlineKeyboardButton(photo_btn, callback_data="agent_schedule_photo")],
             [InlineKeyboardButton("✍️ Ввести текстом" if lang == "ru" else "✍️ Мәтінмен енгізу", callback_data="agent_schedule_text")],
-            [InlineKeyboardButton("📋 Моё расписание" if lang == "ru" else "📋 Менің кестем", callback_data="agent_schedule_view")],
+            [InlineKeyboardButton(view_btn, callback_data="agent_schedule_view")],
             [MENU_BTN(lang)],
         ]
-        text_obj = text
         if hasattr(update_or_query, 'edit_message_text'):
-            await update_or_query.edit_message_text(text_obj, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+            await update_or_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
         else:
-            await update_or_query.message.reply_text(text_obj, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+            await update_or_query.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
     async def callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query   = update.callback_query
@@ -62,47 +80,60 @@ class AgentHandler:
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
+        is_kg   = (user or {}).get("role") == "kindergarten"
 
         if data == "agent_schedule":
-            await self.show_schedule_menu(query, context, lang)
+            await self.show_schedule_menu(query, context, lang, is_kg)
 
         elif data == "agent_schedule_photo":
             context.user_data["step"] = "agent_waiting_schedule_photo"
             kb = [[MENU_BTN(lang)]]
-            await query.edit_message_text(
-                "📸 Пришлите фото расписания — бот распознает его автоматически" if lang == "ru"
-                else "📸 Кесте суретін жіберіңіз",
-                reply_markup=InlineKeyboardMarkup(kb)
+            prompt_text = (
+                ("📸 Пришлите фото режима дня — бот распознает его автоматически" if is_kg
+                 else "📸 Пришлите фото расписания — бот распознает его автоматически") if lang == "ru"
+                else "📸 Сурет жіберіңіз"
             )
+            await query.edit_message_text(prompt_text, reply_markup=InlineKeyboardMarkup(kb))
 
         elif data == "agent_schedule_text":
             context.user_data["step"] = "agent_waiting_schedule_text"
             kb = [[MENU_BTN(lang)]]
-            await query.edit_message_text(
-                "✍️ Напишите расписание в любом формате.\n\n"
-                "_Например:_\n"
-                "_Понедельник: 8:00 7А Математика, 9:00 8Б Математика_\n"
-                "_Вторник: 8:00 9В Алгебра..._" if lang == "ru"
-                else "✍️ Кестені кез келген форматта жазыңыз.",
-                reply_markup=InlineKeyboardMarkup(kb),
-                parse_mode=ParseMode.MARKDOWN
-            )
+            if is_kg:
+                prompt_text = (
+                    "✍️ Напишите режим дня / занятия группы в любом формате.\n\n"
+                    "_Например:_\n"
+                    "_Понедельник: 9:00 познание, 10:00 творчество_\n"
+                    "_Вторник: 9:00 физкультура..._" if lang == "ru"
+                    else "✍️ Топтың сабақтарын кез келген форматта жазыңыз."
+                )
+            else:
+                prompt_text = (
+                    "✍️ Напишите расписание в любом формате.\n\n"
+                    "_Например:_\n"
+                    "_Понедельник: 8:00 7А Математика, 9:00 8Б Математика_\n"
+                    "_Вторник: 8:00 9В Алгебра..._" if lang == "ru"
+                    else "✍️ Кестені кез келген форматта жазыңыз."
+                )
+            await query.edit_message_text(prompt_text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
         elif data == "agent_schedule_view":
             schedule_json = await self.db.get_schedule(user_id)
             if not schedule_json:
+                empty_text = (
+                    ("📅 Режим дня не загружен." if is_kg else "📅 Расписание не загружено.") if lang == "ru"
+                    else "📅 Кесте жүктелмеген."
+                )
                 kb = [
                     [InlineKeyboardButton("➕ Загрузить" if lang == "ru" else "➕ Жүктеу", callback_data="agent_schedule")],
                     [MENU_BTN(lang)],
                 ]
-                await query.edit_message_text(
-                    "📅 Расписание не загружено." if lang == "ru" else "📅 Кесте жүктелмеген.",
-                    reply_markup=InlineKeyboardMarkup(kb)
-                )
+                await query.edit_message_text(empty_text, reply_markup=InlineKeyboardMarkup(kb))
                 return
 
             schedule = json.loads(schedule_json)
-            lines = ["📅 *Ваше расписание:*\n" if lang == "ru" else "📅 *Сіздің кестеңіз:*\n"]
+            title = ("📅 *Ваш режим дня:*\n" if is_kg else "📅 *Ваше расписание:*\n") if lang == "ru" \
+                else ("📅 *Сіздің күн тәртібіңіз:*\n" if is_kg else "📅 *Сіздің кестеңіз:*\n")
+            lines = [title]
             for day, lessons in schedule.items():
                 lines.append(f"*{day}:*")
                 if isinstance(lessons, list):
@@ -124,7 +155,6 @@ class AgentHandler:
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
         elif data == "agent_suggest_doc":
-            # Пользователь принял предложение сгенерировать документ
             doc_type = context.user_data.get("suggested_doc_type")
             if doc_type:
                 from handlers.documents import DocumentHandler
@@ -139,16 +169,17 @@ class AgentHandler:
                 await docs._generate(query.message, context, lang)
 
     async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обрабатывает фото расписания"""
+        """Обрабатывает фото расписания / режима дня"""
         if context.user_data.get("step") != "agent_waiting_schedule_photo":
             return False  # не наш случай
 
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
+        is_kg   = (user or {}).get("role") == "kindergarten"
 
         wait_msg = await update.message.reply_text(
-            "🔍 Распознаю расписание..." if lang == "ru" else "🔍 Кесте танылуда..."
+            "🔍 Распознаю..." if lang == "ru" else "🔍 Танылуда..."
         )
 
         try:
@@ -162,7 +193,16 @@ class AgentHandler:
             os.unlink(tmp_path)
 
             client = anthropic.Anthropic(api_key=self.api_key)
-            prompt = """Это фото расписания уроков учителя. Распознай расписание и верни ТОЛЬКО JSON без markdown:
+            if is_kg:
+                prompt = """Это фото режима дня / расписания занятий группы детского сада. Распознай и верни ТОЛЬКО JSON без markdown:
+{
+  "Понедельник": [{"time": "9:00", "class": "старшая группа", "subject": "Познание"}, ...],
+  "Вторник": [...],
+  ...
+}
+Если не можешь распознать — верни {"error": "не удалось распознать"}"""
+            else:
+                prompt = """Это фото расписания уроков учителя. Распознай расписание и верни ТОЛЬКО JSON без markdown:
 {
   "Понедельник": [{"time": "8:00", "class": "7А", "subject": "Математика"}, ...],
   "Вторник": [...],
@@ -203,12 +243,14 @@ class AgentHandler:
                 [InlineKeyboardButton("📋 Посмотреть" if lang == "ru" else "📋 Қарау", callback_data="agent_schedule_view")],
                 [MENU_BTN(lang)],
             ]
+            done_word = "Режим дня загружен!" if is_kg else "Расписание загружено!"
+            done_word_kz = "Күн тәртібі жүктелді!" if is_kg else "Кесте жүктелді!"
             await update.message.reply_text(
-                f"✅ *Расписание загружено!*\n\n"
+                f"✅ *{done_word}*\n\n"
                 f"📅 Дней: {days_count}\n"
-                f"📚 Уроков: {lessons_count}\n\n"
-                f"Теперь бот будет автоматически использовать твоё расписание при генерации КСП и отчётов." if lang == "ru" else
-                f"✅ *Кесте жүктелді!*\n\n"
+                f"📚 Занятий: {lessons_count}\n\n"
+                f"Теперь бот будет автоматически использовать эти данные при генерации." if lang == "ru" else
+                f"✅ *{done_word_kz}*\n\n"
                 f"📅 Күн: {days_count}\n"
                 f"📚 Сабақ: {lessons_count}",
                 reply_markup=InlineKeyboardMarkup(kb),
@@ -225,38 +267,40 @@ class AgentHandler:
                 [MENU_BTN(lang)],
             ]
             await update.message.reply_text(
-                "❌ Не удалось распознать расписание с фото.\n"
+                "❌ Не удалось распознать с фото.\n"
                 "Попробуйте ввести текстом или сделайте более чёткое фото." if lang == "ru"
-                else "❌ Суреттен кестені тану мүмкін болмады.",
+                else "❌ Суреттен тану мүмкін болмады.",
                 reply_markup=InlineKeyboardMarkup(kb)
             )
             return True
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обрабатывает текстовое расписание"""
+        """Обрабатывает текстовое расписание / режим дня"""
         if context.user_data.get("step") != "agent_waiting_schedule_text":
             return False
 
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
+        is_kg   = (user or {}).get("role") == "kindergarten"
         text    = update.message.text.strip()
 
         wait_msg = await update.message.reply_text(
-            "⏳ Сохраняю расписание..." if lang == "ru" else "⏳ Кесте сақталуда..."
+            "⏳ Сохраняю..." if lang == "ru" else "⏳ Сақталуда..."
         )
 
         try:
             client = anthropic.Anthropic(api_key=self.api_key)
-            prompt = f"""Пользователь прислал своё расписание в свободном формате. Преобразуй в JSON:
+            entity = "режим дня / занятия группы детского сада" if is_kg else "расписание"
+            prompt = f"""Пользователь прислал своё {entity} в свободном формате. Преобразуй в JSON:
 {{
-  "Понедельник": [{{"time": "8:00", "class": "7А", "subject": "Математика"}}, ...],
+  "Понедельник": [{{"time": "8:00", "class": "{'старшая группа' if is_kg else '7А'}", "subject": "{'Познание' if is_kg else 'Математика'}"}}, ...],
   "Вторник": [...],
   ...
 }}
 Верни ТОЛЬКО JSON без markdown.
 
-РАСПИСАНИЕ:
+ДАННЫЕ:
 {text}"""
 
             response = client.messages.create(
@@ -278,8 +322,8 @@ class AgentHandler:
 
             kb = [[InlineKeyboardButton("📋 Посмотреть" if lang == "ru" else "📋 Қарау", callback_data="agent_schedule_view")], [MENU_BTN(lang)]]
             await update.message.reply_text(
-                "✅ *Расписание сохранено!*\n\nТеперь бот использует его автоматически." if lang == "ru"
-                else "✅ *Кесте сақталды!*",
+                "✅ *Сохранено!*\n\nТеперь бот использует это автоматически." if lang == "ru"
+                else "✅ *Сақталды!*",
                 reply_markup=InlineKeyboardMarkup(kb),
                 parse_mode=ParseMode.MARKDOWN
             )
@@ -309,7 +353,6 @@ class AgentHandler:
             schedule = json.loads(schedule_json)
             today = datetime.now().strftime("%A")
 
-            # Находим уроки на сегодня
             day_map = {
                 "Monday": "Понедельник", "Tuesday": "Вторник", "Wednesday": "Среда",
                 "Thursday": "Четверг", "Friday": "Пятница", "Saturday": "Суббота",
@@ -317,7 +360,7 @@ class AgentHandler:
             today_ru = day_map.get(today, "")
             today_lessons = schedule.get(today_ru, [])
 
-            lines = ["\nРАСПИСАНИЕ УЧИТЕЛЯ:"]
+            lines = ["\nРАСПИСАНИЕ / РЕЖИМ ДНЯ:"]
             for day, lessons in schedule.items():
                 if isinstance(lessons, list):
                     lessons_str = ", ".join(
@@ -327,7 +370,7 @@ class AgentHandler:
                     lines.append(f"- {day}: {lessons_str}")
 
             if today_lessons:
-                lines.append(f"\nСегодня ({today_ru}) уроки:")
+                lines.append(f"\nСегодня ({today_ru}):")
                 for l in today_lessons:
                     if isinstance(l, dict):
                         lines.append(f"  • {l.get('time', '')} — {l.get('class', '')} {l.get('subject', '')}")
@@ -338,11 +381,12 @@ class AgentHandler:
 
     async def suggest_after_generation(self, user_id: int, doc_type: str, lang: str) -> dict | None:
         """После генерации документа предлагает следующий нужный документ"""
-        # Логика подсказок на основе того что уже сгенерировано
         suggestions = {
             "lesson_plan": ("monthly_report", "Сгенерировать отчёт учителя за месяц?" if lang == "ru" else "Айлық есеп жасайын ба?"),
             "characteristic": ("parent_letter", "Написать письмо родителям этого ученика?" if lang == "ru" else "Ата-анаға хат жазайын ба?"),
             "discipline_act": ("parent_letter", "Написать письмо родителям о нарушении?" if lang == "ru" else "Ата-анаға хат жазайын ба?"),
+            "kg_thematic_plan": ("kg_monthly_report", "Сгенерировать отчёт воспитателя за месяц?" if lang == "ru" else "Айлық есеп жасайын ба?"),
+            "kg_child_characteristic": ("kg_parent_letter", "Написать письмо родителям этого ребёнка?" if lang == "ru" else "Ата-анаға хат жазайын ба?"),
         }
         if doc_type in suggestions:
             next_type, question = suggestions[doc_type]

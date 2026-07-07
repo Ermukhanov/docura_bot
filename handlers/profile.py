@@ -34,59 +34,90 @@ class ProfileHandler:
         if not user:
             return
 
+        is_kg = user.get("role") == "kindergarten"
+
         name     = user.get("name", "—")
         school   = user.get("school", "—")
-        subject  = user.get("subject", "—")
-        classes  = user.get("classes", "—")
         position = user.get("position", "—")
         director = user.get("director", "—")
-        is_ct    = "✅" if user.get("is_class_teacher") else "❌"
         is_pro   = user.get("subscribed", 0)
         free_used = user.get("free_used", 0)
         free_left = max(0, 3 - free_used)
 
         if is_pro:
             sub_line = "⭐ *PRO* — безлимитный доступ активен" if lang == "ru" else "⭐ *PRO* — шексіз қол жеткізу белсенді"
-            pro_badge = "⭐ PRO"
         else:
             sub_line = f"🆓 Бесплатно — осталось *{free_left}/3* документов" if lang == "ru" else f"🆓 Тегін — қалды *{free_left}/3* құжат"
-            pro_badge = "🆓 Free"
 
-        if lang == "ru":
-            text = (
-                f"{'⭐ PRO ПРОФИЛЬ' if is_pro else '👤 МОЙ ПРОФИЛЬ'}\n"
-                f"{'━' * 28}\n\n"
-                f"📛 *ФИО:* {name}\n"
-                f"🏫 *Школа:* {school}\n"
-                f"📚 *Предмет:* {subject}\n"
-                f"🏷 *Классы:* {classes}\n"
-                f"💼 *Должность:* {position}\n"
-                f"👔 *Директор:* {director}\n"
-                f"🏫 *Кл.рук:* {is_ct}\n\n"
-                f"{'━' * 28}\n"
-                f"{sub_line}\n"
-                f"📄 Создано документов: *{free_used}*"
-            )
+        if is_kg:
+            age_group = user.get("age_group", "—")
+            if lang == "ru":
+                text = (
+                    f"{'⭐ PRO ПРОФИЛЬ' if is_pro else '👤 МОЙ ПРОФИЛЬ'}\n"
+                    f"{'━' * 28}\n\n"
+                    f"📛 *ФИО:* {name}\n"
+                    f"🏫 *Детский сад:* {school}\n"
+                    f"👶 *Возрастная группа:* {age_group}\n"
+                    f"💼 *Должность:* {position}\n"
+                    f"👔 *Заведующая:* {director}\n\n"
+                    f"{'━' * 28}\n"
+                    f"{sub_line}\n"
+                    f"📄 Создано документов: *{free_used}*"
+                )
+            else:
+                text = (
+                    f"{'⭐ PRO ПРОФИЛЬ' if is_pro else '👤 МЕНІҢ ПРОФИЛІМ'}\n"
+                    f"{'━' * 28}\n\n"
+                    f"📛 *Аты-жөні:* {name}\n"
+                    f"🏫 *Балабақша:* {school}\n"
+                    f"👶 *Жас тобы:* {age_group}\n"
+                    f"💼 *Лауазым:* {position}\n"
+                    f"👔 *Меңгеруші:* {director}\n\n"
+                    f"{'━' * 28}\n"
+                    f"{sub_line}\n"
+                    f"📄 Жасалған құжаттар: *{free_used}*"
+                )
         else:
-            text = (
-                f"{'⭐ PRO ПРОФИЛЬ' if is_pro else '👤 МЕНІҢ ПРОФИЛІМ'}\n"
-                f"{'━' * 28}\n\n"
-                f"📛 *Аты-жөні:* {name}\n"
-                f"🏫 *Мектеп:* {school}\n"
-                f"📚 *Пән:* {subject}\n"
-                f"🏷 *Сыныптар:* {classes}\n"
-                f"💼 *Лауазым:* {position}\n"
-                f"👔 *Директор:* {director}\n\n"
-                f"{'━' * 28}\n"
-                f"{sub_line}\n"
-                f"📄 Жасалған құжаттар: *{free_used}*"
-            )
+            subject  = user.get("subject", "—")
+            classes  = user.get("classes", "—")
+            is_ct    = "✅" if user.get("is_class_teacher") else "❌"
+            if lang == "ru":
+                text = (
+                    f"{'⭐ PRO ПРОФИЛЬ' if is_pro else '👤 МОЙ ПРОФИЛЬ'}\n"
+                    f"{'━' * 28}\n\n"
+                    f"📛 *ФИО:* {name}\n"
+                    f"🏫 *Школа:* {school}\n"
+                    f"📚 *Предмет:* {subject}\n"
+                    f"🏷 *Классы:* {classes}\n"
+                    f"💼 *Должность:* {position}\n"
+                    f"👔 *Директор:* {director}\n"
+                    f"🏫 *Кл.рук:* {is_ct}\n\n"
+                    f"{'━' * 28}\n"
+                    f"{sub_line}\n"
+                    f"📄 Создано документов: *{free_used}*"
+                )
+            else:
+                text = (
+                    f"{'⭐ PRO ПРОФИЛЬ' if is_pro else '👤 МЕНІҢ ПРОФИЛІМ'}\n"
+                    f"{'━' * 28}\n\n"
+                    f"📛 *Аты-жөні:* {name}\n"
+                    f"🏫 *Мектеп:* {school}\n"
+                    f"📚 *Пән:* {subject}\n"
+                    f"🏷 *Сыныптар:* {classes}\n"
+                    f"💼 *Лауазым:* {position}\n"
+                    f"👔 *Директор:* {director}\n\n"
+                    f"{'━' * 28}\n"
+                    f"{sub_line}\n"
+                    f"📄 Жасалған құжаттар: *{free_used}*"
+                )
+
+        students_btn_text = t(lang, "btn_my_children") if is_kg else t(lang, "btn_my_students")
 
         keyboard = [
             [InlineKeyboardButton("✏️ " + t(lang, "btn_edit_profile"), callback_data="prof_edit")],
-            [InlineKeyboardButton("👥 " + t(lang, "btn_my_students"),  callback_data="prof_students")],
-            [InlineKeyboardButton("⭐ " + t(lang, "btn_subscription"), callback_data="prof_sub")],
-            [InlineKeyboardButton("🌐 " + t(lang, "btn_change_lang"),  callback_data="prof_lang")],
+            [InlineKeyboardButton("👥 " + students_btn_text,           callback_data="prof_students")],
+            [InlineKeyboardButton("⭐ " + t(lang, "btn_subscription"),  callback_data="prof_sub")],
+            [InlineKeyboardButton("🌐 " + t(lang, "btn_change_lang"),   callback_data="prof_lang")],
             [MENU_BTN(lang)],
         ]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
@@ -98,6 +129,7 @@ class ProfileHandler:
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
+        is_kg   = (user or {}).get("role") == "kindergarten"
 
         if data == "prof_edit":
             context.user_data["step"] = "prof_edit_name"
@@ -110,7 +142,7 @@ class ProfileHandler:
             )
 
         elif data == "prof_students":
-            await self._show_students(query, user_id, lang)
+            await self._show_students(query, user_id, lang, is_kg)
 
         elif data == "prof_sub":
             await self._show_subscription(query, user, lang)
@@ -159,62 +191,68 @@ class ProfileHandler:
             context.user_data["step"] = "student_name"
             context.user_data["new_student"] = {}
             kb = [[CANCEL_BTN(lang)]]
-            await query.edit_message_text(
-                ("👤 *Добавление ученика*\n\nВведите полное имя ученика:" if lang == "ru"
-                 else "👤 *Оқушы қосу*\n\nОқушының толық атын енгізіңіз:"),
-                reply_markup=InlineKeyboardMarkup(kb),
-                parse_mode=ParseMode.MARKDOWN
+            name_q = (
+                ("👤 *Добавление воспитанника*\n\nВведите полное имя ребёнка:" if is_kg else
+                 "👤 *Добавление ученика*\n\nВведите полное имя ученика:")
+                if lang == "ru" else
+                ("👤 *Тәрбиеленуші қосу*\n\nБаланың толық атын енгізіңіз:" if is_kg else
+                 "👤 *Оқушы қосу*\n\nОқушының толық атын енгізіңіз:")
             )
+            await query.edit_message_text(name_q, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
         elif data.startswith("student_del_"):
             student_id = int(data[12:])
-            s = await self.db.get_student(student_id)
-            name = s.get("name", "") if s else ""
             await self.db.delete_student(student_id)
             await query.answer("✅ Удалено" if lang == "ru" else "✅ Жойылды", show_alert=False)
-            await self._show_students(query, user_id, lang)
+            await self._show_students(query, user_id, lang, is_kg)
 
         elif data.startswith("student_view_"):
             student_id = int(data[13:])
-            await self._show_student_detail(query, student_id, lang)
+            await self._show_student_detail(query, student_id, lang, is_kg)
 
         elif data == "prof_back_students":
-            await self._show_students(query, user_id, lang)
+            await self._show_students(query, user_id, lang, is_kg)
 
-    async def _show_students(self, query, user_id, lang):
+    async def _show_students(self, query, user_id, lang, is_kg=False):
         students = await self.db.get_students(user_id)
         keyboard = []
+        add_btn_text = t(lang, "btn_add_child") if is_kg else t(lang, "btn_add_student")
+        empty_text = t(lang, "no_children") if is_kg else t(lang, "no_students")
+        title = ("👥 *Мои воспитанники*" if is_kg else "👥 *Мои ученики*") if lang == "ru" \
+            else ("👥 *Менің тәрбиеленушілерім*" if is_kg else "👥 *Менің оқушыларым*")
 
         if not students:
             keyboard = [
-                [InlineKeyboardButton("➕ " + t(lang, "btn_add_student"), callback_data="prof_add_student")],
+                [InlineKeyboardButton("➕ " + add_btn_text, callback_data="prof_add_student")],
                 [MENU_BTN(lang)],
             ]
             await query.edit_message_text(
-                ("👥 *Мои ученики*\n\nСписок пуст. Добавьте первого ученика!" if lang == "ru"
-                 else "👥 *Менің оқушыларым*\n\nТізім бос. Бірінші оқушыны қосыңыз!"),
+                f"{title}\n\n{empty_text}",
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode=ParseMode.MARKDOWN
             )
             return
 
-        text = f"👥 *{'Мои ученики' if lang == 'ru' else 'Менің оқушыларым'}* ({len(students)})\n\n"
+        text = f"{title} ({len(students)})\n\n"
         for s in students:
             grades = json.loads(s.get("grades", "{}"))
             avg = round(sum(grades.values()) / len(grades), 1) if grades else "—"
-            text += f"👤 {s['name']} • {s['class_name']} • ср.балл: {avg}\n"
+            if is_kg:
+                text += f"👶 {s['name']} • {s['class_name']}\n"
+            else:
+                text += f"👤 {s['name']} • {s['class_name']} • ср.балл: {avg}\n"
 
         for s in students:
             keyboard.append([
-                InlineKeyboardButton(f"👤 {s['name']} ({s['class_name']})", callback_data=f"student_view_{s['id']}"),
+                InlineKeyboardButton(f"{'👶' if is_kg else '👤'} {s['name']} ({s['class_name']})", callback_data=f"student_view_{s['id']}"),
                 InlineKeyboardButton("🗑", callback_data=f"student_del_{s['id']}"),
             ])
-        keyboard.append([InlineKeyboardButton("➕ " + t(lang, "btn_add_student"), callback_data="prof_add_student")])
+        keyboard.append([InlineKeyboardButton("➕ " + add_btn_text, callback_data="prof_add_student")])
         keyboard.append([MENU_BTN(lang)])
 
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
-    async def _show_student_detail(self, query, student_id, lang):
+    async def _show_student_detail(self, query, student_id, lang, is_kg=False):
         s = await self.db.get_student(student_id)
         if not s:
             return
@@ -224,19 +262,20 @@ class ProfileHandler:
         grades_str   = "\n".join(f"  • {k}: {v}" for k, v in grades.items()) if grades else ("  нет данных" if lang == "ru" else "  деректер жоқ")
         achieve_str  = "\n".join(f"  • {a}" for a in achievements) if achievements else ("  нет" if lang == "ru" else "  жоқ")
 
+        group_label = ("Группа" if lang == "ru" else "Тобы") if is_kg else ("Класс" if lang == "ru" else "Сынып")
+
         text = (
-            f"👤 *{s['name']}*\n"
-            f"🏷 Класс: {s['class_name']}\n"
+            f"{'👶' if is_kg else '👤'} *{s['name']}*\n"
+            f"🏷 {group_label}: {s['class_name']}\n"
             f"😊 Поведение: {s.get('behavior', '—')}\n"
             f"📅 Пропуски: {s.get('absences', 0)} дн.\n\n"
-            f"📊 *Оценки:*\n{grades_str}\n\n"
+            f"📊 *{'Достижения' if is_kg else 'Оценки'}:*\n{'' if is_kg else grades_str}\n\n"
             f"🏆 *Достижения:*\n{achieve_str}"
         ) if lang == "ru" else (
-            f"👤 *{s['name']}*\n"
-            f"🏷 Сынып: {s['class_name']}\n"
+            f"{'👶' if is_kg else '👤'} *{s['name']}*\n"
+            f"🏷 {group_label}: {s['class_name']}\n"
             f"😊 Мінез-құлық: {s.get('behavior', '—')}\n"
             f"📅 Өткізулер: {s.get('absences', 0)} күн\n\n"
-            f"📊 *Бағалар:*\n{grades_str}\n\n"
             f"🏆 *Жетістіктер:*\n{achieve_str}"
         )
 
@@ -253,11 +292,11 @@ class ProfileHandler:
             t_name = TIER_NAMES[tier]
             feats = (
                 "✅ Безлимитная генерация документов\n"
-                "✅ Все 21 тип документов\n"
+                "✅ Все типы документов\n"
                 + ("✅ Голосовой ввод\n✅ База учеников\n✅ Точечное редактирование" if tier == "pro" else "")
             ) if lang == "ru" else (
                 "✅ Шексіз құжат жасау\n"
-                "✅ 21 түрлі құжат\n"
+                "✅ Барлық құжат түрлері\n"
                 + ("✅ Дауыстық енгізу\n✅ Оқушылар базасы\n✅ Түзету" if tier == "pro" else "")
             )
             text = (f"⭐ *{t_name} подписка активна!*\n\n{feats}" if lang == "ru"
@@ -270,7 +309,7 @@ class ProfileHandler:
                 f"Осталось бесплатных: *{free_left}/3*\n\n"
                 f"🔹 *Базовый — 2 490 тг/мес*\n"
                 f"✅ Безлимитная генерация\n"
-                f"✅ Все 21 тип документов\n\n"
+                f"✅ Все типы документов\n\n"
                 f"⭐ *PRO — 3 990 тг/мес*\n"
                 f"✅ Всё из Базового\n"
                 f"✅ Голосовой ввод\n"
@@ -282,7 +321,7 @@ class ProfileHandler:
                 f"Тегін қалды: *{free_left}/3*\n\n"
                 f"🔹 *Негізгі — 2 490 тг/ай*\n"
                 f"✅ Шексіз жасау\n"
-                f"✅ 21 түрлі құжат\n\n"
+                f"✅ Барлық құжат түрлері\n\n"
                 f"⭐ *PRO — 3 990 тг/ай*\n"
                 f"✅ Дауыстық енгізу\n"
                 f"✅ Оқушылар базасы\n\n"
@@ -318,13 +357,11 @@ class ProfileHandler:
         lang    = user.get("lang", "ru") if user else "ru"
         tier    = context.user_data.get("chosen_tier", "pro")
 
-        # Можно прислать чек в любой момент без выбора тарифа — по умолчанию PRO
         wait_msg = await update.message.reply_text(
             "🔍 Проверяю чек..." if lang == "ru" else "🔍 Чек тексерілуде..."
         )
 
         try:
-            # Скачиваем файл
             if source == "photo":
                 file_obj = await update.message.photo[-1].get_file()
                 media_type = "image/jpeg"
@@ -342,11 +379,9 @@ class ProfileHandler:
             with open(tmp_path, "rb") as f:
                 img_data = base64.standard_b64encode(f.read()).decode("utf-8")
 
-            # Хэш для защиты от повторного использования одного чека
             receipt_hash = hashlib.sha256(img_data.encode()).hexdigest()[:16]
             os.unlink(tmp_path)
 
-            # Проверяем не использован ли уже этот чек
             used = await self.db.is_receipt_used(receipt_hash)
             if used:
                 await wait_msg.delete()
@@ -356,7 +391,6 @@ class ProfileHandler:
                 )
                 return
 
-            # Проверяем чек через Claude Vision
             today = datetime.now().strftime("%d.%m.%Y")
             client = anthropic.Anthropic(api_key=self.api_key)
 
@@ -424,12 +458,10 @@ class ProfileHandler:
             )
             return
 
-        # Чек валидный — определяем тариф по сумме
         amount = result.get("amount", 0)
-        tier = TIER_AMOUNTS.get(int(amount), context.user_data.get("chosen_tier", "pro"))
+        tier = TIER_AMOUNTS.get(int(amount) if amount else 0, context.user_data.get("chosen_tier", "pro"))
         t_name = TIER_NAMES.get(tier, "PRO")
 
-        # Сохраняем хэш чека и активируем подписку
         await self.db.save_receipt_hash(receipt_hash, user_id, tier, amount)
         await self.db.activate_subscription(user_id, tier=tier)
 
@@ -448,19 +480,30 @@ class ProfileHandler:
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
+        is_kg   = (user or {}).get("role") == "kindergarten"
         text    = update.message.text.strip()
         step    = context.user_data.get("step", "")
 
         cancel_kb = [[CANCEL_BTN(lang)]]
 
-        # ── Редактирование профиля ──
-        prof_steps = {
+        # ── Редактирование профиля: САДИК ──
+        kg_prof_steps = {
+            "prof_edit_name":     ("name",     "prof_edit_school",    ("🏫 Введите название детского сада:" if lang == "ru" else "🏫 Балабақшаның атауын енгізіңіз:")),
+            "prof_edit_school":   ("school",   "prof_edit_age_group", ("👶 Введите возрастную группу:\n\n_Пример: старшая группа (5-6 лет)_" if lang == "ru" else "👶 Жас тобын енгізіңіз:")),
+            "prof_edit_age_group":("age_group","prof_edit_position",  ("💼 Введите вашу должность:" if lang == "ru" else "💼 Лауазымыңызды енгізіңіз:")),
+            "prof_edit_position": ("position", "prof_edit_director",  ("👔 Введите ФИО заведующей:" if lang == "ru" else "👔 Меңгерушінің аты-жөнін енгізіңіз:")),
+        }
+
+        # ── Редактирование профиля: ШКОЛА ──
+        teacher_prof_steps = {
             "prof_edit_name":     ("name",     "prof_edit_school",   ("🏫 Введите название школы:" if lang == "ru" else "🏫 Мектептің атауын енгізіңіз:")),
             "prof_edit_school":   ("school",   "prof_edit_subject",  ("📚 Введите ваш предмет:" if lang == "ru" else "📚 Пәніңізді енгізіңіз:")),
             "prof_edit_subject":  ("subject",  "prof_edit_classes",  ("🏷 Введите ваши классы (например: 7А, 8Б):" if lang == "ru" else "🏷 Сыныптарыңызды енгізіңіз:")),
             "prof_edit_classes":  ("classes",  "prof_edit_position", ("💼 Введите вашу должность:" if lang == "ru" else "💼 Лауазымыңызды енгізіңіз:")),
             "prof_edit_position": ("position", "prof_edit_director", ("👔 Введите ФИО директора:" if lang == "ru" else "👔 Директордың аты-жөнін енгізіңіз:")),
         }
+
+        prof_steps = kg_prof_steps if is_kg else teacher_prof_steps
 
         if step in prof_steps:
             if len(text) < 2:
@@ -484,7 +527,7 @@ class ProfileHandler:
                 parse_mode=ParseMode.MARKDOWN
             )
 
-        # ── Добавление ученика ──
+        # ── Добавление ученика/воспитанника ──
         elif step == "student_name":
             if len(text) < 3:
                 await update.message.reply_text(
@@ -494,24 +537,40 @@ class ProfileHandler:
                 return
             context.user_data["new_student"]["name"] = text
             context.user_data["step"] = "student_class"
-            await update.message.reply_text(
-                "🏷 Введите класс (например: 9А):" if lang == "ru" else "🏷 Сыныпты енгізіңіз (мысалы: 9А):",
-                reply_markup=InlineKeyboardMarkup(cancel_kb)
+            group_q = (
+                ("🏷 Введите группу (например: старшая «Ромашка»):" if is_kg else "🏷 Введите класс (например: 9А):")
+                if lang == "ru" else
+                ("🏷 Топты енгізіңіз:" if is_kg else "🏷 Сыныпты енгізіңіз (мысалы: 9А):")
             )
+            await update.message.reply_text(group_q, reply_markup=InlineKeyboardMarkup(cancel_kb))
 
         elif step == "student_class":
             context.user_data["new_student"]["class_name"] = text
-            context.user_data["step"] = "student_grades"
-            await update.message.reply_text(
-                ("📊 Введите оценки через запятую:\n"
-                 "_Формат: Математика-5, Русский-4_\n"
-                 "Или напишите *пропустить*") if lang == "ru" else
-                ("📊 Бағаларды үтірмен енгізіңіз:\n"
-                 "_Формат: Математика-5, Орыс тілі-4_\n"
-                 "Немесе *өткізу* жазыңыз"),
-                reply_markup=InlineKeyboardMarkup(cancel_kb),
-                parse_mode=ParseMode.MARKDOWN
-            )
+            if is_kg:
+                # Для сада оценки не нужны — сразу к достижениям
+                context.user_data["new_student"]["grades"] = {}
+                context.user_data["step"] = "student_achievements"
+                await update.message.reply_text(
+                    ("🏆 Достижения ребёнка через запятую:\n"
+                     "_Например: выступление на утреннике, конкурс рисунков_\n"
+                     "Или напишите *пропустить*") if lang == "ru" else
+                    ("🏆 Баланың жетістіктерін үтірмен енгізіңіз:\n"
+                     "Немесе *өткізу* жазыңыз"),
+                    reply_markup=InlineKeyboardMarkup(cancel_kb),
+                    parse_mode=ParseMode.MARKDOWN
+                )
+            else:
+                context.user_data["step"] = "student_grades"
+                await update.message.reply_text(
+                    ("📊 Введите оценки через запятую:\n"
+                     "_Формат: Математика-5, Русский-4_\n"
+                     "Или напишите *пропустить*") if lang == "ru" else
+                    ("📊 Бағаларды үтірмен енгізіңіз:\n"
+                     "_Формат: Математика-5, Орыс тілі-4_\n"
+                     "Немесе *өткізу* жазыңыз"),
+                    reply_markup=InlineKeyboardMarkup(cancel_kb),
+                    parse_mode=ParseMode.MARKDOWN
+                )
 
         elif step == "student_grades":
             grades = {}
@@ -559,10 +618,12 @@ class ProfileHandler:
                 [InlineKeyboardButton("😐 " + ("Удовл." if lang == "ru" else "Қанағат."),    callback_data="_beh_3")],
                 [CANCEL_BTN(lang)],
             ]
-            await update.message.reply_text(
-                "😊 Выберите поведение ученика:" if lang == "ru" else "😊 Оқушының мінез-құлқын таңдаңыз:",
-                reply_markup=InlineKeyboardMarkup(kb)
+            beh_q = (
+                ("😊 Выберите поведение ребёнка:" if is_kg else "😊 Выберите поведение ученика:")
+                if lang == "ru" else
+                ("😊 Баланың мінез-құлқын таңдаңыз:" if is_kg else "😊 Оқушының мінез-құлқын таңдаңыз:")
             )
+            await update.message.reply_text(beh_q, reply_markup=InlineKeyboardMarkup(kb))
 
         elif step == "student_behavior":
             behavior_map = {
@@ -572,18 +633,20 @@ class ProfileHandler:
             }
             behavior = behavior_map.get(text, text)
             context.user_data["new_student"]["behavior"] = behavior
-            await self._finish_add_student(update, context, user_id, lang)
+            await self._finish_add_student(update, context, user_id, lang, is_kg)
 
-    async def _finish_add_student(self, update, context, user_id, lang):
+    async def _finish_add_student(self, update, context, user_id, lang, is_kg=False):
         student_data = context.user_data.pop("new_student", {})
         if not student_data.get("behavior"):
             student_data["behavior"] = "хорошее" if lang == "ru" else "жақсы"
         await self.db.add_student(user_id, student_data)
         context.user_data["step"] = None
         name = student_data.get("name", "")
+        add_btn_text = t(lang, "btn_add_child") if is_kg else t(lang, "btn_add_student")
+        list_btn_text = t(lang, "btn_my_children") if is_kg else t(lang, "btn_my_students")
         kb = [
             [InlineKeyboardButton("➕ " + ("Добавить ещё" if lang == "ru" else "Тағы қосу"), callback_data="prof_add_student")],
-            [InlineKeyboardButton("👥 " + ("Мои ученики" if lang == "ru" else "Оқушыларым"),  callback_data="prof_students")],
+            [InlineKeyboardButton("👥 " + list_btn_text,  callback_data="prof_students")],
             [MENU_BTN(lang)],
         ]
         await update.message.reply_text(
