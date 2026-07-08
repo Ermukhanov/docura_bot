@@ -7,15 +7,20 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from handlers.texts import t
-from database import Database
+from database import Database, free_limit_for
 
 MENU_BTN   = lambda lang: InlineKeyboardButton("🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"), callback_data="menu_main")
 BACK_BTN   = lambda lang, cb: InlineKeyboardButton("◀️ " + ("Назад" if lang == "ru" else "Артқа"), callback_data=cb)
 CANCEL_BTN = lambda lang: InlineKeyboardButton("❌ " + ("Отмена" if lang == "ru" else "Болдырмау"), callback_data="menu_main")
 
 KASPI_NUMBER = "+7 771 451 4717"
-TIER_AMOUNTS = {2490: "basic", 3990: "pro"}
-TIER_NAMES   = {"basic": "Базовый", "pro": "PRO"}
+
+# Только один платный тариф — Docura PRO.
+# pro_promo — та же самая подписка PRO, просто первый месяц дешевле (одноразово на аккаунт).
+# ВАЖНО: обе "цены" идут на один и тот же продукт (tier="pro" в БД) — pro/pro_promo
+# различаются только суммой оплаты и тем, что pro_promo можно использовать один раз.
+TIER_PRICES = {"pro": 4990, "pro_promo": 2490}
+TIER_NAMES  = {"pro": "PRO"}
 
 def _esc(text):
     if text is None: return "—"
@@ -42,12 +47,19 @@ class ProfileHandler:
         director = user.get("director", "—")
         is_pro   = user.get("subscribed", 0)
         free_used = user.get("free_used", 0)
-        free_left = max(0, 3 - free_used)
+        total_free = free_limit_for(user)
+        free_left = max(0, total_free - free_used)
+        bonus_docs = user.get("bonus_docs", 0) or 0
 
         if is_pro:
             sub_line = "⭐ *PRO* — безлимитный доступ активен" if lang == "ru" else "⭐ *PRO* — шексіз қол жеткізу белсенді"
         else:
-            sub_line = f"🆓 Бесплатно — осталось *{free_left}/3* документов" if lang == "ru" else f"🆓 Тегін — қалды *{free_left}/3* құжат"
+            sub_line = f"🆓 Бесплатно — осталось *{free_left}/{total_free}* документов" if lang == "ru" else f"🆓 Тегін — қалды *{free_left}/{total_free}* құжат"
+            if bonus_docs:
+                sub_line += (
+                    f"\n🎁 Из них {bonus_docs} бонусных за приглашённых друзей" if lang == "ru"
+                    else f"\n🎁 Оның ішінде {bonus_docs} шақырылған достар үшін бонус"
+                )
 
         if is_kg:
             age_group = user.get("age_group", "—")
@@ -147,27 +159,40 @@ class ProfileHandler:
         elif data == "prof_sub":
             await self._show_subscription(query, user, lang)
 
-        elif data in ("prof_choose_basic", "prof_choose_pro"):
-            tier = "basic" if data == "prof_choose_basic" else "pro"
+        elif data in ("prof_choose_pro", "prof_choose_pro_promo"):
+            tier = "pro_promo" if data == "prof_choose_pro_promo" else "pro"
+
+            # Акцию можно активировать только один раз за всю историю аккаунта
+            if tier == "pro_promo" and user.get("promo_used"):
+                await self._show_subscription(query, user, lang)
+                return
+
             context.user_data["chosen_tier"] = tier
             context.user_data["step"] = "waiting_payment_receipt"
-            price = 2490 if tier == "basic" else 3990
-            t_name = TIER_NAMES[tier]
+            price = TIER_PRICES[tier]
+
+            promo_line_ru = f"\n🔥 Обычная цена {TIER_PRICES['pro']} тг — для вас первый месяц дешевле!\n" if tier == "pro_promo" else ""
+            promo_line_kz = f"\n🔥 Әдеттегі баға {TIER_PRICES['pro']} тг — сізге бірінші ай арзанырақ!\n" if tier == "pro_promo" else ""
+
             text = (
-                f"💳 *Тариф {t_name} — {price} тг/мес*\n\n"
+                f"💳 *Docura PRO — {price} тг/мес*\n"
+                f"{promo_line_ru}\n"
                 f"Переведите *{price} тг* на Kaspi:\n"
                 f"`{KASPI_NUMBER}`\n"
                 f"_(нажмите чтобы скопировать)_\n\n"
                 f"Затем пришлите *скриншот или файл чека* — подписка активируется автоматически ✅\n\n"
                 f"_Бот сам проверит сумму и получателя_"
             ) if lang == "ru" else (
-                f"💳 *{t_name} тарифі — {price} тг/ай*\n\n"
+                f"💳 *Docura PRO — {price} тг/ай*\n"
+                f"{promo_line_kz}\n"
                 f"*{price} тг* осы нөмірге аударыңыз:\n"
                 f"`{KASPI_NUMBER}`\n\n"
                 f"Чек скриншотын немесе файлын жіберіңіз — жазылым автоматты белсендіріледі ✅"
             )
             kb = [[BACK_BTN(lang, "prof_sub")]]
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+
+
 
         elif data == "prof_lang":
             keyboard = [
@@ -286,50 +311,69 @@ class ProfileHandler:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
     async def _show_subscription(self, query, user, lang):
-        tier = user.get("tier", "free")
+        tier  = user.get("tier", "free")
+        is_kg = user.get("role") == "kindergarten"
+        db_line_ru = "✅ База воспитанников" if is_kg else "✅ База учеников"
+        db_line_kz = "✅ Тәрбиеленушілер базасы" if is_kg else "✅ Оқушылар базасы"
 
         if user.get("subscribed") and tier in TIER_NAMES:
-            t_name = TIER_NAMES[tier]
             feats = (
                 "✅ Безлимитная генерация документов\n"
                 "✅ Все типы документов\n"
-                + ("✅ Голосовой ввод\n✅ База учеников\n✅ Точечное редактирование" if tier == "pro" else "")
+                f"✅ Голосовой ввод\n{db_line_ru}\n✅ Точечное редактирование"
             ) if lang == "ru" else (
                 "✅ Шексіз құжат жасау\n"
                 "✅ Барлық құжат түрлері\n"
-                + ("✅ Дауыстық енгізу\n✅ Оқушылар базасы\n✅ Түзету" if tier == "pro" else "")
+                f"✅ Дауыстық енгізу\n{db_line_kz}\n✅ Түзету"
             )
-            text = (f"⭐ *{t_name} подписка активна!*\n\n{feats}" if lang == "ru"
-                    else f"⭐ *{t_name} жазылымы белсенді!*\n\n{feats}")
+            text = (f"⭐ *Docura PRO активна!*\n\n{feats}" if lang == "ru"
+                    else f"⭐ *Docura PRO белсенді!*\n\n{feats}")
             keyboard = [[BACK_BTN(lang, "menu_profile")], [MENU_BTN(lang)]]
         else:
-            free_left = max(0, 3 - user.get("free_used", 0))
+            total_free = free_limit_for(user)
+            free_left = max(0, total_free - user.get("free_used", 0))
+            promo_available = not user.get("promo_used")
+            price = TIER_PRICES["pro_promo"] if promo_available else TIER_PRICES["pro"]
+            callback = "prof_choose_pro_promo" if promo_available else "prof_choose_pro"
+
+            price_line_ru = (
+                f"🔥 *Первый месяц — {price} тг* (вместо {TIER_PRICES['pro']} тг), дальше {TIER_PRICES['pro']} тг/мес\n"
+                if promo_available else f"💳 *{price} тг/мес*\n"
+            )
+            price_line_kz = (
+                f"🔥 *Бірінші ай — {price} тг* ({TIER_PRICES['pro']} тг орнына), одан кейін {TIER_PRICES['pro']} тг/ай\n"
+                if promo_available else f"💳 *{price} тг/ай*\n"
+            )
+
             text = (
-                f"💳 *Подписка Docura*\n\n"
-                f"Осталось бесплатных: *{free_left}/3*\n\n"
-                f"🔹 *Базовый — 2 490 тг/мес*\n"
+                f"⭐ *Docura PRO*\n\n"
+                f"Осталось бесплатных: *{free_left}/{total_free}*\n"
+                f"_(пригласи коллегу через /invite и получи +5 документов)_\n\n"
+                f"{price_line_ru}"
                 f"✅ Безлимитная генерация\n"
-                f"✅ Все типы документов\n\n"
-                f"⭐ *PRO — 3 990 тг/мес*\n"
-                f"✅ Всё из Базового\n"
+                f"✅ Все типы документов\n"
                 f"✅ Голосовой ввод\n"
-                f"✅ База учеников\n"
+                f"{db_line_ru}\n"
                 f"✅ Точечное редактирование\n\n"
-                f"👇 Выберите тариф — после оплаты пришлите чек и подписка активируется автоматически"
+                f"👇 После оплаты пришлите чек — подписка активируется автоматически"
             ) if lang == "ru" else (
-                f"💳 *Docura жазылымы*\n\n"
-                f"Тегін қалды: *{free_left}/3*\n\n"
-                f"🔹 *Негізгі — 2 490 тг/ай*\n"
+                f"⭐ *Docura PRO*\n\n"
+                f"Тегін қалды: *{free_left}/{total_free}*\n"
+                f"_(/invite арқылы әріптесіңізді шақырып, +5 құжат алыңыз)_\n\n"
+                f"{price_line_kz}"
                 f"✅ Шексіз жасау\n"
-                f"✅ Барлық құжат түрлері\n\n"
-                f"⭐ *PRO — 3 990 тг/ай*\n"
+                f"✅ Барлық құжат түрлері\n"
                 f"✅ Дауыстық енгізу\n"
-                f"✅ Оқушылар базасы\n\n"
-                f"👇 Тарифті таңдаңыз"
+                f"{db_line_kz}\n\n"
+                f"👇 Төлемнен кейін чекті жіберіңіз"
             )
             keyboard = [
-                [InlineKeyboardButton("🔹 Базовый — 2 490 тг" if lang == "ru" else "🔹 Негізгі — 2 490 тг", callback_data="prof_choose_basic")],
-                [InlineKeyboardButton("⭐ PRO — 3 990 тг", callback_data="prof_choose_pro")],
+                [InlineKeyboardButton(
+                    (f"🔥 PRO первый месяц — {price} тг" if promo_available else f"⭐ Оформить PRO — {price} тг")
+                    if lang == "ru" else
+                    (f"🔥 PRO бірінші ай — {price} тг" if promo_available else f"⭐ PRO рәсімдеу — {price} тг"),
+                    callback_data=callback
+                )],
                 [BACK_BTN(lang, "menu_profile")],
                 [MENU_BTN(lang)],
             ]
@@ -356,6 +400,7 @@ class ProfileHandler:
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
         tier    = context.user_data.get("chosen_tier", "pro")
+        expected_amount = TIER_PRICES.get(tier, 3990)
 
         wait_msg = await update.message.reply_text(
             "🔍 Проверяю чек..." if lang == "ru" else "🔍 Чек тексерілуде..."
@@ -394,15 +439,19 @@ class ProfileHandler:
             today = datetime.now().strftime("%d.%m.%Y")
             client = anthropic.Anthropic(api_key=self.api_key)
 
+            # ВАЖНО: сверяем с суммой ИМЕННО того тарифа, который выбрал пользователь
+            # (а не с любой из возможных сумм) — иначе акцию 2490 легко перепутать
+            # с обычным Базовым тарифом, у которого та же цена.
             prompt = f"""Это чек оплаты Kaspi. Проверь следующее:
 1. Получатель содержит номер телефона: {KASPI_NUMBER} (может быть записан без пробелов, с дефисами или скобками — это нормально)
-2. Сумма равна одному из значений: {list(TIER_AMOUNTS.keys())} тенге
+2. Сумма равна {expected_amount} тенге (ровно эта сумма, не другая)
 3. Дата операции — сегодня ({today}) или вчера (допустимо)
 
 Ответь ТОЛЬКО в формате JSON без markdown:
 {{"valid": true/false, "amount": число_или_null, "reason": "причина если false"}}
 
-Если чек нечёткий или текст плохо читается — valid: false, reason: "нечёткий чек"."""
+Если чек нечёткий или текст плохо читается — valid: false, reason: "нечёткий чек".
+Если сумма не совпадает — valid: false, reason: "неверная сумма"."""
 
             response = client.messages.create(
                 model="claude-sonnet-4-6",
@@ -432,24 +481,27 @@ class ProfileHandler:
 
         await wait_msg.delete()
 
-        if not result.get("valid"):
+        # Двойная проверка суммы на нашей стороне — не полагаемся только на ответ модели
+        amount_ok = result.get("valid") and int(result.get("amount") or 0) == expected_amount
+
+        if not amount_ok:
             reason_map = {
                 "ru": {
                     "нечёткий чек": "Чек нечёткий — сделайте более чёткий скриншот.",
-                    "неверная сумма": f"Неверная сумма. Нужно {list(TIER_AMOUNTS.keys())} тг.",
+                    "неверная сумма": f"Неверная сумма. Нужно ровно {expected_amount} тг.",
                     "другой получатель": f"Получатель не совпадает. Переводите на {KASPI_NUMBER}.",
                     "старый чек": "Чек устарел. Нужна оплата сегодняшним числом.",
                 },
                 "kz": {
                     "нечёткий чек": "Чек анық емес — нақтырақ скриншот жіберіңіз.",
-                    "неверная сумма": f"Сумма дұрыс емес. {list(TIER_AMOUNTS.keys())} тг керек.",
+                    "неверная сумма": f"Сумма дұрыс емес. Дәл {expected_amount} тг керек.",
                     "другой получатель": f"Алушы сәйкес емес. {KASPI_NUMBER} нөміріне аударыңыз.",
                     "старый чек": "Чек ескірген. Бүгінгі күнмен төлем керек.",
                 }
             }
-            reason = result.get("reason", "")
+            reason = result.get("reason", "неверная сумма")
             msg_map = reason_map.get(lang, reason_map["ru"])
-            friendly = next((v for k, v in msg_map.items() if k in reason.lower()), reason)
+            friendly = next((v for k, v in msg_map.items() if k in reason.lower()), msg_map["неверная сумма"])
             kb = [[InlineKeyboardButton("💳 Выбрать тариф" if lang == "ru" else "💳 Тариф таңдау", callback_data="prof_sub")]]
             await update.message.reply_text(
                 f"❌ Чек не прошёл проверку.\n\n{friendly}" if lang == "ru"
@@ -458,20 +510,20 @@ class ProfileHandler:
             )
             return
 
-        amount = result.get("amount", 0)
-        tier = TIER_AMOUNTS.get(int(amount) if amount else 0, context.user_data.get("chosen_tier", "pro"))
-        t_name = TIER_NAMES.get(tier, "PRO")
+        amount = result.get("amount", expected_amount)
 
-        await self.db.save_receipt_hash(receipt_hash, user_id, tier, amount)
-        await self.db.activate_subscription(user_id, tier=tier)
+        await self.db.save_receipt_hash(receipt_hash, user_id, "pro", amount)
+        await self.db.activate_subscription(user_id, tier="pro")
+        if tier == "pro_promo":
+            await self.db.mark_promo_used(user_id)
 
         context.user_data.pop("chosen_tier", None)
         context.user_data.pop("step", None)
 
         kb = [[MENU_BTN(lang)]]
         await update.message.reply_text(
-            f"🎉 *{t_name} активирован!*\n\nТеперь у вас безлимитный доступ к Docura.kz. Спасибо за оплату!" if lang == "ru"
-            else f"🎉 *{t_name} белсендірілді!*\n\nEndi Docura.kz-де шексіз қол жеткізу бар. Рахмет!",
+            f"🎉 *PRO активирован!*\n\nТеперь у вас безлимитный доступ к Docura.kz. Спасибо за оплату!" if lang == "ru"
+            else f"🎉 *PRO белсендірілді!*\n\nEndi Docura.kz-де шексіз қол жеткізу бар. Рахмет!",
             reply_markup=InlineKeyboardMarkup(kb),
             parse_mode=ParseMode.MARKDOWN
         )

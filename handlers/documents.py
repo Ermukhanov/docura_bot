@@ -7,7 +7,7 @@ from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from handlers.texts import t, TEXTS
 from handlers.rag_base import get_system_prompt, SELF_EVAL_PROMPT
-from database import Database
+from database import Database, free_limit_for
 
 # ══════════════════════════════════════════════════════════════
 # ВОПРОСЫ ДЛЯ ДОКУМЕНТОВ УЧИТЕЛЯ (школа)
@@ -524,13 +524,41 @@ class DocumentHandler:
         subscribed = user.get("subscribed", 0)
         free_used  = user.get("free_used", 0)
 
-        if not subscribed and free_used >= 3:
-            keyboard = [
-                [InlineKeyboardButton("⭐ Оформить подписку", callback_data="prof_sub")],
-                [InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_main")],
-            ]
+        if not subscribed and free_used >= free_limit_for(user):
+            from handlers.profile import TIER_PRICES, PROMO_ANCHOR_PRICE
+            promo_available = not user.get("promo_used")
+
+            if promo_available:
+                text = (
+                    f"🚫 *Бесплатные попытки закончились.*\n\n"
+                    f"🔥 Месяц PRO с безлимитной генерацией — всего *{TIER_PRICES['pro_promo']} тг* "
+                    f"(вместо {PROMO_ANCHOR_PRICE} тг)!\n"
+                    f"Это разовое предложение, доступно один раз для нового пользователя.\n\n"
+                    f"После оплаты пришлите чек — доступ откроется автоматически."
+                ) if lang == "ru" else (
+                    f"🚫 *Тегін әрекеттер аяқталды.*\n\n"
+                    f"🔥 Шексіз PRO — небары *{TIER_PRICES['pro_promo']} тг* ({PROMO_ANCHOR_PRICE} тг орнына)!\n"
+                    f"Бұл жаңа пайдаланушыға бір реттік ұсыныс.\n\n"
+                    f"Төлемнен кейін чекті жіберіңіз — қолжетімділік автоматты ашылады."
+                )
+                keyboard = [
+                    [InlineKeyboardButton(
+                        f"🔥 Активировать PRO за {TIER_PRICES['pro_promo']} тг" if lang == "ru" else f"🔥 PRO-ды {TIER_PRICES['pro_promo']} тг-ге белсендіру",
+                        callback_data="prof_choose_pro_promo"
+                    )],
+                    [InlineKeyboardButton("🎁 Или пригласить и получить +5" if lang == "ru" else "🎁 Немесе шақырып +5 алу", callback_data="menu_profile")],
+                    [InlineKeyboardButton("Все тарифы" if lang == "ru" else "Барлық тарифтер", callback_data="prof_sub")],
+                    [InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_main")],
+                ]
+            else:
+                text = t(lang, "limit_reached")
+                keyboard = [
+                    [InlineKeyboardButton("⭐ Оформить подписку", callback_data="prof_sub")],
+                    [InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_main")],
+                ]
+
             await query.edit_message_text(
-                t(lang, "limit_reached"),
+                text,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode=ParseMode.MARKDOWN
             )
@@ -679,12 +707,20 @@ class DocumentHandler:
         doc_type = context.user_data.get("doc_type", "")
         doc_lang = context.user_data.get("doc_lang", lang)
         doc_name = DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, "")
+        is_kg    = user.get("role") == "kindergarten"
+
+        if is_kg:
+            context_line = f"Возрастная группа: {user.get('age_group')}."
+            asker = "Воспитатель"
+        else:
+            context_line = f"Предмет: {user.get('subject')}, классы: {user.get('classes')}."
+            asker = "Учитель"
 
         client = anthropic.Anthropic(api_key=self.api_key)
         prompt = (
-            f"Учитель просит помочь составить текст для поля «{field}» документа «{doc_name}».\n"
-            f"Предмет: {user.get('subject')}, классы: {user.get('classes')}.\n"
-            f"Что учитель хочет сказать: {user_input}\n\n"
+            f"{asker} просит помочь составить текст для поля «{field}» документа «{doc_name}».\n"
+            f"{context_line}\n"
+            f"Что хочет сказать: {user_input}\n\n"
             f"Предложи 2 коротких варианта официального текста для вставки в документ."
         )
         msg = client.messages.create(
@@ -829,24 +865,50 @@ class DocumentHandler:
             await self.db.increment_free(user_id)
             fresh_user = await self.db.get_user(user_id)
             free_used = fresh_user.get("free_used", 0)
-            free_left = max(0, 3 - free_used)
+            total_free = free_limit_for(fresh_user)
+            free_left = max(0, total_free - free_used)
 
             if free_left == 0:
-                kb_after = [
-                    [InlineKeyboardButton("⭐ Оформить PRO — безлимит", callback_data="prof_sub")],
-                    [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
-                ]
-                note = ("⚠️ *Бесплатные документы исчерпаны!*\n"
-                        "Оформите подписку PRO для безлимитного доступа.") if lang == "ru" else \
-                       ("⚠️ *Тегін құжаттар таусылды!*\n"
-                        "PRO жазылымын рәсімдеңіз.")
+                from handlers.profile import TIER_PRICES, PROMO_ANCHOR_PRICE
+                promo_available = not fresh_user.get("promo_used")
+
+                if promo_available:
+                    kb_after = [
+                        [InlineKeyboardButton(
+                            f"🔥 PRO за {TIER_PRICES['pro_promo']} тг (вместо {PROMO_ANCHOR_PRICE})" if lang == "ru"
+                            else f"🔥 PRO {TIER_PRICES['pro_promo']} тг",
+                            callback_data="prof_choose_pro_promo"
+                        )],
+                        [InlineKeyboardButton("🎁 Или пригласить и получить +5", callback_data="menu_profile")],
+                        [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
+                    ]
+                    note = (
+                        f"⚠️ *Бесплатные документы исчерпаны!*\n\n"
+                        f"🔥 Месяц PRO с безлимитной генерацией — всего *{TIER_PRICES['pro_promo']} тг* "
+                        f"(вместо {PROMO_ANCHOR_PRICE} тг). Разовое предложение для вас.\n"
+                        f"Или пригласите коллегу через /invite — за каждого +5 документов."
+                    ) if lang == "ru" else (
+                        f"⚠️ *Тегін құжаттар таусылды!*\n\n"
+                        f"🔥 Шексіз PRO — небары *{TIER_PRICES['pro_promo']} тг* ({PROMO_ANCHOR_PRICE} тг орнына).\n"
+                        f"Немесе /invite арқылы әріптесіңізді шақырыңыз."
+                    )
+                else:
+                    kb_after = [
+                        [InlineKeyboardButton("🎁 Пригласить и получить +5", callback_data="menu_profile")],
+                        [InlineKeyboardButton("⭐ Оформить PRO — безлимит", callback_data="prof_sub")],
+                        [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
+                    ]
+                    note = ("⚠️ *Бесплатные документы исчерпаны!*\n"
+                            "Оформите PRO или пригласите коллегу через /invite — за каждого +5 документов.") if lang == "ru" else \
+                           ("⚠️ *Тегін құжаттар таусылды!*\n"
+                            "PRO рәсімдеңіз немесе /invite арқылы әріптесіңізді шақырыңыз.")
             else:
                 kb_after = [
                     [InlineKeyboardButton("📄 Создать ещё", callback_data="menu_create")],
                     [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
                 ]
-                note = (f"🆓 Осталось бесплатных: *{free_left}/3*") if lang == "ru" else \
-                       (f"🆓 Қалған тегін: *{free_left}/3*")
+                note = (f"🆓 Осталось бесплатных: *{free_left}/{total_free}*") if lang == "ru" else \
+                       (f"🆓 Қалған тегін: *{free_left}/{total_free}*")
         else:
             kb_after = [
                 [InlineKeyboardButton("📄 Создать ещё", callback_data="menu_create")],

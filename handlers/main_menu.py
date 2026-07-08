@@ -2,7 +2,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from handlers.texts import t
-from database import Database
+from database import Database, free_limit_for
 
 class MainMenuHandler:
     def __init__(self, db: Database):
@@ -22,13 +22,14 @@ class MainMenuHandler:
         user = await self.db.get_user(user_id)
         subscribed = user.get("subscribed", 0)
         free_used  = user.get("free_used", 0)
-        free_left  = max(0, 3 - free_used)
+        total_free = free_limit_for(user)
+        free_left  = max(0, total_free - free_used)
         is_kg      = user.get("role") == "kindergarten"
 
         if subscribed:
             status = t(lang, "status_pro")
         else:
-            status = t(lang, "status_free", n=free_left)
+            status = t(lang, "status_free", n=free_left, total=total_free)
 
         schedule_btn_text = (
             ("📅 Режим дня / занятия" if lang == "ru" else "📅 Күн тәртібі")
@@ -68,10 +69,14 @@ class MainMenuHandler:
             from handlers.profile import ProfileHandler
             await ProfileHandler(self.db).show(query, user_id, lang)
 
+        elif data == "menu_invite":
+            await self._show_invite(query, context, user_id, user, lang)
+
         elif data == "menu_help":
+            help_key = "help_text_kg" if user.get("role") == "kindergarten" else "help_text"
             keyboard = [[InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")]]
             await query.edit_message_text(
-                t(lang, "help_text"),
+                t(lang, help_key),
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode=ParseMode.MARKDOWN
             )
@@ -79,9 +84,10 @@ class MainMenuHandler:
         elif data == "menu_main":
             subscribed = user.get("subscribed", 0)
             free_used  = user.get("free_used", 0)
-            free_left  = max(0, 3 - free_used)
+            total_free = free_limit_for(user)
+            free_left  = max(0, total_free - free_used)
             is_kg      = user.get("role") == "kindergarten"
-            status = t(lang, "status_pro") if subscribed else t(lang, "status_free", n=free_left)
+            status = t(lang, "status_pro") if subscribed else t(lang, "status_free", n=free_left, total=total_free)
             schedule_btn_text = (
                 ("📅 Режим дня / занятия" if lang == "ru" else "📅 Күн тәртібі")
                 if is_kg else
@@ -133,6 +139,43 @@ class MainMenuHandler:
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.MARKDOWN
         )
+
+    async def _show_invite(self, query, context, user_id, user, lang):
+        """Та же реферальная карточка, что и команда /invite — но доступна по кнопке
+        (например, из пейвола, когда закончились бесплатные документы)."""
+        ref_code = user.get("ref_code")
+        if not ref_code:
+            ref_code = await self.db.generate_unique_ref_code()
+            await self.db.upsert_user(user_id, {"ref_code": ref_code})
+
+        bot_username = context.bot.username
+        if not bot_username:
+            me = await context.bot.get_me()
+            bot_username = me.username
+
+        link = f"https://t.me/{bot_username}?start=ref_{ref_code}"
+        referrals_count = await self.db.count_referrals(user_id)
+        bonus_docs = user.get("bonus_docs", 0) or 0
+
+        text = (
+            f"🎁 *Пригласи коллегу — получи документы!*\n\n"
+            f"За каждого коллегу, который зарегистрируется по вашей ссылке:\n"
+            f"• Вам — *+5 документов* на баланс\n"
+            f"• Ему — *+2 бесплатных документа* при старте (итого 5 вместо 3)\n\n"
+            f"🔗 Ваша персональная ссылка:\n`{link}`\n\n"
+            f"👥 Приглашено (зарегистрировалось): *{referrals_count}*\n"
+            f"📄 Бонусных документов начислено всего: *{bonus_docs}*"
+        ) if lang == "ru" else (
+            f"🎁 *Әріптесіңізді шақырыңыз — құжаттар алыңыз!*\n\n"
+            f"Сіздің сілтеме бойынша тіркелген әр әріптес үшін:\n"
+            f"• Сізге — *+5 құжат*\n"
+            f"• Оған — *+2 тегін құжат* (3 орнына 5)\n\n"
+            f"🔗 Сіздің жеке сілтемеңіз:\n`{link}`\n\n"
+            f"👥 Шақырылғандар (тіркелген): *{referrals_count}*\n"
+            f"📄 Барлық бонус құжаттар: *{bonus_docs}*"
+        )
+        keyboard = [[InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")]]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
     async def _show_history(self, query, user_id, lang):
         docs = await self.db.get_history(user_id, limit=15)
