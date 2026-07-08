@@ -40,6 +40,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/profile — 👤 Мой профиль\n"
         "/new — 📄 Создать документ\n"
         "/history — 📚 История документов\n"
+        "/invite — 🎁 Пригласить и получить бонус\n"
         "/cancel — ❌ Отменить операцию\n"
         "/help — ❓ Помощь\n\n"
         "💡 Можно также отправить голосовое сообщение!"
@@ -49,6 +50,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/profile — 👤 Менің профилім\n"
         "/new — 📄 Құжат жасау\n"
         "/history — 📚 Тарих\n"
+        "/invite — 🎁 Шақыру және бонус алу\n"
         "/cancel — ❌ Болдырмау\n"
         "/help — ❓ Көмек"
     )
@@ -70,36 +72,77 @@ async def cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Быстрый переход в профиль"""
+    """Быстрый переход в профиль — теперь просто делегирует в ProfileHandler,
+    чтобы не дублировать (и не рассинхронизировать) логику отображения профиля
+    учителя/воспитателя. Раньше эта команда строила текст профиля вручную и
+    ВСЕГДА показывала школьные поля «Предмет»/«Классы», даже для воспитателей
+    детского сада, у которых эти поля всегда пустые — а нужные им поля
+    (детский сад/возрастная группа) не показывались вовсе."""
     db   = context.application.bot_data["db"]
     user = await db.get_user(update.effective_user.id)
     if not user or not user.get("name"):
         await OnboardingHandler(db).start(update, context)
         return
+
     lang = user.get("lang", "ru")
-    # Отправляем как новое сообщение
-    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-    free_left = max(0, 3 - user.get("free_used", 0))
-    sub = "⭐ PRO — безлимит" if user.get("subscribed") else f"🆓 Бесплатно ({free_left}/3 осталось)"
+
+    class _FakeQuery:
+        """ProfileHandler.show() ожидает объект с edit_message_text (callback query).
+        /profile вызывается из обычного текстового сообщения, поэтому подсовываем
+        обёртку, которая просто отправляет новое сообщение вместо редактирования."""
+        def __init__(self, message):
+            self._message = message
+
+        async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
+            await self._message.reply_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
+
+    await ProfileHandler(db).show(_FakeQuery(update.message), update.effective_user.id, lang)
+
+
+async def cmd_invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Реферальная программа: показывает персональную ссылку и статистику."""
+    db      = context.application.bot_data["db"]
+    user_id = update.effective_user.id
+    user    = await db.get_user(user_id)
+
+    if not user or not user.get("name"):
+        await OnboardingHandler(db).start(update, context)
+        return
+
+    lang = user.get("lang", "ru")
+
+    ref_code = user.get("ref_code")
+    if not ref_code:
+        ref_code = await db.generate_unique_ref_code()
+        await db.upsert_user(user_id, {"ref_code": ref_code})
+
+    bot_username = context.bot.username
+    if not bot_username:
+        me = await context.bot.get_me()
+        bot_username = me.username
+
+    link = f"https://t.me/{bot_username}?start=ref_{ref_code}"
+    referrals_count = await db.count_referrals(user_id)
+    bonus_docs = user.get("bonus_docs", 0) or 0
+
     text = (
-        f"👤 *Мой профиль*\n\n"
-        f"📛 {user.get('name','—')}\n"
-        f"🏫 {user.get('school','—')}\n"
-        f"📚 {user.get('subject','—')}\n"
-        f"🏷 {user.get('classes','—')}\n"
-        f"⭐ {sub}"
+        f"🎁 *Пригласи коллегу — получи документы!*\n\n"
+        f"За каждого коллегу, который зарегистрируется по вашей ссылке:\n"
+        f"• Вам — *+5 документов* на баланс\n"
+        f"• Ему — *+1 бесплатный документ* при старте (итого 4 вместо 3)\n\n"
+        f"🔗 Ваша персональная ссылка:\n`{link}`\n\n"
+        f"👥 Приглашено (зарегистрировалось): *{referrals_count}*\n"
+        f"📄 Бонусных документов начислено всего: *{bonus_docs}*"
+    ) if lang == "ru" else (
+        f"🎁 *Әріптесіңізді шақырыңыз — құжаттар алыңыз!*\n\n"
+        f"Сіздің сілтеме бойынша тіркелген әр әріптес үшін:\n"
+        f"• Сізге — *+5 құжат*\n"
+        f"• Оған — *+1 тегін құжат* (3 орнына 4)\n\n"
+        f"🔗 Сіздің жеке сілтемеңіз:\n`{link}`\n\n"
+        f"👥 Шақырылғандар (тіркелген): *{referrals_count}*\n"
+        f"📄 Барлық бонус құжаттар: *{bonus_docs}*"
     )
-    kb = [
-        [InlineKeyboardButton("✏️ Редактировать", callback_data="prof_edit")],
-        [InlineKeyboardButton("👥 Мои ученики",   callback_data="prof_students")],
-        [InlineKeyboardButton("⭐ Подписка",       callback_data="prof_sub")],
-        [InlineKeyboardButton("🏠 Главное меню",   callback_data="menu_main")],
-    ]
-    await update.message.reply_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(kb),
-        parse_mode="Markdown"
-    )
+    await update.message.reply_text(text, parse_mode="Markdown")
 
 
 async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -151,6 +194,7 @@ async def post_init(app: Application):
         BotCommand("new",     "📄 Создать документ"),
         BotCommand("profile", "👤 Мой профиль"),
         BotCommand("history", "📚 История документов"),
+        BotCommand("invite",  "🎁 Пригласить и получить бонус"),
         BotCommand("cancel",  "❌ Отменить операцию"),
         BotCommand("help",    "❓ Помощь"),
     ]
@@ -194,12 +238,13 @@ async def run():
     app.add_handler(CommandHandler("new",     cmd_new))
     app.add_handler(CommandHandler("profile", cmd_profile))
     app.add_handler(CommandHandler("history", cmd_history))
+    app.add_handler(CommandHandler("invite",  cmd_invite))
     app.add_handler(CommandHandler("help",    cmd_help))
 
     # Голос
     app.add_handler(MessageHandler(filters.VOICE, voice.handle))
 
-    # Фото — расписание или чек
+    # Фото — расписание/режим дня или чек
     async def _handle_photo(update, context):
         if await agent.handle_photo(update, context):
             return

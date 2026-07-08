@@ -100,6 +100,25 @@ class Database:
             # ── Миграция для баз созданных до появления новых колонок ──
             await self._ensure_column(db, "users", "tier", "TEXT")
             await self._ensure_column(db, "users", "age_group", "TEXT")
+            await self._ensure_column(db, "users", "ref_code", "TEXT")
+            await self._ensure_column(db, "users", "referred_by", "INTEGER")
+            await self._ensure_column(db, "users", "ref_rewarded", "INTEGER DEFAULT 0")
+            await self._ensure_column(db, "users", "bonus_docs", "INTEGER DEFAULT 0")
+            await db.commit()
+
+            # Уникальный индекс на ref_code — создаём отдельно от ALTER TABLE,
+            # т.к. SQLite не позволяет добавлять UNIQUE через ADD COLUMN
+            await db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_ref_code ON users(ref_code) WHERE ref_code IS NOT NULL"
+            )
+            await db.commit()
+
+            # Бэкфилл: пользователи, у которых subscribed=1 но tier ещё не проставлен
+            # (оформили подписку до появления колонки tier) — считаем их PRO,
+            # иначе после этого обновления бот ошибочно предложит им оформить подписку заново.
+            await db.execute(
+                "UPDATE users SET tier='pro' WHERE subscribed=1 AND (tier IS NULL OR tier='')"
+            )
             await db.commit()
 
     async def _ensure_column(self, db, table: str, column: str, coltype: str):
@@ -399,3 +418,57 @@ class Database:
                 new_val = 0 if row[0] else 1
                 await db.execute("UPDATE samples SET is_active=? WHERE id=?", (new_val, sample_id))
                 await db.commit()
+
+    # ===== REFERRALS (реферальная программа) =====
+    async def get_user_by_ref_code(self, ref_code: str):
+        if not ref_code:
+            return None
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM users WHERE ref_code=?", (ref_code,)) as cur:
+                row = await cur.fetchone()
+                return dict(row) if row else None
+
+    async def generate_unique_ref_code(self) -> str:
+        """Генерирует уникальный короткий код (буквы+цифры), проверяя коллизии в БД."""
+        import random, string
+        alphabet = string.ascii_uppercase + string.digits
+        for _ in range(20):
+            code = "".join(random.choices(alphabet, k=6))
+            existing = await self.get_user_by_ref_code(code)
+            if not existing:
+                return code
+        # Крайний случай — увеличиваем длину, если 20 попыток не хватило
+        return "".join(random.choices(alphabet, k=10))
+
+    async def count_referrals(self, tg_id: int) -> int:
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(
+                "SELECT COUNT(*) FROM users WHERE referred_by=? AND ref_rewarded=1", (tg_id,)
+            ) as cur:
+                row = await cur.fetchone()
+                return row[0] if row else 0
+
+    async def add_bonus_docs(self, tg_id: int, amount: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "UPDATE users SET bonus_docs = COALESCE(bonus_docs, 0) + ? WHERE tg_id=?",
+                (amount, tg_id)
+            )
+            await db.commit()
+
+    async def mark_ref_rewarded(self, tg_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE users SET ref_rewarded=1 WHERE tg_id=?", (tg_id,))
+            await db.commit()
+
+
+# ===== Общие константы/хелперы для лимита бесплатных документов =====
+FREE_BASE_LIMIT = 3
+
+def free_limit_for(user: dict) -> int:
+    """Сколько всего бесплатных документов доступно пользователю
+    (база + бонусы за приглашённых друзей)."""
+    if not user:
+        return FREE_BASE_LIMIT
+    return FREE_BASE_LIMIT + (user.get("bonus_docs") or 0)
