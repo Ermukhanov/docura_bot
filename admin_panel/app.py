@@ -11,7 +11,16 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.secret_key = "docura_admin_secret_2024"
 
-DB_PATH      = os.path.join(os.path.dirname(__file__), '..', 'docura.db')
+# ВАЖНО (Railway/деплой): если бот и админ-панель — ДВА РАЗНЫХ сервиса Railway,
+# у каждого свой volume (лимит Railway — один volume на сервис), а значит физически
+# это будут РАЗНЫЕ файлы, даже если задать одинаковый DB_PATH. Чтобы админка видела
+# те же данные, что и бот, либо (а) запускай оба процесса в ОДНОМ сервисе с одним
+# volume, либо (б) переходи на сетевую БД (Postgres), которую можно подключить из
+# обоих сервисов одновременно. Пока задаём тот же путь, что и в database.py — как
+# минимум для локальной разработки и для случая "один сервис на двоих" это уже
+# работает правильно "из коробки".
+DB_PATH = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), '..', 'docura.db'))
+
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 ALLOWED_EXT  = {'pdf', 'docx', 'txt', 'doc'}
 ADMIN_LOGIN  = "Unicorn"
@@ -95,7 +104,9 @@ def dashboard():
             'week_users':   conn.execute("SELECT COUNT(*) FROM users WHERE date(created_at) >= date('now','-7 days')").fetchone()[0],
             'rag_docs':     conn.execute("SELECT COUNT(*) FROM rag_documents WHERE is_active=1").fetchone()[0],
         }
-        stats['revenue'] = stats['subscribed'] * 1990
+        # Доход считаем по тарифу PRO (4990 обычная цена / 2490 акция первого месяца) —
+        # это приблизительная оценка для дашборда, не бухгалтерский расчёт.
+        stats['revenue'] = stats['subscribed'] * 4990
 
         top_docs = conn.execute(
             "SELECT doc_type, COUNT(*) as cnt FROM documents GROUP BY doc_type ORDER BY cnt DESC LIMIT 5"
@@ -145,7 +156,7 @@ def users():
 @login_required
 def activate_sub(tg_id):
     with db() as conn:
-        conn.execute("UPDATE users SET subscribed=1 WHERE tg_id=?", (tg_id,))
+        conn.execute("UPDATE users SET subscribed=1, tier='pro' WHERE tg_id=?", (tg_id,))
         conn.commit()
     flash(f'✅ Подписка активирована для {tg_id}', 'success')
     return redirect(url_for('users'))
@@ -155,7 +166,7 @@ def activate_sub(tg_id):
 @login_required
 def deactivate_sub(tg_id):
     with db() as conn:
-        conn.execute("UPDATE users SET subscribed=0 WHERE tg_id=?", (tg_id,))
+        conn.execute("UPDATE users SET subscribed=0, tier=NULL WHERE tg_id=?", (tg_id,))
         conn.commit()
     flash(f'Подписка деактивирована для {tg_id}', 'info')
     return redirect(url_for('users'))

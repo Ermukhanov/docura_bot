@@ -1,8 +1,16 @@
 import aiosqlite
 import json
+import os
 from datetime import datetime
 
-DB_PATH = "docura.db"
+# ВАЖНО (Railway/деплой): по умолчанию база лежит рядом с кодом — это НЕ переживёт
+# редеплой на Railway без volume. Если используешь Railway volume, задай переменную
+# окружения DB_PATH равной пути ВНУТРИ смонтированного volume, например:
+#   DB_PATH=/data/docura.db
+# (где /data — это тот самый "Mount Path", который ты указал при создании volume
+# в настройках сервиса на Railway). Без этого volume просто не используется ботом,
+# даже если он подключён к сервису.
+DB_PATH = os.getenv("DB_PATH", "docura.db")
 
 class Database:
     def __init__(self):
@@ -104,6 +112,7 @@ class Database:
             await self._ensure_column(db, "users", "referred_by", "INTEGER")
             await self._ensure_column(db, "users", "ref_rewarded", "INTEGER DEFAULT 0")
             await self._ensure_column(db, "users", "bonus_docs", "INTEGER DEFAULT 0")
+            await self._ensure_column(db, "users", "promo_used", "INTEGER DEFAULT 0")
             await db.commit()
 
             # Уникальный индекс на ref_code — создаём отдельно от ALTER TABLE,
@@ -460,6 +469,12 @@ class Database:
     async def mark_ref_rewarded(self, tg_id: int):
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("UPDATE users SET ref_rewarded=1 WHERE tg_id=?", (tg_id,))
+            await db.commit()
+
+    # ===== ПРОМО-ПОДПИСКА (первый месяц PRO по акции) =====
+    async def mark_promo_used(self, tg_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE users SET promo_used=1 WHERE tg_id=?", (tg_id,))
             await db.commit()
 
 
