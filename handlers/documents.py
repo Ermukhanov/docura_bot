@@ -525,19 +525,19 @@ class DocumentHandler:
         free_used  = user.get("free_used", 0)
 
         if not subscribed and free_used >= free_limit_for(user):
-            from handlers.profile import TIER_PRICES, PROMO_ANCHOR_PRICE
+            from handlers.profile import TIER_PRICES
             promo_available = not user.get("promo_used")
 
             if promo_available:
                 text = (
                     f"🚫 *Бесплатные попытки закончились.*\n\n"
                     f"🔥 Месяц PRO с безлимитной генерацией — всего *{TIER_PRICES['pro_promo']} тг* "
-                    f"(вместо {PROMO_ANCHOR_PRICE} тг)!\n"
+                    f"(вместо {TIER_PRICES['pro']} тг)!\n"
                     f"Это разовое предложение, доступно один раз для нового пользователя.\n\n"
                     f"После оплаты пришлите чек — доступ откроется автоматически."
                 ) if lang == "ru" else (
                     f"🚫 *Тегін әрекеттер аяқталды.*\n\n"
-                    f"🔥 Шексіз PRO — небары *{TIER_PRICES['pro_promo']} тг* ({PROMO_ANCHOR_PRICE} тг орнына)!\n"
+                    f"🔥 Шексіз PRO — небары *{TIER_PRICES['pro_promo']} тг* ({TIER_PRICES['pro']} тг орнына)!\n"
                     f"Бұл жаңа пайдаланушыға бір реттік ұсыныс.\n\n"
                     f"Төлемнен кейін чекті жіберіңіз — қолжетімділік автоматты ашылады."
                 )
@@ -546,7 +546,7 @@ class DocumentHandler:
                         f"🔥 Активировать PRO за {TIER_PRICES['pro_promo']} тг" if lang == "ru" else f"🔥 PRO-ды {TIER_PRICES['pro_promo']} тг-ге белсендіру",
                         callback_data="prof_choose_pro_promo"
                     )],
-                    [InlineKeyboardButton("🎁 Или пригласить и получить +5" if lang == "ru" else "🎁 Немесе шақырып +5 алу", callback_data="menu_profile")],
+                    [InlineKeyboardButton("🎁 Или пригласить и получить +5" if lang == "ru" else "🎁 Немесе шақырып +5 алу", callback_data="menu_invite")],
                     [InlineKeyboardButton("Все тарифы" if lang == "ru" else "Барлық тарифтер", callback_data="prof_sub")],
                     [InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_main")],
                 ]
@@ -869,32 +869,32 @@ class DocumentHandler:
             free_left = max(0, total_free - free_used)
 
             if free_left == 0:
-                from handlers.profile import TIER_PRICES, PROMO_ANCHOR_PRICE
+                from handlers.profile import TIER_PRICES
                 promo_available = not fresh_user.get("promo_used")
 
                 if promo_available:
                     kb_after = [
                         [InlineKeyboardButton(
-                            f"🔥 PRO за {TIER_PRICES['pro_promo']} тг (вместо {PROMO_ANCHOR_PRICE})" if lang == "ru"
+                            f"🔥 PRO за {TIER_PRICES['pro_promo']} тг (вместо {TIER_PRICES['pro']})" if lang == "ru"
                             else f"🔥 PRO {TIER_PRICES['pro_promo']} тг",
                             callback_data="prof_choose_pro_promo"
                         )],
-                        [InlineKeyboardButton("🎁 Или пригласить и получить +5", callback_data="menu_profile")],
+                        [InlineKeyboardButton("🎁 Или пригласить и получить +5", callback_data="menu_invite")],
                         [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
                     ]
                     note = (
                         f"⚠️ *Бесплатные документы исчерпаны!*\n\n"
                         f"🔥 Месяц PRO с безлимитной генерацией — всего *{TIER_PRICES['pro_promo']} тг* "
-                        f"(вместо {PROMO_ANCHOR_PRICE} тг). Разовое предложение для вас.\n"
+                        f"(вместо {TIER_PRICES['pro']} тг). Разовое предложение для вас.\n"
                         f"Или пригласите коллегу через /invite — за каждого +5 документов."
                     ) if lang == "ru" else (
                         f"⚠️ *Тегін құжаттар таусылды!*\n\n"
-                        f"🔥 Шексіз PRO — небары *{TIER_PRICES['pro_promo']} тг* ({PROMO_ANCHOR_PRICE} тг орнына).\n"
+                        f"🔥 Шексіз PRO — небары *{TIER_PRICES['pro_promo']} тг* ({TIER_PRICES['pro']} тг орнына).\n"
                         f"Немесе /invite арқылы әріптесіңізді шақырыңыз."
                     )
                 else:
                     kb_after = [
-                        [InlineKeyboardButton("🎁 Пригласить и получить +5", callback_data="menu_profile")],
+                        [InlineKeyboardButton("🎁 Пригласить и получить +5", callback_data="menu_invite")],
                         [InlineKeyboardButton("⭐ Оформить PRO — безлимит", callback_data="prof_sub")],
                         [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
                     ]

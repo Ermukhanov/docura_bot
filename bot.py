@@ -18,6 +18,8 @@ from handlers.profile import ProfileHandler
 from handlers.admin import AdminHandler
 from handlers.voice import VoiceHandler
 from handlers.agent import AgentHandler
+from handlers.concierge import ConciergeHandler
+from handlers.query_adapter import MessageQueryAdapter
 from handlers.notifications import send_reminders
 
 logging.basicConfig(
@@ -85,18 +87,7 @@ async def cmd_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     lang = user.get("lang", "ru")
-
-    class _FakeQuery:
-        """ProfileHandler.show() ожидает объект с edit_message_text (callback query).
-        /profile вызывается из обычного текстового сообщения, поэтому подсовываем
-        обёртку, которая просто отправляет новое сообщение вместо редактирования."""
-        def __init__(self, message):
-            self._message = message
-
-        async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
-            await self._message.reply_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
-
-    await ProfileHandler(db).show(_FakeQuery(update.message), update.effective_user.id, lang)
+    await ProfileHandler(db).show(MessageQueryAdapter(update.message), update.effective_user.id, lang)
 
 
 async def cmd_invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -129,7 +120,7 @@ async def cmd_invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🎁 *Пригласи коллегу — получи документы!*\n\n"
         f"За каждого коллегу, который зарегистрируется по вашей ссылке:\n"
         f"• Вам — *+5 документов* на баланс\n"
-        f"• Ему — *+1 бесплатный документ* при старте (итого 4 вместо 3)\n\n"
+        f"• Ему — *+2 бесплатных документа* при старте (итого 5 вместо 3)\n\n"
         f"🔗 Ваша персональная ссылка:\n`{link}`\n\n"
         f"👥 Приглашено (зарегистрировалось): *{referrals_count}*\n"
         f"📄 Бонусных документов начислено всего: *{bonus_docs}*"
@@ -137,7 +128,7 @@ async def cmd_invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🎁 *Әріптесіңізді шақырыңыз — құжаттар алыңыз!*\n\n"
         f"Сіздің сілтеме бойынша тіркелген әр әріптес үшін:\n"
         f"• Сізге — *+5 құжат*\n"
-        f"• Оған — *+1 тегін құжат* (3 орнына 4)\n\n"
+        f"• Оған — *+2 тегін құжат* (3 орнына 5)\n\n"
         f"🔗 Сіздің жеке сілтемеңіз:\n`{link}`\n\n"
         f"👥 Шақырылғандар (тіркелген): *{referrals_count}*\n"
         f"📄 Барлық бонус құжаттар: *{bonus_docs}*"
@@ -181,12 +172,21 @@ async def _route_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif step.startswith("agent_"):
         await AgentHandler(db, key).handle_text(update, context)
     else:
-        await MainMenuHandler(db).show(update, context)
+        # Нет активного сценария — либо это ещё не зарегистрированный пользователь
+        # (тогда ведём в онбординг, как и раньше), либо это просто свободное сообщение
+        # в чате — тогда отвечает разговорный агент, а не заново открывает меню.
+        user = await db.get_user(update.effective_user.id)
+        if not user or not user.get("name"):
+            await OnboardingHandler(db).start(update, context)
+        else:
+            concierge = context.application.bot_data["concierge"]
+            await concierge.handle_text(update, context)
 
 
 async def post_init(app: Application):
-    db = app.bot_data["db"]
-    asyncio.create_task(send_reminders(app, db))
+    db        = app.bot_data["db"]
+    concierge = app.bot_data["concierge"]
+    asyncio.create_task(send_reminders(app, db, concierge))
 
     # Устанавливаем меню команд в Telegram
     commands_ru = [
@@ -196,7 +196,7 @@ async def post_init(app: Application):
         BotCommand("history", "📚 История документов"),
         BotCommand("invite",  "🎁 Пригласить и получить бонус"),
         BotCommand("cancel",  "❌ Отменить операцию"),
-        BotCommand("help",    "❓ Помощь"),
+        BotCommand("help",    "❓ Помощь и список команд"),
     ]
     await app.bot.set_my_commands(commands_ru)
     logger.info("✅ Меню команд установлено")
@@ -221,6 +221,13 @@ async def run():
 
     app.bot_data["db"]            = db
     app.bot_data["anthropic_key"] = ANTHROPIC_API_KEY
+
+    concierge = ConciergeHandler(db, ANTHROPIC_API_KEY)
+    app.bot_data["concierge"] = concierge
+    if concierge._configured():
+        logger.info("🤖 Разговорный агент подключён (%s)", os.getenv("CONCIERGE_MODEL", "gpt-4o-mini"))
+    else:
+        logger.info("🤖 Разговорный агент НЕ настроен (нет CONCIERGE_API_KEY) — работает в режиме заглушки")
 
     onboarding = OnboardingHandler(db)
     main_menu  = MainMenuHandler(db)

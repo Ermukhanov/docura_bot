@@ -22,6 +22,17 @@ class OnboardingHandler:
             await MainMenuHandler(self.db).show(update, context)
             return
 
+        # ── Реферальный код: /start ref_XXXXX ──
+        # Записываем только для НОВЫХ (ещё не зарегистрированных) пользователей,
+        # и только один раз — чтобы уже привязанного реферера нельзя было перезаписать
+        # повторным переходом по чужой ссылке.
+        if context.args and not (user and user.get("referred_by")):
+            raw_arg = context.args[0]
+            ref_code = raw_arg[4:] if raw_arg.startswith("ref_") else raw_arg
+            referrer = await self.db.get_user_by_ref_code(ref_code)
+            if referrer and referrer["tg_id"] != user_id:
+                await self.db.upsert_user(user_id, {"referred_by": referrer["tg_id"]})
+
         keyboard = [[
             InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
             InlineKeyboardButton("🇰🇿 Қазақша", callback_data="lang_kz"),
@@ -219,6 +230,27 @@ class OnboardingHandler:
         user = await self.db.get_user(user_id)
         name = (user.get("name") or "").split()[0]
         role = user.get("role", "teacher")
+
+        # ── Реферальная награда: начисляется один раз, сразу после завершения регистрации ──
+        if user.get("referred_by") and not user.get("ref_rewarded") and user["referred_by"] != user_id:
+            referrer_id = user["referred_by"]
+            referrer = await self.db.get_user(referrer_id)
+            if referrer:
+                await self.db.add_bonus_docs(user_id, 2)        # новичку +2 бесплатных документа
+                await self.db.add_bonus_docs(referrer_id, 5)   # пригласившему +5 документов
+                await self.db.mark_ref_rewarded(user_id)
+                try:
+                    ref_lang = referrer.get("lang", "ru")
+                    ref_msg = (
+                        "🎉 *По вашей ссылке зарегистрировался новый пользователь!*\n\n"
+                        "Вам начислено *+5 документов* на баланс. Спасибо, что делитесь Docura.kz!"
+                    ) if ref_lang == "ru" else (
+                        "🎉 *Сіздің сілтеме бойынша жаңа пайдаланушы тіркелді!*\n\n"
+                        "Балансыңызға *+5 құжат* қосылды. Docura.kz-ты бөлескеніңіз үшін рахмет!"
+                    )
+                    await context.bot.send_message(chat_id=referrer_id, text=ref_msg, parse_mode=ParseMode.MARKDOWN)
+                except Exception:
+                    pass  # реферер мог заблокировать бота — не мешаем регистрации новичка
 
         if role == "kindergarten":
             msg = f"✅ Профиль сохранён! Добро пожаловать, {name}! 🧸" if lang == "ru" else f"✅ Профиль сақталды! Қош келдіңіз, {name}! 🧸"
