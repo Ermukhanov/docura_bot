@@ -141,13 +141,20 @@ class ConciergeHandler:
                 temperature=0.7,
             )
 
-        raw = resp.choices[0].message.content.strip()
-        raw = re.sub(r"```[a-z]*", "", raw).strip("` \n")
+        raw_original = resp.choices[0].message.content.strip()
+        cleaned = re.sub(r"```[a-z]*", "", raw_original).strip("` \n")
         # На случай если модель всё равно добавила текст до/после JSON — вырезаем сам объект
-        match = re.search(r"\{.*\}", raw, re.DOTALL)
-        if match:
-            raw = match.group(0)
-        return json.loads(raw)
+        match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        json_candidate = match.group(0) if match else cleaned
+
+        try:
+            return json.loads(json_candidate)
+        except json.JSONDecodeError:
+            # Модель ответила НЕ в JSON (бывает у моделей, которые не умеют строго
+            # следовать формату) — не теряем её ответ и не показываем заглушку,
+            # а используем сырой текст напрямую как обычный ответ пользователю.
+            print(f"Concierge: модель вернула не-JSON, использую как текст. Сырой ответ: {raw_original[:300]!r}")
+            return {"reply": raw_original, "action": "none", "doc_type": None}
 
     async def _call_ai(self, system_prompt: str, history: list, user_message: str) -> dict:
         try:
@@ -155,7 +162,7 @@ class ConciergeHandler:
                 None, self._call_ai_sync, system_prompt, history, user_message
             )
         except Exception as e:
-            print(f"Concierge AI error: {e}")
+            print(f"Concierge AI error ({type(e).__name__}): {e}")
             return {"reply": None, "action": "none", "doc_type": None}
 
     # ══════════════════════════════════════════════════════
