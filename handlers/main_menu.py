@@ -121,6 +121,7 @@ class MainMenuHandler:
                 [InlineKeyboardButton(t(lang, "cat_kg_reports"),  callback_data="cat_kg_reports")],
                 [InlineKeyboardButton(t(lang, "cat_kg_children"), callback_data="cat_kg_children")],
                 [InlineKeyboardButton(t(lang, "cat_kg_personal"), callback_data="cat_kg_personal")],
+                [InlineKeyboardButton(t(lang, "cat_common"),      callback_data="cat_common")],
             ]
         else:
             is_ct = user.get("is_class_teacher", 0)
@@ -131,6 +132,7 @@ class MainMenuHandler:
             if is_ct:
                 keyboard.append([InlineKeyboardButton(t(lang, "cat_students"), callback_data="cat_students")])
             keyboard.append([InlineKeyboardButton(t(lang, "cat_personal"), callback_data="cat_personal")])
+            keyboard.append([InlineKeyboardButton(t(lang, "cat_common"),   callback_data="cat_common")])
 
         keyboard.append([InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")])
 

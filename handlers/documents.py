@@ -43,6 +43,19 @@ DOC_QUESTIONS = {
             {"key": "results",       "q": "📊 Результаты?\n\n_Пример: 5 — 3 уч., 4 — 8 уч., 3 — 5 уч., 2 — 2 уч._"},
             {"key": "topic",         "q": "📖 Тема контрольной работы?"},
         ],
+        "sor_soch": [
+            {"key": "sor_or_soch",   "q": "📋 СОР (за раздел) или СОЧ (за четверть)?\n\n_Напишите СОР или СОЧ_"},
+            {"key": "subject_class", "q": "📚 Предмет и класс?"},
+            {"key": "section_topic", "q": "📖 Раздел / тема, по которой оценивание?"},
+            {"key": "criteria",      "q": "📊 Критерии оценивания?\n\n_Или напишите «автоматически» — составлю по целям обучения_"},
+        ],
+        "sor_soch_analysis": [
+            {"key": "sor_or_soch",   "q": "📋 Анализ СОР или СОЧ?"},
+            {"key": "subject_class", "q": "📚 Предмет и класс?"},
+            {"key": "date",          "q": "📅 Дата проведения?"},
+            {"key": "results",       "q": "📊 Результаты по баллам?\n\n_Пример: 5уч.-10-12б, 8уч.-7-9б, 4уч.-4-6б, 2уч.-0-3б_"},
+            {"key": "typical_errors","q": "⚠️ Типичные ошибки класса?\n\n_Или напишите «автоматически»_"},
+        ],
         "characteristic": [
             {"key": "student_name", "q": "👤 ФИО ученика и класс?\n\n_Или выберите из базы ниже_"},
             {"key": "performance",  "q": "📊 Успеваемость?\n\n_Пример: отличник, хорошист, троечник_"},
@@ -93,14 +106,36 @@ DOC_QUESTIONS = {
         ],
         "kg_activity_summary": [
             {"key": "age_group", "q": "👶 Возрастная группа?"},
-            {"key": "topic",     "q": "📖 Тема занятия?\n\n_Пример: «Осень золотая» (ознакомление с природой)_"},
+            {"key": "topic",     "q": "📖 Тема занятия (ОУД)?\n\n_Пример: «Осень золотая» (ознакомление с природой)_"},
             {"key": "goals",     "q": "🎯 Цель занятия?\n\n_Или напишите «автоматически»_"},
+        ],
+        "kg_cyclogram": [
+            {"key": "age_group", "q": "👶 Возрастная группа?\n\n_Пример: старшая группа (5-6 лет)_"},
+            {"key": "week_note", "q": "📅 Особенности этой недели?\n\n_Например: тема недели, особые мероприятия. Или напишите «стандартная неделя»_"},
+        ],
+        "kg_perspective_plan": [
+            {"key": "age_group", "q": "👶 Возрастная группа?"},
+            {"key": "month",     "q": "📅 На какой месяц?\n\n_Пример: Ноябрь 2024_"},
+            {"key": "events",    "q": "🎉 Ключевые мероприятия месяца через запятую?\n\n_Или напишите «автоматически»_"},
+        ],
+        "kg_matinee_script": [
+            {"key": "theme",     "q": "🎭 Тема утренника?\n\n_Пример: Новый год, 8 Марта, Наурыз_"},
+            {"key": "age_group", "q": "👶 Возрастная группа?"},
+            {"key": "date",      "q": "📅 Дата проведения?"},
+            {"key": "roles",     "q": "🎬 Роли и участники?\n\n_Пример: Дед Мороз — воспитатель, Снегурочка — муз.руководитель, 5 детей-снежинок_"},
+            {"key": "props",     "q": "🎁 Нужный реквизит?\n\n_Или напишите «автоматически»_"},
         ],
         "kg_monthly_report": [
             {"key": "period",    "q": "📅 За какой период?\n\n_Пример: Октябрь 2024_"},
             {"key": "age_group", "q": "👶 Группа?\n\n_Пример: старшая группа «Ромашка»_"},
             {"key": "progress",  "q": "📊 Освоение программы детьми (кратко)?\n\n_Пример: большинство детей усвоили материал по ФЭМП_"},
             {"key": "extra",     "q": "🏆 Мероприятия, утренники, конкурсы?\n\n_Если нет — напишите «нет»_"},
+        ],
+        "kg_monitoring": [
+            {"key": "age_group", "q": "👶 Возрастная группа?"},
+            {"key": "period",    "q": "📅 На какой месяц/срез?"},
+            {"key": "skills",    "q": "📊 Что осваивали (по образовательным областям)?\n\n_Или напишите «автоматически» — возьму области по ГОСО_"},
+            {"key": "results",   "q": "📈 Общий результат по группе?\n\n_Пример: 18 детей — высокий уровень, 6 — средний, 1 — низкий_"},
         ],
         "kg_child_characteristic": [
             {"key": "student_name", "q": "👤 Имя ребёнка, возраст, группа?\n\n_Или выберите из базы ниже_"},
@@ -132,6 +167,38 @@ DOC_QUESTIONS = {
             {"key": "event",    "q": "📢 Что за мероприятие?\n\n_Пример: утренник, родительское собрание_"},
             {"key": "datetime", "q": "📅 Дата и время?"},
             {"key": "location", "q": "📍 Место проведения?\n\n_Пример: музыкальный зал_"},
+        ],
+
+        # ── ОБЩИЕ ДОКУМЕНТЫ (доступны и школе, и саду) ──
+        "parent_work_plan": [
+            {"key": "period",  "q": "📅 На какой период план?\n\n_Пример: 2024-2025 учебный год_"},
+            {"key": "group",   "q": "🏷 Класс/группа?"},
+            {"key": "topics",  "q": "📋 Темы собраний по месяцам?\n\n_Или напишите «автоматически»_"},
+        ],
+        "upbringing_plan": [
+            {"key": "period",  "q": "📅 На какой период план?"},
+            {"key": "group",   "q": "🏷 Класс/группа?"},
+            {"key": "directions", "q": "📋 Направления работы?\n\n_Пример: патриотическое, ЗОЖ, трудовое. Или «автоматически»_"},
+        ],
+        "parent_meeting_protocol": [
+            {"key": "date",     "q": "📅 Дата собрания?"},
+            {"key": "topic",    "q": "📋 Повестка дня?"},
+            {"key": "attendees","q": "👥 Сколько человек присутствовало?"},
+            {"key": "theses",   "q": "🗣 Кратко о чём говорили выступавшие?\n\n_Или напишите «автоматически»_"},
+            {"key": "decision", "q": "✅ Итоговое решение собрания?"},
+        ],
+        "individual_work_plan": [
+            {"key": "student_name", "q": "👤 ФИО/имя ребёнка и класс/группа?\n\n_Или выберите из базы ниже_"},
+            {"key": "problem",      "q": "❓ В чём проблема / что нужно подтянуть?\n\n_Пример: отстаёт по чтению_"},
+            {"key": "period",       "q": "📅 На какой период рассчитан план?"},
+            {"key": "frequency",    "q": "⏰ Периодичность занятий?\n\n_Пример: 2 раза в неделю_"},
+        ],
+        "housing_survey_act": [
+            {"key": "student_name",  "q": "👤 ФИО ребёнка и класс/группа?\n\n_Или выберите из базы ниже_"},
+            {"key": "visit_date",    "q": "📅 Дата обследования?"},
+            {"key": "commission",    "q": "👥 Состав комиссии?\n\n_Пример: кл.рук. Иванова М.П., соц.педагог Петрова А.Б._"},
+            {"key": "family",        "q": "👨‍👩‍👧 Состав семьи?"},
+            {"key": "conditions",    "q": "🏠 Условия проживания и рабочее место ребёнка?\n\n_Или напишите «автоматически» на основе состава семьи_"},
         ],
     },
     "kz": {
@@ -190,6 +257,19 @@ DOC_QUESTIONS = {
             {"key": "results",       "q": "📊 Нәтижелер?\n\n_Мысалы: 5 — 3 оқ., 4 — 8 оқ._"},
             {"key": "topic",         "q": "📖 Тақырыбы?"},
         ],
+        "sor_soch": [
+            {"key": "sor_or_soch",   "q": "📋 БЖБ (бөлім) немесе ТЖБ (тоқсан)?"},
+            {"key": "subject_class", "q": "📚 Пән және сынып?"},
+            {"key": "section_topic", "q": "📖 Бөлім/тақырып?"},
+            {"key": "criteria",      "q": "📊 Бағалау критерийлері?\n\n_Немесе «автоматты»_"},
+        ],
+        "sor_soch_analysis": [
+            {"key": "sor_or_soch",   "q": "📋 БЖБ немесе ТЖБ талдауы?"},
+            {"key": "subject_class", "q": "📚 Пән және сынып?"},
+            {"key": "date",          "q": "📅 Өткізілген күні?"},
+            {"key": "results",       "q": "📊 Балл бойынша нәтижелер?"},
+            {"key": "typical_errors","q": "⚠️ Сыныптың жиі қателері?\n\n_Немесе «автоматты»_"},
+        ],
         "discipline_act": [
             {"key": "student_name", "q": "👤 Оқушының аты-жөні мен сыныбы?"},
             {"key": "date",         "q": "📅 Бұзылған күн?"},
@@ -217,11 +297,33 @@ DOC_QUESTIONS = {
             {"key": "topic",     "q": "📖 Сабақтың тақырыбы?"},
             {"key": "goals",     "q": "🎯 Сабақтың мақсаты немесе «автоматты»?"},
         ],
+        "kg_cyclogram": [
+            {"key": "age_group", "q": "👶 Жас тобы?"},
+            {"key": "week_note", "q": "📅 Осы аптаның ерекшеліктері?\n\n_Немесе «стандартты апта»_"},
+        ],
+        "kg_perspective_plan": [
+            {"key": "age_group", "q": "👶 Жас тобы?"},
+            {"key": "month",     "q": "📅 Қандай ай?"},
+            {"key": "events",    "q": "🎉 Айдың негізгі іс-шаралары?\n\n_Немесе «автоматты»_"},
+        ],
+        "kg_matinee_script": [
+            {"key": "theme",     "q": "🎭 Мерекенің тақырыбы?\n\n_Мысалы: Жаңа жыл, Наурыз_"},
+            {"key": "age_group", "q": "👶 Жас тобы?"},
+            {"key": "date",      "q": "📅 Күні?"},
+            {"key": "roles",     "q": "🎬 Рөлдер мен қатысушылар?"},
+            {"key": "props",     "q": "🎁 Керекті реквизит?\n\n_Немесе «автоматты»_"},
+        ],
         "kg_monthly_report": [
             {"key": "period",    "q": "📅 Қандай кезең?"},
             {"key": "age_group", "q": "👶 Топ?"},
             {"key": "progress",  "q": "📊 Балалардың бағдарламаны меңгеруі?"},
             {"key": "extra",     "q": "🏆 Іс-шаралар, мерекелер?\n\n_Жоқ болса «жоқ»_"},
+        ],
+        "kg_monitoring": [
+            {"key": "age_group", "q": "👶 Жас тобы?"},
+            {"key": "period",    "q": "📅 Қандай ай/кезең?"},
+            {"key": "skills",    "q": "📊 Қандай дағдылар бойынша?\n\n_Немесе «автоматты»_"},
+            {"key": "results",   "q": "📈 Топ бойынша нәтиже?"},
         ],
         "kg_child_characteristic": [
             {"key": "student_name", "q": "👤 Баланың аты, жасы, тобы?"},
@@ -254,6 +356,38 @@ DOC_QUESTIONS = {
             {"key": "datetime", "q": "📅 Күні мен уақыты?"},
             {"key": "location", "q": "📍 Орны?"},
         ],
+
+        # ── ЖАЛПЫ ҚҰЖАТТАР (мектеп пен балабақшаға ортақ) ──
+        "parent_work_plan": [
+            {"key": "period", "q": "📅 Қандай кезеңге жоспар?"},
+            {"key": "group",  "q": "🏷 Сынып/топ?"},
+            {"key": "topics", "q": "📋 Айлар бойынша жиналыс тақырыптары?\n\n_Немесе «автоматты»_"},
+        ],
+        "upbringing_plan": [
+            {"key": "period",     "q": "📅 Қандай кезеңге жоспар?"},
+            {"key": "group",      "q": "🏷 Сынып/топ?"},
+            {"key": "directions", "q": "📋 Жұмыс бағыттары?\n\n_Немесе «автоматты»_"},
+        ],
+        "parent_meeting_protocol": [
+            {"key": "date",      "q": "📅 Жиналыс күні?"},
+            {"key": "topic",     "q": "📋 Күн тәртібі?"},
+            {"key": "attendees", "q": "👥 Қанша адам қатысты?"},
+            {"key": "theses",    "q": "🗣 Сөйлеушілер не туралы айтты?\n\n_Немесе «автоматты»_"},
+            {"key": "decision",  "q": "✅ Жиналыстың қорытынды шешімі?"},
+        ],
+        "individual_work_plan": [
+            {"key": "student_name", "q": "👤 Баланың аты-жөні және сынып/тобы?"},
+            {"key": "problem",      "q": "❓ Қандай мәселе бар?"},
+            {"key": "period",       "q": "📅 Қандай кезеңге жоспар?"},
+            {"key": "frequency",    "q": "⏰ Сабақтардың жиілігі?"},
+        ],
+        "housing_survey_act": [
+            {"key": "student_name", "q": "👤 Баланың аты-жөні және сынып/тобы?"},
+            {"key": "visit_date",   "q": "📅 Тексеру күні?"},
+            {"key": "commission",   "q": "👥 Комиссия құрамы?"},
+            {"key": "family",       "q": "👨‍👩‍👧 Отбасы құрамы?"},
+            {"key": "conditions",   "q": "🏠 Тұрғын үй жағдайы?\n\n_Немесе «автоматты»_"},
+        ],
     },
     "en": {
         "lesson_plan": [
@@ -282,10 +416,12 @@ DOC_QUESTIONS = {
 DOC_NAMES = {
     "ru": {
         "lesson_plan": "Краткосрочный план (КСП)",
-        "calendar_plan": "Календарный план",
+        "calendar_plan": "Календарно-тематический план (КТП)",
         "lesson_summary": "Конспект урока",
         "monthly_report": "Отчёт учителя",
         "control_analysis": "Анализ контрольной работы",
+        "sor_soch": "СОР / СОЧ",
+        "sor_soch_analysis": "Анализ СОР / СОЧ",
         "characteristic": "Характеристика ученика",
         "absence_cert": "Справка об отсутствии",
         "discipline_act": "Акт о нарушении дисциплины",
@@ -296,21 +432,33 @@ DOC_NAMES = {
         "announcement": "Объявление",
         # садик
         "kg_thematic_plan": "Тематический план занятий",
-        "kg_activity_summary": "Конспект занятия",
+        "kg_activity_summary": "Технологическая карта ОУД",
+        "kg_cyclogram": "Циклограмма",
+        "kg_perspective_plan": "Перспективный план работы",
+        "kg_matinee_script": "Сценарий утренника",
         "kg_monthly_report": "Отчёт воспитателя",
+        "kg_monitoring": "Мониторинг развития",
         "kg_child_characteristic": "Характеристика воспитанника",
         "kg_parent_letter": "Письмо родителям",
         "kg_absence_cert": "Справка об отсутствии ребёнка",
         "kg_vacation_request": "Заявление на отпуск",
         "kg_explanation": "Объяснительная записка",
         "kg_announcement": "Объявление для родителей",
+        # общие
+        "parent_work_plan": "План работы с родителями",
+        "upbringing_plan": "План воспитательной работы",
+        "parent_meeting_protocol": "Протокол родительского собрания",
+        "individual_work_plan": "Индивидуальный план работы",
+        "housing_survey_act": "Акт обследования жилищно-бытовых условий",
     },
     "kz": {
         "lesson_plan": "Қысқамерзімді жоспар (ҚМЖ)",
-        "calendar_plan": "Күнтізбелік жоспар",
+        "calendar_plan": "Күнтізбелік-тақырыптық жоспар (КТЖ)",
         "lesson_summary": "Сабақ конспектісі",
         "monthly_report": "Мұғалім есебі",
         "control_analysis": "Бақылау жұмысын талдау",
+        "sor_soch": "БЖБ / ТЖБ",
+        "sor_soch_analysis": "БЖБ / ТЖБ талдауы",
         "characteristic": "Оқушы мінездемесі",
         "absence_cert": "Болмағаны туралы анықтама",
         "discipline_act": "Тәртіп бұзу актісі",
@@ -321,21 +469,33 @@ DOC_NAMES = {
         "announcement": "Хабарландыру",
         # балабақша
         "kg_thematic_plan": "Тақырыптық жоспар",
-        "kg_activity_summary": "Сабақ конспектісі",
+        "kg_activity_summary": "ҰОҚ технологиялық картасы",
+        "kg_cyclogram": "Циклограмма",
+        "kg_perspective_plan": "Перспективалық жұмыс жоспары",
+        "kg_matinee_script": "Мереке сценарийі",
         "kg_monthly_report": "Тәрбиеші есебі",
+        "kg_monitoring": "Даму мониторингі",
         "kg_child_characteristic": "Тәрбиеленуші мінездемесі",
         "kg_parent_letter": "Ата-аналарға хат",
         "kg_absence_cert": "Баланың болмағаны туралы анықтама",
         "kg_vacation_request": "Демалыс өтініші",
         "kg_explanation": "Түсіндірме хат",
         "kg_announcement": "Ата-аналарға хабарландыру",
+        # ортақ
+        "parent_work_plan": "Ата-аналармен жұмыс жоспары",
+        "upbringing_plan": "Тәрбие жұмысының жоспары",
+        "parent_meeting_protocol": "Ата-аналар жиналысының хаттамасы",
+        "individual_work_plan": "Жеке жұмыс жоспары",
+        "housing_survey_act": "Тұрмыстық жағдайды тексеру актісі",
     },
     "en": {
         "lesson_plan": "Lesson Plan",
-        "calendar_plan": "Monthly Calendar Plan",
+        "calendar_plan": "Calendar-Thematic Plan",
         "lesson_summary": "Lesson Summary",
         "monthly_report": "Teacher Report",
         "control_analysis": "Test Analysis",
+        "sor_soch": "Summative Assessment",
+        "sor_soch_analysis": "Summative Assessment Analysis",
         "characteristic": "Student Reference",
         "absence_cert": "Absence Certificate",
         "discipline_act": "Disciplinary Act",
@@ -345,41 +505,62 @@ DOC_NAMES = {
         "explanation": "Explanatory Note",
         "announcement": "Announcement",
         "kg_thematic_plan": "Thematic Activity Plan",
-        "kg_activity_summary": "Activity Summary",
+        "kg_activity_summary": "Activity Technological Map",
+        "kg_cyclogram": "Weekly Cyclogram",
+        "kg_perspective_plan": "Monthly Perspective Plan",
+        "kg_matinee_script": "Matinee Script",
         "kg_monthly_report": "Kindergarten Teacher Report",
+        "kg_monitoring": "Development Monitoring",
         "kg_child_characteristic": "Child Reference",
         "kg_parent_letter": "Letter to Parents",
         "kg_absence_cert": "Child Absence Certificate",
         "kg_vacation_request": "Leave Application",
         "kg_explanation": "Explanatory Note",
         "kg_announcement": "Announcement for Parents",
+        "parent_work_plan": "Parent Engagement Plan",
+        "upbringing_plan": "Upbringing Work Plan",
+        "parent_meeting_protocol": "Parent Meeting Protocol",
+        "individual_work_plan": "Individual Work Plan",
+        "housing_survey_act": "Living Conditions Survey Act",
     }
 }
 
 # Категории документов учителя (школа)
 CAT_DOCS = {
     "planning": ["lesson_plan", "calendar_plan", "lesson_summary"],
-    "reports":  ["monthly_report", "control_analysis"],
+    "reports":  ["monthly_report", "control_analysis", "sor_soch", "sor_soch_analysis"],
     "students": ["characteristic", "absence_cert", "discipline_act", "gratitude_letter", "parent_letter"],
     "personal": ["vacation_request", "explanation", "announcement"],
 }
 
 # Категории документов садика (полностью отдельный набор — НЕ школьные типы)
 CAT_DOCS_KG = {
-    "kg_planning": ["kg_thematic_plan", "kg_activity_summary"],
-    "kg_reports":  ["kg_monthly_report"],
+    "kg_planning": ["kg_thematic_plan", "kg_activity_summary", "kg_cyclogram", "kg_perspective_plan", "kg_matinee_script"],
+    "kg_reports":  ["kg_monthly_report", "kg_monitoring"],
     "kg_children": ["kg_child_characteristic", "kg_parent_letter", "kg_absence_cert"],
     "kg_personal": ["kg_vacation_request", "kg_explanation", "kg_announcement"],
 }
 
+# Документы, общие для школы и садика — показываются В ОБЕИХ ролях в отдельной категории.
+# Каждый тип определён ОДИН раз (без kg_-префикса): нужная терминология (ученик/класс
+# или воспитанник/группа) подставляется автоматически системным промптом по роли —
+# см. rag_base.get_system_prompt (COMMON_DOC_RULES добавляется в обе ветки).
+CAT_DOCS_COMMON = {
+    "common": [
+        "parent_work_plan", "upbringing_plan", "parent_meeting_protocol",
+        "individual_work_plan", "housing_survey_act",
+    ],
+}
+
 # Объединённый словарь категорий — используется при поиске документов по категории,
 # независимо от роли (роль определяет только какое меню категорий показать)
-CAT_DOCS_ALL = {**CAT_DOCS, **CAT_DOCS_KG}
+CAT_DOCS_ALL = {**CAT_DOCS, **CAT_DOCS_KG, **CAT_DOCS_COMMON}
 
 # Типы документов, для которых предлагается выбор ребёнка/ученика из базы
 STUDENT_LINKED_DOC_TYPES = [
     "characteristic", "absence_cert", "discipline_act", "gratitude_letter", "parent_letter",
     "kg_child_characteristic", "kg_parent_letter", "kg_absence_cert",
+    "individual_work_plan", "housing_survey_act",
 ]
 
 # Красивые разделители для дизайна
