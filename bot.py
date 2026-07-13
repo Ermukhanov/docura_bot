@@ -279,6 +279,8 @@ async def run():
 
     # Голос
     app.add_handler(MessageHandler(filters.VOICE, voice.handle))
+    # Личные Word-образцы для документов детского сада.
+    app.add_handler(MessageHandler(filters.Document.ALL, documents.handle_document))
 
     # Фото — расписание/режим дня или чек
     async def _handle_photo(update, context):

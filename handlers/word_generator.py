@@ -121,7 +121,7 @@ def validate_cycle_schedule_data(data: dict) -> list[str]:
     return [label for key, label in labels.items() if not str(data.get(key, "")).strip()]
 
 
-def generate_word(content: str, title: str, teacher_name: str = "", cycle_data: dict | None = None) -> str:
+def generate_word(content: str, title: str, teacher_name: str = "", cycle_data: dict | None = None, monitoring_data: dict | None = None) -> str:
     """
     Генерирует красивый Word документ по стандартам РК.
     Возвращает путь к .docx файлу.
@@ -134,7 +134,7 @@ def generate_word(content: str, title: str, teacher_name: str = "", cycle_data: 
         section.right_margin  = Cm(1.5)   # 15мм
         section.top_margin    = Cm(2.0)   # 20мм
         section.bottom_margin = Cm(2.0)   # 20мм
-        if cycle_data:
+        if cycle_data or monitoring_data:
             # Пять рабочих дней и пять блоков лучше читаются на альбомной странице.
             section.orientation = WD_ORIENT.LANDSCAPE
             section.page_width    = Cm(29.7)
@@ -161,7 +161,7 @@ def generate_word(content: str, title: str, teacher_name: str = "", cycle_data: 
     hp.alignment = WD_ALIGN_PARAGRAPH.CENTER
     hp.paragraph_format.space_before = Pt(6)
     hp.paragraph_format.space_after  = Pt(6)
-    hr = hp.add_run("DOCURA.KZ  •  Профессиональные документы для учителей Казахстана")
+    hr = hp.add_run("Подготовлено в Docura")
     hr.font.name  = FONT_MAIN
     hr.font.size  = Pt(9)
     hr.font.color.rgb = WHITE
@@ -182,6 +182,8 @@ def generate_word(content: str, title: str, teacher_name: str = "", cycle_data: 
     # ── ПАРСИМ СОДЕРЖИМОЕ ─────────────────────────────
     if cycle_data:
         _add_kindergarten_cycle_schedule(doc, cycle_data)
+    elif monitoring_data:
+        _add_development_monitoring(doc, monitoring_data)
     else:
         _parse_content(doc, content)
 
@@ -189,7 +191,7 @@ def generate_word(content: str, title: str, teacher_name: str = "", cycle_data: 
     doc.add_paragraph().paragraph_format.space_before = Pt(12)
     _add_hrule(doc, "A0AEC0", "6")
     footer_p = _para(doc,
-                     f"Сгенерировано Docura.kz  •  {datetime.now().strftime('%d.%m.%Y %H:%M')}  •  t.me/docurakz_bot",
+                     "Подготовлено в Docura",
                      align=WD_ALIGN_PARAGRAPH.CENTER,
                      italic=True, size=8, color=RGBColor(0xA0, 0xAE, 0xC0),
                      space_before=4)
@@ -236,13 +238,23 @@ def _add_kindergarten_cycle_schedule(doc, data: dict):
         "Сон и закаливание",
         "Игры и уход детей домой",
     ]
-    activities = [
-        f"Планируется: беседа и упражнения по теме «{topic}».",
-        f"Планируется ОУД по теме «{topic}» с игровыми заданиями.",
-        f"Планируется наблюдение и подвижные игры по теме «{topic}».",
-        "Планируется спокойная подготовка ко сну и закаливающие процедуры по режиму группы.",
-        f"Планируются самостоятельные игры и короткое подведение итогов по теме «{topic}».",
+    daily = [
+        [f"Беседа по теме «{topic}»; гимнастика с наблюдениями.", f"ОУД: «Знакомство с темой {topic}». Цель: выделять признаки. Игра: «Найди пару».", f"Наблюдение по теме «{topic}»; подвижная игра «Повтори движение».", "Подготовка ко сну по режиму группы; дыхательное упражнение.", f"Игра «Назови по теме {topic}»; беседа при уходе."],
+        [f"Рассматривание иллюстраций по теме «{topic}»; новая гимнастика.", f"ОУД: «Признаки и действия». Цель: расширять словарь. Игра: «Что изменилось?».", "Подвижная игра с правилами; наблюдение на прогулке.", "Расслабление перед сном; процедуры по режиму группы.", f"Творческая игра по теме «{topic}»; индивидуальная беседа."],
+        [f"Утренний круг по теме «{topic}»; ритмическая гимнастика.", f"ОУД: «Сравни и выбери». Цель: учить сравнивать. Игра: «Лишний предмет».", "Поисковая прогулка; игра-эстафета без инвентаря.", "Чтение перед сном; процедуры по режиму группы.", "Настольная игра «Собери картинку»; итоги дня."],
+        [f"Пальчиковая игра по теме «{topic}»; координационная гимнастика.", f"ОУД: «Где и как бывает». Цель: закреплять связи. Игра: «Кому что нужно?».", "Наблюдение и игра «Опиши, не называя».", "Спокойная музыка перед сном; процедуры по режиму группы.", f"Сюжетно-ролевая игра по теме «{topic}»; обмен впечатлениями."],
+        [f"Повторение слов по теме «{topic}»; выбор движений детьми.", f"ОУД: «Итоги недели». Цель: применять знания. Игра: «Угадай по описанию».", "Игра-наблюдение «Что запомнили?»; двигательная активность.", "Подготовка ко сну по режиму группы; расслабление.", "Свободные игры и беседа об итогах темы."],
     ]
+    if data.get("lang") == "kz":
+        days = ["Дүйсенбі", "Сейсенбі", "Сәрсенбі", "Бейсенбі", "Жұма"]
+        blocks = ["Таңертеңгі қабылдау және гимнастика", "ҰОҚ", "Серуен", "Ұйқы және шынықтыру", "Ойындар және үйге қайту"]
+        daily = [
+            [f"«{topic}» тақырыбы бойынша әңгіме; бақылау жаттығулары.", f"ҰОҚ: «{topic} тақырыбымен танысу». Мақсат: белгілерін ажырату. Ойын: «Жұбын тап».", f"«{topic}» бойынша бақылау; «Қимылды қайтала» ойыны.", "Топ режимі бойынша ұйқыға дайындық; тыныс алу жаттығуы.", f"«{topic}» бойынша атау ойыны; ата-анамен қысқа әңгіме."],
+            [f"«{topic}» суреттерін қарау; жаңа гимнастика.", "ҰОҚ: «Белгілері мен әрекеттері». Мақсат: сөздік қорын кеңейту. Ойын: «Не өзгерді?».", "Ережелі қимылды ойын; серуендегі бақылау.", "Ұйқы алдындағы босаңсу; топ режимі бойынша процедуралар.", f"«{topic}» бойынша шығармашылық ойын; жеке әңгіме."],
+            [f"«{topic}» бойынша таңғы шеңбер; ырғақты гимнастика.", "ҰОҚ: «Салыстыр және таңда». Мақсат: салыстыруға үйрету. Ойын: «Артық зат».", "Іздеу серуені; құралсыз эстафета ойыны.", "Ұйқы алдындағы оқу; топ режимі бойынша процедуралар.", "Үстел ойыны; күн қорытындысы."],
+            [f"«{topic}» бойынша саусақ ойыны; үйлестіру гимнастикасы.", "ҰОҚ: «Қайда және қалай болады». Мақсат: байланыстарды бекіту. Ойын: «Кімге не керек?».", "Бақылау және «Атын атамай сипатта» ойыны.", "Ұйқы алдындағы баяу музыка; топ режимі бойынша процедуралар.", f"«{topic}» бойынша сюжеттік ойын; әсерлермен алмасу."],
+            [f"«{topic}» сөздерін қайталау; балалар қимылды таңдайды.", "ҰОҚ: «Апта қорытындысы». Мақсат: білімді ойында қолдану. Ойын: «Сипаттама бойынша тап».", "«Не есте қалды?» бақылау ойыны; қимыл белсенділігі.", "Топ режимі бойынша ұйқыға дайындық; босаңсу.", "Еркін ойындар және тақырып қорытындысы."],
+        ]
 
     table = doc.add_table(rows=1 + len(blocks), cols=1 + len(days))
     table.style = "Table Grid"
@@ -255,7 +267,7 @@ def _add_kindergarten_cycle_schedule(doc, data: dict):
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         _run(p, header, bold=True, size=9, color=WHITE)
 
-    for r_idx, (block, activity) in enumerate(zip(blocks, activities), start=1):
+    for r_idx, block in enumerate(blocks, start=1):
         label_cell = table.rows[r_idx].cells[0]
         _set_cell_color(label_cell, LIGHT_BLUE_HEX)
         _set_cell_borders(label_cell)
@@ -263,7 +275,7 @@ def _add_kindergarten_cycle_schedule(doc, data: dict):
         for c_idx in range(1, len(days) + 1):
             cell = table.rows[r_idx].cells[c_idx]
             _set_cell_borders(cell)
-            text = activity
+            text = daily[c_idx - 1][r_idx - 1]
             # Пользовательское мероприятие отражается как план, а не как факт.
             if has_events and r_idx == 2:
                 text += f" Учесть при планировании: {events}."
@@ -271,8 +283,22 @@ def _add_kindergarten_cycle_schedule(doc, data: dict):
             p.alignment = WD_ALIGN_PARAGRAPH.LEFT
             _run(p, text, size=8)
 
-    _para(doc, "Примечание: содержание носит плановый характер; фактические события и время не указаны без подтверждённых данных.",
-          italic=True, size=9, color=GRAY, space_before=6)
+
+
+def _add_development_monitoring(doc, data: dict):
+    lang = data.get("lang", "ru")
+    labels = ["Организация", "Группа", "Возраст", "Период", "Воспитатель"] if lang == "ru" else ["Ұйым", "Топ", "Жасы", "Кезең", "Тәрбиеші"]
+    values = [data.get("organization") or "________________", data.get("group") or "________________", data.get("age_group") or "________________", data.get("period") or "________________", data.get("educator_name") or "________________"]
+    info = doc.add_table(rows=len(labels), cols=2); info.style = "Table Grid"
+    for row, label, value in zip(info.rows, labels, values):
+        _set_cell_color(row.cells[0], LIGHT_BLUE_HEX); _run(row.cells[0].paragraphs[0], label + ":", bold=True, size=10); _run(row.cells[1].paragraphs[0], value, size=10)
+    headers = ["№", "ФИО ребенка", "Физическое развитие", "Коммуникативное развитие", "Познавательное развитие", "Творческое развитие", "Социально-эмоциональное развитие", "Примечание"] if lang == "ru" else ["№", "Баланың аты-жөні", "Дене дамуы", "Коммуникативтік даму", "Танымдық даму", "Шығармашылық даму", "Әлеуметтік-эмоциялық даму", "Ескертпе"]
+    rows = data.get("rows") or [[name] for name in data.get("children", [])] or [[] for _ in range(10)]
+    table = doc.add_table(rows=1 + len(rows), cols=8); table.style = "Table Grid"
+    for i, h in enumerate(headers): _set_cell_color(table.rows[0].cells[i], NAVY_HEX); _run(table.rows[0].cells[i].paragraphs[0], h, bold=True, size=7, color=WHITE)
+    for n, source in enumerate(rows, 1):
+        vals = [str(n)] + (source + [""] * 7)[:7]
+        for i, val in enumerate(vals): _run(table.rows[n].cells[i].paragraphs[0], val, size=8)
 
 
 def _parse_content(doc, content: str):

@@ -102,6 +102,19 @@ class Database:
                     is_active INTEGER DEFAULT 1,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
+
+                CREATE TABLE IF NOT EXISTS user_templates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tg_id INTEGER NOT NULL,
+                    doc_type TEXT NOT NULL,
+                    file_path TEXT NOT NULL,
+                    original_name TEXT NOT NULL,
+                    lang TEXT DEFAULT 'ru',
+                    scope TEXT NOT NULL DEFAULT 'personal',
+                    metadata TEXT DEFAULT '{}',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(tg_id, doc_type, scope)
+                );
             """)
             await db.commit()
 
@@ -180,6 +193,38 @@ class Database:
                 "UPDATE users SET subscribed=0, tier=NULL WHERE tg_id=?", (tg_id,)
             )
             await db.commit()
+
+    # ===== ЛИЧНЫЕ WORD-ОБРАЗЦЫ =====
+    async def save_user_template(self, tg_id: int, doc_type: str, file_path: str,
+                                 original_name: str, lang: str, metadata: dict | None = None):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """INSERT INTO user_templates (tg_id, doc_type, file_path, original_name, lang, scope, metadata)
+                   VALUES (?, ?, ?, ?, ?, 'personal', ?)
+                   ON CONFLICT(tg_id, doc_type, scope) DO UPDATE SET
+                     file_path=excluded.file_path, original_name=excluded.original_name,
+                     lang=excluded.lang, metadata=excluded.metadata, created_at=CURRENT_TIMESTAMP""",
+                (tg_id, doc_type, file_path, original_name, lang, json.dumps(metadata or {}, ensure_ascii=False))
+            )
+            await db.commit()
+
+    async def get_user_template(self, tg_id: int, doc_type: str):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM user_templates WHERE tg_id=? AND doc_type=? AND scope='personal'", (tg_id, doc_type)
+            ) as cur:
+                row = await cur.fetchone()
+                return dict(row) if row else None
+
+    async def delete_user_template(self, tg_id: int, doc_type: str) -> str | None:
+        template = await self.get_user_template(tg_id, doc_type)
+        if not template:
+            return None
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("DELETE FROM user_templates WHERE id=?", (template["id"],))
+            await db.commit()
+        return template["file_path"]
 
     async def reset_user_account(self, tg_id: int) -> bool:
         """Очищает только профиль и незавершённый онбординг, сохраняя доступы и историю."""

@@ -426,6 +426,7 @@ DOC_NAMES = {
         "kg_thematic_plan": "Тематический план занятий",
         "kg_activity_summary": "Технологическая карта ОУД",
         "kindergarten_cycle_schedule": "Циклограмма",
+        "development_monitoring": "Мониторинг развития",
         "kg_perspective_plan": "Перспективный план работы",
         "kg_matinee_script": "Сценарий утренника",
         "kg_monthly_report": "Отчёт воспитателя",
@@ -463,6 +464,7 @@ DOC_NAMES = {
         "kg_thematic_plan": "Тақырыптық жоспар",
         "kg_activity_summary": "ҰОҚ технологиялық картасы",
         "kindergarten_cycle_schedule": "Циклограмма",
+        "development_monitoring": "Даму мониторингі",
         "kg_perspective_plan": "Перспективалық жұмыс жоспары",
         "kg_matinee_script": "Мереке сценарийі",
         "kg_monthly_report": "Тәрбиеші есебі",
@@ -528,7 +530,7 @@ CAT_DOCS = {
 # Категории документов садика (полностью отдельный набор — НЕ школьные типы)
 CAT_DOCS_KG = {
     "kg_planning": ["kg_thematic_plan", "kg_activity_summary", "kindergarten_cycle_schedule", "kg_perspective_plan", "kg_matinee_script"],
-    "kg_reports":  ["kg_monthly_report", "kg_monitoring"],
+    "kg_reports":  ["kg_monthly_report", "development_monitoring"],
     "kg_children": ["kg_child_characteristic", "kg_parent_letter", "kg_absence_cert"],
     "kg_personal": ["kg_vacation_request", "kg_explanation", "kg_announcement"],
 }
@@ -558,6 +560,7 @@ STUDENT_LINKED_DOC_TYPES = [
 # Отдельный, минимальный сценарий для циклограммы сада. Остальные документы
 # пока продолжают использовать существующий реестр вопросов без изменений.
 KINDERGARTEN_CYCLE_SCHEDULE = "kindergarten_cycle_schedule"
+DEVELOPMENT_MONITORING = "development_monitoring"
 CYCLE_REQUIRED_FIELDS = {
     "group": "группа",
     "period": "неделя или даты",
@@ -632,6 +635,70 @@ class DocumentHandler:
             )
             return
 
+        if data == "doc_template":
+            labels = ("Циклограмма", "Мониторинг развития", "Отмена") if lang == "ru" else ("Циклограмма", "Даму мониторингі", "Бас тарту")
+            await query.edit_message_text(
+                "Для какого документа загружаешь образец?" if lang == "ru" else "Үлгіні қай құжат үшін жүктейсіз?",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton(labels[0], callback_data="doc_template_kindergarten_cycle_schedule")],
+                    [InlineKeyboardButton(labels[1], callback_data="doc_template_development_monitoring")],
+                    [InlineKeyboardButton(labels[2], callback_data="doc_cancel")],
+                ])
+            )
+            return
+        if data.startswith("doc_template_"):
+            template_type = data[len("doc_template_"):]
+            if template_type in {KINDERGARTEN_CYCLE_SCHEDULE, DEVELOPMENT_MONITORING}:
+                context.user_data["template_doc_type"] = template_type
+                context.user_data["step"] = "template_upload"
+                await query.edit_message_text(
+                    "Отправь Word-файл .docx, который принимает твой методист" if lang == "ru" else "Әдіскер қабылдайтын Word .docx файлын жіберіңіз",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена" if lang == "ru" else "Бас тарту", callback_data="doc_cancel")]])
+                )
+                return
+        if data == "doc_template_personal":
+            pending = context.user_data.get("template_pending")
+            if pending:
+                await self.db.save_user_template(user_id, pending["doc_type"], pending["path"], pending["name"], lang, pending["metadata"])
+                context.user_data.clear()
+                await query.edit_message_text(
+                    "Образец сохранен. Точное повторение оформления будет доступно после проверки шаблона" if lang == "ru" else "Үлгі сақталды. Безендіруді дәл қайталау үлгі тексерілгеннен кейін қолжетімді болады"
+                )
+            return
+        if data == "doc_template_org":
+            await query.edit_message_text("Пока общий шаблон может добавить только администратор организации" if lang == "ru" else "Әзірге ортақ үлгіні тек ұйым әкімшісі қоса алады")
+            return
+        if data.startswith("doc_template_delete_") and data != "doc_template_delete_confirm":
+            dtype = data[len("doc_template_delete_"):]
+            context.user_data["delete_template_type"] = dtype
+            await query.edit_message_text(
+                "Удалить личный образец?" if lang == "ru" else "Жеке үлгіні жою керек пе?",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Да, удалить" if lang == "ru" else "Иә, жою", callback_data="doc_template_delete_confirm")], [InlineKeyboardButton("Отмена" if lang == "ru" else "Бас тарту", callback_data="doc_cancel")]])
+            )
+            return
+        if data == "doc_template_delete_confirm":
+            path = await self.db.delete_user_template(user_id, context.user_data.get("delete_template_type", ""))
+            if path and os.path.exists(path): os.remove(path)
+            context.user_data.clear()
+            await query.edit_message_text("Личный образец удален" if lang == "ru" else "Жеке үлгі жойылды")
+            return
+        if data == "doc_template_manage":
+            kb = []
+            for dtype, ru, kz in [(KINDERGARTEN_CYCLE_SCHEDULE, "Удалить мой образец циклограммы", "Циклограмма үлгісін жою"), (DEVELOPMENT_MONITORING, "Удалить мой образец мониторинга", "Мониторинг үлгісін жою")]:
+                if await self.db.get_user_template(user_id, dtype):
+                    kb.append([InlineKeyboardButton(ru if lang == "ru" else kz, callback_data=f"doc_template_delete_{dtype}")])
+            kb.append([InlineKeyboardButton("Отмена" if lang == "ru" else "Бас тарту", callback_data="doc_cancel")])
+            await query.edit_message_text("Личные образцы" if lang == "ru" else "Жеке үлгілер", reply_markup=InlineKeyboardMarkup(kb))
+            return
+        if data == "doc_monitoring_data_yes":
+            context.user_data["step"] = "monitoring_data"
+            await query.edit_message_text("Отправь данные строками: ФИО | физическое | коммуникативное | познавательное | творческое | социально-эмоциональное | примечание" if lang == "ru" else "Деректерді жолдармен жіберіңіз: Аты-жөні | дене | коммуникативтік | танымдық | шығармашылық | әлеуметтік-эмоциялық | ескертпе")
+            return
+        if data == "doc_monitoring_data_no":
+            context.user_data["doc_answers"]["rows"] = []
+            await self._generate_monitoring(query.message, context, lang)
+            return
+
         # ── Выбор языка документа ──
         if data.startswith("doc_lang_"):
             doc_lang = data.split("_")[2]
@@ -684,6 +751,9 @@ class DocumentHandler:
         docs  = CAT_DOCS_ALL.get(cat, [])
         names = DOC_NAMES.get(lang, DOC_NAMES["ru"])
         keyboard = [[InlineKeyboardButton(names.get(d, d), callback_data=f"doc_{d}")] for d in docs]
+        if cat.startswith("kg_"):
+            keyboard.append([InlineKeyboardButton("📄 Загрузить образец" if lang == "ru" else "📄 Үлгіні жүктеу", callback_data="doc_template")])
+            keyboard.append([InlineKeyboardButton("Личные образцы" if lang == "ru" else "Жеке үлгілер", callback_data="doc_template_manage")])
         keyboard.append([InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")])
 
         cat_name = t(lang, f"cat_{cat}")
@@ -756,6 +826,9 @@ class DocumentHandler:
         if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
             await self._start_cycle_schedule(query, context, user, lang)
             return
+        if doc_type == DEVELOPMENT_MONITORING:
+            await self._start_development_monitoring(query, context, user, lang)
+            return
 
         # Для документов по ученику/ребёнку — предложить выбрать из базы
         if doc_type in STUDENT_LINKED_DOC_TYPES:
@@ -807,6 +880,7 @@ class DocumentHandler:
         answers = {
             "organization": user.get("school", ""),
             "educator_name": user.get("name", ""),
+            "lang": user.get("lang", lang),
         }
         # age_group в существующем профиле сада содержит название группы/возраст.
         if user.get("age_group"):
@@ -814,11 +888,11 @@ class DocumentHandler:
 
         questions = []
         if not answers.get("group"):
-            questions.append({"key": "group", "q": "Для какой группы сделать циклограмму?"})
+            questions.append({"key": "group", "q": "Для какой группы сделать циклограмму?" if lang == "ru" else "Циклограмма қай топқа керек?"})
         questions.extend([
-            {"key": "period", "q": "На какую неделю или даты нужна циклограмма?"},
-            {"key": "week_topic", "q": "Какая тема недели?"},
-            {"key": "events", "q": "Есть обязательные занятия, праздники или мероприятия на этой неделе? Если нет, напиши: нет"},
+            {"key": "period", "q": "На какую неделю или даты нужна циклограмма?" if lang == "ru" else "Қай аптаға немесе қай күндерге керек?"},
+            {"key": "week_topic", "q": "Какая тема недели? Например: Домашние животные, Лето, Транспорт" if lang == "ru" else "Аптаның тақырыбы қандай? Мысалы: Үй жануарлары, Жаз, Көлік"},
+            {"key": "events", "q": "Есть обязательные занятия, праздники или мероприятия на этой неделе? Если нет, напиши: нет" if lang == "ru" else "Осы аптада міндетті сабақтар, мерекелер немесе іс-шаралар бар ма? Егер жоқ болса, «жоқ» деп жазыңыз"},
         ])
 
         context.user_data["doc_type"] = KINDERGARTEN_CYCLE_SCHEDULE
@@ -829,6 +903,15 @@ class DocumentHandler:
         context.user_data["step"] = "waiting_answer"
         doc_name = DOC_NAMES.get(context.user_data["doc_lang"], DOC_NAMES["ru"])[KINDERGARTEN_CYCLE_SCHEDULE]
         await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=doc_name)
+
+    async def _start_development_monitoring(self, query, context, user, lang):
+        questions = [
+            {"key": "period", "q": "За какой период нужен мониторинг?" if lang == "ru" else "Мониторинг қай кезеңге керек?"},
+            {"key": "group", "q": "Для какой группы он нужен?" if lang == "ru" else "Ол қай топқа арналған?"},
+            {"key": "children", "q": "Пришли список детей или загрузи таблицу с именами" if lang == "ru" else "Балалардың тізімін немесе аттары бар кестені жіберіңіз"},
+        ]
+        context.user_data.update({"doc_type": DEVELOPMENT_MONITORING, "doc_lang": lang, "doc_answers": {"organization": user.get("school", ""), "educator_name": user.get("name", ""), "age_group": user.get("age_group", "")}, "questions": questions, "q_index": 0, "step": "waiting_answer"})
+        await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING])
 
     async def _use_student_data(self, query, context, user_id, user, lang, student_id):
         doc_type = context.user_data.get("doc_type", "")
@@ -920,14 +1003,65 @@ class DocumentHandler:
             qs  = context.user_data.get("questions", [])
             idx = context.user_data.get("q_index", 0)
             if idx < len(qs):
+                if qs[idx]["key"] == "week_topic" and text.strip().lower() in {"план", "не знаю", "младшая группа", "неделя младшей группы", "білмеймін", "жоспар"}:
+                    await update.message.reply_text("Уточните тему недели: например, «Домашние животные» или «Транспорт»." if lang == "ru" else "Апта тақырыбын нақтылаңыз: мысалы, «Үй жануарлары» немесе «Көлік».")
+                    return
                 context.user_data["doc_answers"][qs[idx]["key"]] = text
             doc_type = context.user_data.get("doc_type", "")
             doc_lang = context.user_data.get("doc_lang", lang)
             doc_name = DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, "")
-            await self._ask_question(update.message, context, lang, idx + 1, doc_name=doc_name)
+            if doc_type == DEVELOPMENT_MONITORING and idx + 1 >= len(qs):
+                await update.message.reply_text("У тебя есть реальные наблюдения и уровни развития по детям?" if lang == "ru" else "Балалар бойынша нақты бақылаулар мен даму деңгейлері бар ма?", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Да, отправлю данные" if lang == "ru" else "Иә, деректерді жіберемін", callback_data="doc_monitoring_data_yes")], [InlineKeyboardButton("Нет, нужен пустой бланк" if lang == "ru" else "Жоқ, бос бланк керек", callback_data="doc_monitoring_data_no")], [InlineKeyboardButton("Отмена" if lang == "ru" else "Бас тарту", callback_data="doc_cancel")]]))
+            else:
+                await self._ask_question(update.message, context, lang, idx + 1, doc_name=doc_name)
+
+        elif step == "monitoring_data":
+            rows = []
+            for line in text.splitlines():
+                cells = [c.strip() for c in line.split("|")]
+                if cells and cells[0]: rows.append(cells[:7])
+            context.user_data["doc_answers"]["rows"] = rows
+            await self._generate_monitoring(update.message, context, lang)
 
         elif step == "help_write":
             await self._handle_help_write(update, context, user, lang, text)
+
+    async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if context.user_data.get("step") != "template_upload":
+            return
+        user = await self.db.get_user(update.effective_user.id)
+        lang = user.get("lang", "ru") if user else "ru"
+        document = update.message.document
+        name = document.file_name or "template.docx"
+        if not name.lower().endswith(".docx"):
+            await update.message.reply_text("Нужен Word-файл в формате .docx. Отправь образец еще раз" if lang == "ru" else "Word .docx форматындағы файл қажет. Үлгіні қайта жіберіңіз")
+            return
+        folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), "user_templates")
+        os.makedirs(folder, exist_ok=True)
+        dtype = context.user_data["template_doc_type"]
+        path = os.path.join(folder, f"{update.effective_user.id}_{dtype}.docx")
+        await (await document.get_file()).download_to_drive(custom_path=path)
+        context.user_data["template_pending"] = {"doc_type": dtype, "path": path, "name": name, "metadata": {"telegram_file_id": document.file_id}}
+        await update.message.reply_text(
+            "Как использовать этот образец?" if lang == "ru" else "Бұл үлгіні қалай қолдану керек?",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Только для меня" if lang == "ru" else "Тек мен үшін", callback_data="doc_template_personal")], [InlineKeyboardButton("Для всей организации" if lang == "ru" else "Бүкіл ұйым үшін", callback_data="doc_template_org")], [InlineKeyboardButton("Отмена" if lang == "ru" else "Бас тарту", callback_data="doc_cancel")]])
+        )
+
+    async def _generate_monitoring(self, message, context, lang):
+        from handlers.word_generator import generate_word
+        answers = context.user_data.get("doc_answers", {})
+        children = [x.strip() for x in answers.get("children", "").replace("\n", ",").split(",") if x.strip()]
+        rows = answers.get("rows", [])
+        filename = generate_word("", DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], monitoring_data={**answers, "children": children, "rows": rows, "lang": lang})
+        with open(filename, "rb") as f:
+            await message.reply_document(document=f, filename=f"monitoring_{datetime.now().strftime('%d%m%Y')}.docx", caption="📄 Мониторинг развития" if lang == "ru" else "📄 Даму мониторингі")
+        os.remove(filename)
+        user = await self.db.get_user(message.chat_id)
+        await self.db.save_document(message.chat_id, DEVELOPMENT_MONITORING, DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], "", 100)
+        await self.db.log_analytics(message.chat_id, DEVELOPMENT_MONITORING, 100, lang)
+        if user and not user.get("subscribed"):
+            await self.db.increment_free(message.chat_id)
+        context.user_data.clear()
 
     async def _handle_help_write(self, update, context, user, lang, user_input):
         field    = context.user_data.get("help_field", "")
@@ -974,7 +1108,11 @@ class DocumentHandler:
             missing = validate_cycle_schedule_answers(answers)
             if missing:
                 await message.reply_text("Не могу создать циклограмму. Заполните поле: " + ", ".join(missing) + ".")
-                return
+            return
+
+        if doc_type == DEVELOPMENT_MONITORING:
+            await self._generate_monitoring(message, context, lang)
+            return
 
         # Красивое сообщение о генерации
         gen_msgs = {
@@ -1079,8 +1217,8 @@ class DocumentHandler:
             )
             with open(filename, "rb") as f:
                 caption = {
-                    "ru": f"📄 *{doc_name}*\n✅ Готов к печати • Docura.kz",
-                    "kz": f"📄 *{doc_name}*\n✅ Басуға дайын • Docura.kz",
+                    "ru": f"📄 *{doc_name}*\n✅ Готов к печати",
+                    "kz": f"📄 *{doc_name}*\n✅ Басуға дайын",
                 }
                 await message.reply_document(
                     document=f,
