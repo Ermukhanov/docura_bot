@@ -10,6 +10,7 @@ from docx import Document
 from docx.shared import Pt, Cm, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_ALIGN_VERTICAL
+from docx.enum.section import WD_ORIENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
@@ -110,7 +111,17 @@ def _para(doc, text="", align=WD_ALIGN_PARAGRAPH.LEFT,
     return p
 
 
-def generate_word(content: str, title: str, teacher_name: str = "") -> str:
+def validate_cycle_schedule_data(data: dict) -> list[str]:
+    """Проверяет обязательные поля до создания циклограммы."""
+    labels = {
+        "group": "группа",
+        "period": "неделя или даты",
+        "week_topic": "тема недели",
+    }
+    return [label for key, label in labels.items() if not str(data.get(key, "")).strip()]
+
+
+def generate_word(content: str, title: str, teacher_name: str = "", cycle_data: dict | None = None) -> str:
     """
     Генерирует красивый Word документ по стандартам РК.
     Возвращает путь к .docx файлу.
@@ -123,8 +134,14 @@ def generate_word(content: str, title: str, teacher_name: str = "") -> str:
         section.right_margin  = Cm(1.5)   # 15мм
         section.top_margin    = Cm(2.0)   # 20мм
         section.bottom_margin = Cm(2.0)   # 20мм
-        section.page_width    = Cm(21.0)  # A4
-        section.page_height   = Cm(29.7)
+        if cycle_data:
+            # Пять рабочих дней и пять блоков лучше читаются на альбомной странице.
+            section.orientation = WD_ORIENT.LANDSCAPE
+            section.page_width    = Cm(29.7)
+            section.page_height   = Cm(21.0)
+        else:
+            section.page_width    = Cm(21.0)  # A4
+            section.page_height   = Cm(29.7)
 
     # ── Стиль Normal по умолчанию ─────────────────────
     style = doc.styles["Normal"]
@@ -163,7 +180,10 @@ def generate_word(content: str, title: str, teacher_name: str = "") -> str:
     doc.add_paragraph().paragraph_format.space_after = Pt(6)
 
     # ── ПАРСИМ СОДЕРЖИМОЕ ─────────────────────────────
-    _parse_content(doc, content)
+    if cycle_data:
+        _add_kindergarten_cycle_schedule(doc, cycle_data)
+    else:
+        _parse_content(doc, content)
 
     # ── ПОДВАЛ ────────────────────────────────────────
     doc.add_paragraph().paragraph_format.space_before = Pt(12)
@@ -177,6 +197,82 @@ def generate_word(content: str, title: str, teacher_name: str = "") -> str:
     fname = os.path.join(tempfile.gettempdir(), f"docura_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx")
     doc.save(fname)
     return fname
+
+
+def _add_kindergarten_cycle_schedule(doc, data: dict):
+    """Создаёт циклограмму только из подтверждённых данных пользователя."""
+    missing = validate_cycle_schedule_data(data)
+    if missing:
+        raise ValueError("Не заполнены обязательные поля: " + ", ".join(missing))
+
+    def value(key):
+        return str(data.get(key, "")).strip() or "________________"
+
+    info = [
+        ("Организация", value("organization")),
+        ("Группа", value("group")),
+        ("Период", value("period")),
+        ("Воспитатель", value("educator_name")),
+    ]
+    info_table = doc.add_table(rows=len(info), cols=2)
+    info_table.style = "Table Grid"
+    for row, (label, text) in zip(info_table.rows, info):
+        _set_cell_color(row.cells[0], LIGHT_BLUE_HEX)
+        _set_cell_borders(row.cells[0])
+        _set_cell_borders(row.cells[1])
+        _run(row.cells[0].paragraphs[0], label + ":", bold=True, size=11, color=NAVY)
+        _run(row.cells[1].paragraphs[0], text, size=11)
+
+    _para(doc, "Планируемое содержание недели", bold=True, color=NAVY,
+          space_before=10, space_after=5)
+    topic = value("week_topic")
+    events = str(data.get("events", "")).strip()
+    has_events = events and events.lower() not in {"нет", "жоқ", "none", "no"}
+    days = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница"]
+    blocks = [
+        "Утренний прием и гимнастика",
+        "ОУД",
+        "Прогулка",
+        "Сон и закаливание",
+        "Игры и уход детей домой",
+    ]
+    activities = [
+        f"Планируется: беседа и упражнения по теме «{topic}».",
+        f"Планируется ОУД по теме «{topic}» с игровыми заданиями.",
+        f"Планируется наблюдение и подвижные игры по теме «{topic}».",
+        "Планируется спокойная подготовка ко сну и закаливающие процедуры по режиму группы.",
+        f"Планируются самостоятельные игры и короткое подведение итогов по теме «{topic}».",
+    ]
+
+    table = doc.add_table(rows=1 + len(blocks), cols=1 + len(days))
+    table.style = "Table Grid"
+    headers = ["Режимный момент", *days]
+    for c_idx, header in enumerate(headers):
+        cell = table.rows[0].cells[c_idx]
+        _set_cell_color(cell, NAVY_HEX)
+        _set_cell_borders(cell, NAVY_HEX)
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _run(p, header, bold=True, size=9, color=WHITE)
+
+    for r_idx, (block, activity) in enumerate(zip(blocks, activities), start=1):
+        label_cell = table.rows[r_idx].cells[0]
+        _set_cell_color(label_cell, LIGHT_BLUE_HEX)
+        _set_cell_borders(label_cell)
+        _run(label_cell.paragraphs[0], block, bold=True, size=9, color=NAVY)
+        for c_idx in range(1, len(days) + 1):
+            cell = table.rows[r_idx].cells[c_idx]
+            _set_cell_borders(cell)
+            text = activity
+            # Пользовательское мероприятие отражается как план, а не как факт.
+            if has_events and r_idx == 2:
+                text += f" Учесть при планировании: {events}."
+            p = cell.paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            _run(p, text, size=8)
+
+    _para(doc, "Примечание: содержание носит плановый характер; фактические события и время не указаны без подтверждённых данных.",
+          italic=True, size=9, color=GRAY, space_before=6)
 
 
 def _parse_content(doc, content: str):

@@ -109,10 +109,6 @@ DOC_QUESTIONS = {
             {"key": "topic",     "q": "📖 Тема занятия (ОУД)?\n\n_Пример: «Осень золотая» (ознакомление с природой)_"},
             {"key": "goals",     "q": "🎯 Цель занятия?\n\n_Или напишите «автоматически»_"},
         ],
-        "kg_cyclogram": [
-            {"key": "age_group", "q": "👶 Возрастная группа?\n\n_Пример: старшая группа (5-6 лет)_"},
-            {"key": "week_note", "q": "📅 Особенности этой недели?\n\n_Например: тема недели, особые мероприятия. Или напишите «стандартная неделя»_"},
-        ],
         "kg_perspective_plan": [
             {"key": "age_group", "q": "👶 Возрастная группа?"},
             {"key": "month",     "q": "📅 На какой месяц?\n\n_Пример: Ноябрь 2024_"},
@@ -297,10 +293,6 @@ DOC_QUESTIONS = {
             {"key": "topic",     "q": "📖 Сабақтың тақырыбы?"},
             {"key": "goals",     "q": "🎯 Сабақтың мақсаты немесе «автоматты»?"},
         ],
-        "kg_cyclogram": [
-            {"key": "age_group", "q": "👶 Жас тобы?"},
-            {"key": "week_note", "q": "📅 Осы аптаның ерекшеліктері?\n\n_Немесе «стандартты апта»_"},
-        ],
         "kg_perspective_plan": [
             {"key": "age_group", "q": "👶 Жас тобы?"},
             {"key": "month",     "q": "📅 Қандай ай?"},
@@ -433,7 +425,7 @@ DOC_NAMES = {
         # садик
         "kg_thematic_plan": "Тематический план занятий",
         "kg_activity_summary": "Технологическая карта ОУД",
-        "kg_cyclogram": "Циклограмма",
+        "kindergarten_cycle_schedule": "Циклограмма",
         "kg_perspective_plan": "Перспективный план работы",
         "kg_matinee_script": "Сценарий утренника",
         "kg_monthly_report": "Отчёт воспитателя",
@@ -470,7 +462,7 @@ DOC_NAMES = {
         # балабақша
         "kg_thematic_plan": "Тақырыптық жоспар",
         "kg_activity_summary": "ҰОҚ технологиялық картасы",
-        "kg_cyclogram": "Циклограмма",
+        "kindergarten_cycle_schedule": "Циклограмма",
         "kg_perspective_plan": "Перспективалық жұмыс жоспары",
         "kg_matinee_script": "Мереке сценарийі",
         "kg_monthly_report": "Тәрбиеші есебі",
@@ -506,7 +498,7 @@ DOC_NAMES = {
         "announcement": "Announcement",
         "kg_thematic_plan": "Thematic Activity Plan",
         "kg_activity_summary": "Activity Technological Map",
-        "kg_cyclogram": "Weekly Cyclogram",
+        "kindergarten_cycle_schedule": "Weekly Cyclogram",
         "kg_perspective_plan": "Monthly Perspective Plan",
         "kg_matinee_script": "Matinee Script",
         "kg_monthly_report": "Kindergarten Teacher Report",
@@ -535,7 +527,7 @@ CAT_DOCS = {
 
 # Категории документов садика (полностью отдельный набор — НЕ школьные типы)
 CAT_DOCS_KG = {
-    "kg_planning": ["kg_thematic_plan", "kg_activity_summary", "kg_cyclogram", "kg_perspective_plan", "kg_matinee_script"],
+    "kg_planning": ["kg_thematic_plan", "kg_activity_summary", "kindergarten_cycle_schedule", "kg_perspective_plan", "kg_matinee_script"],
     "kg_reports":  ["kg_monthly_report", "kg_monitoring"],
     "kg_children": ["kg_child_characteristic", "kg_parent_letter", "kg_absence_cert"],
     "kg_personal": ["kg_vacation_request", "kg_explanation", "kg_announcement"],
@@ -562,6 +554,20 @@ STUDENT_LINKED_DOC_TYPES = [
     "kg_child_characteristic", "kg_parent_letter", "kg_absence_cert",
     "individual_work_plan", "housing_survey_act",
 ]
+
+# Отдельный, минимальный сценарий для циклограммы сада. Остальные документы
+# пока продолжают использовать существующий реестр вопросов без изменений.
+KINDERGARTEN_CYCLE_SCHEDULE = "kindergarten_cycle_schedule"
+CYCLE_REQUIRED_FIELDS = {
+    "group": "группа",
+    "period": "неделя или даты",
+    "week_topic": "тема недели",
+}
+
+
+def validate_cycle_schedule_answers(answers: dict) -> list[str]:
+    """Возвращает названия обязательных незаполненных полей циклограммы."""
+    return [label for key, label in CYCLE_REQUIRED_FIELDS.items() if not str(answers.get(key, "")).strip()]
 
 # Красивые разделители для дизайна
 DIVIDER = "─" * 20
@@ -745,6 +751,12 @@ class DocumentHandler:
             )
             return
 
+        # Циклограмма использует язык и подтверждённые данные профиля сразу,
+        # поэтому не спрашивает их повторно и не проходит общий опросник.
+        if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
+            await self._start_cycle_schedule(query, context, user, lang)
+            return
+
         # Для документов по ученику/ребёнку — предложить выбрать из базы
         if doc_type in STUDENT_LINKED_DOC_TYPES:
             students = await self.db.get_students(user_id)
@@ -790,6 +802,33 @@ class DocumentHandler:
             [InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")],
         ]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+
+    async def _start_cycle_schedule(self, query, context, user, lang):
+        answers = {
+            "organization": user.get("school", ""),
+            "educator_name": user.get("name", ""),
+        }
+        # age_group в существующем профиле сада содержит название группы/возраст.
+        if user.get("age_group"):
+            answers["group"] = user["age_group"]
+
+        questions = []
+        if not answers.get("group"):
+            questions.append({"key": "group", "q": "Для какой группы сделать циклограмму?"})
+        questions.extend([
+            {"key": "period", "q": "На какую неделю или даты нужна циклограмма?"},
+            {"key": "week_topic", "q": "Какая тема недели?"},
+            {"key": "events", "q": "Есть обязательные занятия, праздники или мероприятия на этой неделе? Если нет, напиши: нет"},
+        ])
+
+        context.user_data["doc_type"] = KINDERGARTEN_CYCLE_SCHEDULE
+        context.user_data["doc_lang"] = user.get("lang", lang)
+        context.user_data["doc_answers"] = answers
+        context.user_data["questions"] = questions
+        context.user_data["q_index"] = 0
+        context.user_data["step"] = "waiting_answer"
+        doc_name = DOC_NAMES.get(context.user_data["doc_lang"], DOC_NAMES["ru"])[KINDERGARTEN_CYCLE_SCHEDULE]
+        await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=doc_name)
 
     async def _use_student_data(self, query, context, user_id, user, lang, student_id):
         doc_type = context.user_data.get("doc_type", "")
@@ -864,6 +903,13 @@ class DocumentHandler:
         step    = context.user_data.get("step", "")
 
         if len(text) < 1:
+            if (step == "waiting_answer" and
+                    context.user_data.get("doc_type") == KINDERGARTEN_CYCLE_SCHEDULE):
+                qs = context.user_data.get("questions", [])
+                idx = context.user_data.get("q_index", 0)
+                if idx < len(qs) and qs[idx]["key"] in CYCLE_REQUIRED_FIELDS:
+                    await update.message.reply_text(f"Заполните поле: {CYCLE_REQUIRED_FIELDS[qs[idx]['key']]}.")
+                    return
             await update.message.reply_text(t(lang, "val_too_short"))
             return
         if len(text) > 500:
@@ -924,6 +970,12 @@ class DocumentHandler:
         answers  = context.user_data.get("doc_answers", {})
         doc_name = DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
 
+        if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
+            missing = validate_cycle_schedule_answers(answers)
+            if missing:
+                await message.reply_text("Не могу создать циклограмму. Заполните поле: " + ", ".join(missing) + ".")
+                return
+
         # Красивое сообщение о генерации
         gen_msgs = {
             "ru": f"⚙️ *Генерирую {doc_name}...*\n\n🌐 Язык: {_doc_lang_name(doc_lang)}\n⭐ Качество: автоматическая проверка\n\n_Напиши /cancel чтобы отменить_",
@@ -964,6 +1016,14 @@ class DocumentHandler:
             f"Данные для этого документа:\n{answers_text}\n\n"
             f"Используй профиль автоматически. Если данных не хватает — пиши [уточнить], не выдумывай."
         )
+
+        if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
+            user_prompt += (
+                "\n\nЭто циклограмма для детского сада. Не выдумывай даты, ФИО,"
+                " организацию, режим дня или мероприятия. Составь только нейтральные"
+                " планируемые идеи по указанной теме; мероприятия используй только если"
+                " пользователь указал их явно."
+            )
 
         client  = anthropic.Anthropic(api_key=self.api_key)
         result  = ""
@@ -1011,7 +1071,12 @@ class DocumentHandler:
 
         try:
             from handlers.word_generator import generate_word
-            filename = generate_word(result, doc_name, user.get("name", ""))
+            filename = generate_word(
+                result,
+                doc_name,
+                user.get("name", ""),
+                cycle_data=answers if doc_type == KINDERGARTEN_CYCLE_SCHEDULE else None,
+            )
             with open(filename, "rb") as f:
                 caption = {
                     "ru": f"📄 *{doc_name}*\n✅ Готов к печати • Docura.kz",
