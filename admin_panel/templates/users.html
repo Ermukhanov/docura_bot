@@ -52,6 +52,9 @@
             <button class="btn btn-warn btn-sm" type="submit">Убрать</button>
           </form>
           {% endif %}
+          <form method="POST" action="/users/reset/{{ u.tg_id }}" style="display:inline">
+            <button class="btn btn-sm" type="submit" title="Сбросить профиль и онбординг">♻️ Сбросить аккаунт</button>
+          </form>
           <form method="POST" action="/users/delete/{{ u.tg_id }}" style="display:inline"
                 onsubmit="return confirm('Удалить пользователя {{ u.name }}?')">
             <button class="btn btn-danger btn-sm" type="submit">✕</button>

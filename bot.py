@@ -156,10 +156,39 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
 
 
+async def _start_after_account_reset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Возвращает пользователя к выбору учреждения после сброса из админки."""
+    db = context.application.bot_data["db"]
+    user = await db.get_user(update.effective_user.id)
+    if not user or not user.get("reset_pending"):
+        return False
+
+    context.user_data.clear()
+    # Язык профиля был сброшен; русский нужен только как стартовый язык интерфейса.
+    await db.upsert_user(update.effective_user.id, {"reset_pending": 0, "lang": "ru"})
+    keyboard = [[
+        InlineKeyboardButton("🏫 Школа", callback_data="role_select_teacher"),
+        InlineKeyboardButton("🧸 Детский сад", callback_data="role_select_kindergarten"),
+    ]]
+    await update.effective_message.reply_text(
+        "Привет, я Docura. Помогу подготовить документы для школы или садика",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+    return True
+
+
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if await _start_after_account_reset(update, context):
+        return
+    await OnboardingHandler(context.application.bot_data["db"]).start(update, context)
+
+
 async def _route_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    step = context.user_data.get("step", "")
     db   = context.application.bot_data["db"]
     key  = context.application.bot_data["anthropic_key"]
+    if await _start_after_account_reset(update, context):
+        return
+    step = context.user_data.get("step", "")
 
     if step.startswith("onboard_") or step.startswith("reg_"):
         await OnboardingHandler(db).handle_text(update, context)
@@ -238,7 +267,7 @@ async def run():
     agent      = AgentHandler(db, ANTHROPIC_API_KEY)
 
     # Команды
-    app.add_handler(CommandHandler("start",   onboarding.start))
+    app.add_handler(CommandHandler("start",   cmd_start))
     app.add_handler(CommandHandler("menu",    main_menu.show))
     app.add_handler(CommandHandler("cancel",  onboarding.cancel))
     app.add_handler(CommandHandler("mernar",  admin.login))

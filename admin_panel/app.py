@@ -4,7 +4,7 @@ import sqlite3
 import hashlib
 from datetime import datetime, timedelta
 from functools import wraps
-from flask import (Flask, render_template, request, redirect,
+from flask import (Flask, render_template, render_template_string, request, redirect,
                    url_for, session, jsonify, flash)
 from werkzeug.utils import secure_filename
 
@@ -67,6 +67,12 @@ def init_rag_table():
             );
         """)
         conn.commit()
+        # Маркер позволяет боту очистить своё временное состояние при следующем
+        # сообщении пользователя: веб-админка и бот могут быть разными процессами.
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+        if "reset_pending" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN reset_pending INTEGER DEFAULT 0")
+            conn.commit()
 
 
 init_rag_table()
@@ -179,6 +185,61 @@ def delete_user(tg_id):
         conn.execute("DELETE FROM users WHERE tg_id=?", (tg_id,))
         conn.commit()
     flash(f'Пользователь {tg_id} удалён', 'warning')
+    return redirect(url_for('users'))
+
+
+@app.route('/users/reset/<int:tg_id>', methods=['POST'])
+@login_required
+def confirm_reset_user(tg_id):
+    """Первый шаг: только экран подтверждения, без изменения данных."""
+    with db() as conn:
+        user = conn.execute("SELECT tg_id, name FROM users WHERE tg_id=?", (tg_id,)).fetchone()
+    if not user:
+        flash('Пользователь не найден', 'warning')
+        return redirect(url_for('users'))
+
+    return render_template_string("""
+        {% extends 'base.html' %}
+        {% block title %}Подтверждение сброса{% endblock %}
+        {% block page_title %}Подтверждение сброса{% endblock %}
+        {% block content %}
+        <div class="card" style="max-width:620px">
+          <div class="card-title">♻️ Сбросить аккаунт пользователя?</div>
+          <p>Сбросить профиль и онбординг пользователя?</p>
+          <p style="color:#4a5568">Пользователь останется в базе. Оплата, PRO-доступ, история оплат и реферальные бонусы сохранятся.</p>
+          <p style="color:#718096;font-size:13px">Telegram ID: {{ user.tg_id }}{% if user.name %} · {{ user.name }}{% endif %}</p>
+          <div style="display:flex;gap:10px;margin-top:18px">
+            <form method="POST" action="{{ url_for('reset_user', tg_id=user.tg_id) }}">
+              <button class="btn btn-warn" type="submit">Да, сбросить</button>
+            </form>
+            <a class="btn" href="{{ url_for('users') }}">Отмена</a>
+          </div>
+        </div>
+        {% endblock %}
+    """, user=user)
+
+
+@app.route('/users/reset/<int:tg_id>/confirm', methods=['POST'])
+@login_required
+def reset_user(tg_id):
+    """Второй шаг: сбрасывает только анкету и временный контекст пользователя."""
+    with db() as conn:
+        cursor = conn.execute("""
+            UPDATE users SET
+                lang=NULL, name=NULL, school=NULL, position=NULL,
+                subject=NULL, classes=NULL, age_group=NULL,
+                is_class_teacher=0, director=NULL, role=NULL,
+                notified_at=NULL, reset_pending=1
+            WHERE tg_id=?
+        """, (tg_id,))
+        if cursor.rowcount:
+            # Это пользовательский контекст, а не история документов, оплат или бонусов.
+            conn.execute("DELETE FROM agent_memory WHERE tg_id=?", (tg_id,))
+            conn.execute("DELETE FROM schedules WHERE tg_id=?", (tg_id,))
+            conn.commit()
+            flash('✅ Аккаунт пользователя сброшен. Пользователь не удален и не заблокирован', 'success')
+        else:
+            flash('Пользователь не найден', 'warning')
     return redirect(url_for('users'))
 
 
