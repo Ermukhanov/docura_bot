@@ -94,6 +94,34 @@ class AdminHandler:
             context.user_data["step"] = "admin_deactivate"
             kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
             await query.edit_message_text("🔓 Введите Telegram ID для отмены PRO:", reply_markup=InlineKeyboardMarkup(kb))
+        elif data == "admin_reset_btn":
+            context.user_data["step"] = "admin_reset"
+            kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
+            await query.edit_message_text(
+                "♻️ Введите Telegram ID пользователя для сброса аккаунта:",
+                reply_markup=InlineKeyboardMarkup(kb)
+            )
+        elif data.startswith("admin_reset_confirm_"):
+            tg_id = int(data[len("admin_reset_confirm_"):])
+            if await self.db.reset_user_account(tg_id):
+                # Сбрасываем только временное состояние целевого пользователя
+                # (онбординг/генерация); данные админа не затрагиваются.
+                target_data = context.application.user_data.get(tg_id)
+                if target_data is not None:
+                    target_data.clear()
+                context.user_data["step"] = "admin_panel"
+                await query.edit_message_text(
+                    "✅ Аккаунт пользователя сброшен. Пользователь не удален и не заблокирован",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Главное меню", callback_data="admin_menu")]])
+                )
+            else:
+                await query.edit_message_text(
+                    "❌ Пользователь с таким Telegram ID не найден.",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Главное меню", callback_data="admin_menu")]])
+                )
+        elif data == "admin_reset_cancel":
+            context.user_data["step"] = "admin_panel"
+            await self._show_menu(query)
         elif data == "admin_menu":
             await self._show_menu(query)
 
@@ -184,6 +212,29 @@ class AdminHandler:
             context.user_data["step"] = "admin_panel"
             await self._send_menu(update.message.chat_id, context)
 
+        elif step == "admin_reset":
+            try:
+                tg_id = int(text)
+            except ValueError:
+                await update.message.reply_text("❌ Неверный Telegram ID. Введите число.")
+                return
+
+            user = await self.db.get_user(tg_id)
+            if not user:
+                await update.message.reply_text("❌ Пользователь с таким Telegram ID не найден.")
+                return
+
+            context.user_data["step"] = "admin_panel"
+            kb = [
+                [InlineKeyboardButton("Да, сбросить", callback_data=f"admin_reset_confirm_{tg_id}")],
+                [InlineKeyboardButton("Отмена", callback_data="admin_reset_cancel")],
+            ]
+            await update.message.reply_text(
+                "Сбросить профиль и онбординг пользователя?\n"
+                "Пользователь останется в базе. Оплата, PRO-доступ, история оплат и реферальные бонусы сохранятся",
+                reply_markup=InlineKeyboardMarkup(kb)
+            )
+
         elif step == "admin_broadcast":
             users = await self.db.get_all_users(limit=10000)
             sent, failed = 0, 0
@@ -250,6 +301,7 @@ class AdminHandler:
             [InlineKeyboardButton("📢 Рассылка", callback_data="admin_broadcast")],
             [InlineKeyboardButton("💳 Активировать PRO", callback_data="admin_activate_btn"),
              InlineKeyboardButton("🔓 Снять PRO", callback_data="admin_deactivate_btn")],
+            [InlineKeyboardButton("♻️ Сбросить аккаунт", callback_data="admin_reset_btn")],
         ]
 
     async def _show_stats(self, query):

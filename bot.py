@@ -5,7 +5,7 @@ import os
 
 load_dotenv()
 
-from telegram import Update, BotCommand, MenuButtonCommands
+from telegram import Update, BotCommand, MenuButtonCommands, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, filters, ContextTypes

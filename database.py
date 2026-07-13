@@ -113,6 +113,7 @@ class Database:
             await self._ensure_column(db, "users", "ref_rewarded", "INTEGER DEFAULT 0")
             await self._ensure_column(db, "users", "bonus_docs", "INTEGER DEFAULT 0")
             await self._ensure_column(db, "users", "promo_used", "INTEGER DEFAULT 0")
+            await self._ensure_column(db, "users", "reset_pending", "INTEGER DEFAULT 0")
             await db.commit()
 
             # Уникальный индекс на ref_code — создаём отдельно от ALTER TABLE,
@@ -179,6 +180,20 @@ class Database:
                 "UPDATE users SET subscribed=0, tier=NULL WHERE tg_id=?", (tg_id,)
             )
             await db.commit()
+
+    async def reset_user_account(self, tg_id: int) -> bool:
+        """Очищает только профиль и незавершённый онбординг, сохраняя доступы и историю."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                """UPDATE users SET
+                    lang=NULL, name=NULL, school=NULL, position=NULL, subject=NULL,
+                    classes=NULL, age_group=NULL, is_class_teacher=0, director=NULL,
+                    role=NULL, notified_at=NULL, reset_pending=1
+                   WHERE tg_id=?""",
+                (tg_id,)
+            )
+            await db.commit()
+            return cursor.rowcount > 0
 
     # ===== STUDENTS =====
     async def get_students(self, teacher_id: int, class_name: str = None):
