@@ -128,6 +128,8 @@ class ProfileHandler:
         keyboard = [
             [InlineKeyboardButton("✏️ " + t(lang, "btn_edit_profile"), callback_data="prof_edit")],
             [InlineKeyboardButton("👥 " + students_btn_text,           callback_data="prof_students")],
+            [InlineKeyboardButton("📅 " + ("Моё расписание" if not is_kg and lang == "ru" else "Мой режим дня" if is_kg and lang == "ru" else "Менің кестем"), callback_data="agent_schedule")],
+            [InlineKeyboardButton("🔔 " + ("Напоминания" if lang == "ru" else "Еске салғыштар"), callback_data="agent_reminders")],
             [InlineKeyboardButton("⭐ " + t(lang, "btn_subscription"),  callback_data="prof_sub")],
             [InlineKeyboardButton("🌐 " + t(lang, "btn_change_lang"),   callback_data="prof_lang")],
             [MENU_BTN(lang)],
@@ -142,6 +144,23 @@ class ProfileHandler:
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
         is_kg   = (user or {}).get("role") == "kindergarten"
+
+        if data in ("prof_students", "prof_add_student") and (not user or not user.get("subscribed")):
+            await query.edit_message_text(
+                "Эта функция доступна в PRO. В PRO можно хранить группы и детей/учеников и использовать их в документах."
+                if lang == "ru" else
+                "Бұл функция PRO тарифінде қолжетімді. PRO ішінде топтар мен балаларды/оқушыларды сақтап, құжаттарда пайдалануға болады.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⭐ Посмотреть PRO" if lang == "ru" else "⭐ PRO көру", callback_data="prof_sub")],
+                    [InlineKeyboardButton("Пока не нужно" if lang == "ru" else "Қазір керек емес", callback_data="menu_main")],
+                ])
+            )
+            return
+
+        if data in ("agent_schedule", "agent_reminders"):
+            from handlers.agent import AgentHandler
+            await AgentHandler(self.db, self.api_key).callback(update, context)
+            return
 
         if data == "prof_edit":
             context.user_data["step"] = "prof_edit_name"

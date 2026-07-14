@@ -127,6 +127,7 @@ class Database:
             await self._ensure_column(db, "users", "bonus_docs", "INTEGER DEFAULT 0")
             await self._ensure_column(db, "users", "promo_used", "INTEGER DEFAULT 0")
             await self._ensure_column(db, "users", "reset_pending", "INTEGER DEFAULT 0")
+            await self._ensure_column(db, "users", "document_lang", "TEXT")
             await db.commit()
 
             # Уникальный индекс на ref_code — создаём отдельно от ALTER TABLE,

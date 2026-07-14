@@ -82,6 +82,18 @@ class AgentHandler:
         lang    = user.get("lang", "ru") if user else "ru"
         is_kg   = (user or {}).get("role") == "kindergarten"
 
+        if data.startswith("agent_schedule") and (not user or not user.get("subscribed")):
+            await query.edit_message_text(
+                "Эта функция доступна в PRO. Docura сможет помнить твоё расписание, напоминать о документах и помогать готовить черновики заранее."
+                if lang == "ru" else
+                "Бұл функция PRO тарифінде қолжетімді. Docura кестеңізді есте сақтап, құжаттар туралы еске салып, құжат жобасын алдын ала дайындауға көмектеседі.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⭐ Посмотреть PRO" if lang == "ru" else "⭐ PRO көру", callback_data="prof_sub")],
+                    [InlineKeyboardButton("Пока не нужно" if lang == "ru" else "Қазір керек емес", callback_data="menu_main")],
+                ])
+            )
+            return
+
         if data == "agent_schedule":
             await self.show_schedule_menu(query, context, lang, is_kg)
 
@@ -153,6 +165,19 @@ class AgentHandler:
             if len(text) > 4000:
                 text = text[:3900] + "\n_...обрезано_"
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+
+        elif data == "agent_reminders":
+            memory = await self.db.get_agent_context(user_id)
+            enabled = bool(memory.get("reminders_enabled"))
+            title = "🔔 *Напоминания*\n\n" if lang == "ru" else "🔔 *Еске салғыштар*\n\n"
+            status = ("включены" if enabled else "выключены") if lang == "ru" else ("қосулы" if enabled else "өшірулі")
+            kb = [[InlineKeyboardButton("🔕 Выключить" if enabled and lang == "ru" else "🔔 Включить" if lang == "ru" else ("🔕 Өшіру" if enabled else "🔔 Қосу"), callback_data="agent_reminders_toggle")], [MENU_BTN(lang)]]
+            await query.edit_message_text(title + (f"Сейчас: *{status}*. Бот не создаёт документы автоматически." if lang == "ru" else f"Қазір: *{status}*. Бот құжаттарды автоматты түрде жасамайды."), reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+
+        elif data == "agent_reminders_toggle":
+            memory = await self.db.get_agent_context(user_id)
+            await self.db.update_agent_context(user_id, {"reminders_enabled": not bool(memory.get("reminders_enabled"))})
+            await query.edit_message_text("✅ Настройка напоминаний сохранена. Напоминание предложит документ, но не создаст его без подтверждения." if lang == "ru" else "✅ Еске салғыш параметрі сақталды. Құжат растаусыз жасалмайды.", reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]]))
 
         elif data == "agent_suggest_doc":
             doc_type = context.user_data.get("suggested_doc_type")

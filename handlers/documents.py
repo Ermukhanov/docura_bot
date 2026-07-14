@@ -717,6 +717,7 @@ class DocumentHandler:
         if data.startswith("doc_lang_"):
             doc_lang = data.split("_")[2]
             context.user_data["doc_lang"] = doc_lang
+            await self.db.upsert_user(user_id, {"document_lang": doc_lang})
             doc_type = context.user_data.get("doc_type", "")
             q_lang   = doc_lang if doc_lang in DOC_QUESTIONS else "ru"
             qs = DOC_QUESTIONS.get(q_lang, DOC_QUESTIONS["ru"]).get(doc_type, [])
@@ -731,6 +732,25 @@ class DocumentHandler:
             context.user_data["step"]      = "waiting_answer"
             doc_name = DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
             await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=doc_name)
+            return
+
+        if data == "doc_lang_confirm":
+            doc_lang = context.user_data.get("doc_lang", lang)
+            doc_type = context.user_data.get("doc_type", "")
+            qs = DOC_QUESTIONS.get(doc_lang, DOC_QUESTIONS["ru"]).get(doc_type, [])
+            context.user_data["questions"] = qs or [{"key": "description", "q": "✍️ Опишите, что нужно создать:"}]
+            context.user_data["step"] = "waiting_answer"
+            await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, doc_type))
+            return
+
+        if data == "doc_lang_change":
+            await query.edit_message_text(
+                "Выберите язык документа / Құжат тілін таңдаңыз / Choose document language",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🇰🇿 Қазақша", callback_data="doc_lang_kz"), InlineKeyboardButton("🇷🇺 Русский", callback_data="doc_lang_ru")],
+                    [InlineKeyboardButton("🇬🇧 English", callback_data="doc_lang_en")],
+                ])
+            )
             return
 
         # ── Категория документов (и школьная, и садиковская — cat_planning / cat_kg_planning и т.д.) ──
@@ -868,6 +888,19 @@ class DocumentHandler:
         context.user_data["doc_type"]    = doc_type
         context.user_data["doc_answers"] = {}
         context.user_data["q_index"]     = 0
+
+        saved_doc_lang = user.get("document_lang")
+        if saved_doc_lang in {"ru", "kz", "en"}:
+            context.user_data["doc_lang"] = saved_doc_lang
+            language_label = _doc_lang_name(saved_doc_lang)
+            await query.edit_message_text(
+                (f"Язык документа: {language_label}" if saved_doc_lang == "ru" else f"Құжат тілі: {language_label}" if saved_doc_lang == "kz" else f"Document language: {language_label}"),
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("Создать" if saved_doc_lang == "ru" else "Жасау" if saved_doc_lang == "kz" else "Create", callback_data="doc_lang_confirm")],
+                    [InlineKeyboardButton("Изменить язык" if saved_doc_lang == "ru" else "Тілді өзгерту" if saved_doc_lang == "kz" else "Change language", callback_data="doc_lang_change")],
+                ])
+            )
+            return
 
         # ── Спросить язык документа ──
         doc_name = DOC_NAMES.get(lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
