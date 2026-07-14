@@ -636,6 +636,13 @@ class DocumentHandler:
             return
 
         if data == "doc_template":
+            if not user or user.get("role") != "kindergarten":
+                await query.edit_message_text(
+                    "📄 Загрузка образцов доступна только воспитателям детского сада."
+                    if lang == "ru" else
+                    "📄 Үлгі жүктеу тек балабақша тәрбиешілеріне қолжетімді."
+                )
+                return
             labels = ("Циклограмма", "Мониторинг развития", "Отмена") if lang == "ru" else ("Циклограмма", "Даму мониторингі", "Бас тарту")
             await query.edit_message_text(
                 "Для какого документа загружаешь образец?" if lang == "ru" else "Үлгіні қай құжат үшін жүктейсіз?",
@@ -649,6 +656,13 @@ class DocumentHandler:
         if data.startswith("doc_template_"):
             template_type = data[len("doc_template_"):]
             if template_type in {KINDERGARTEN_CYCLE_SCHEDULE, DEVELOPMENT_MONITORING}:
+                if not user or user.get("role") != "kindergarten":
+                    await query.edit_message_text(
+                        "📄 Загрузка образцов доступна только воспитателям детского сада."
+                        if lang == "ru" else
+                        "📄 Үлгі жүктеу тек балабақша тәрбиешілеріне қолжетімді."
+                    )
+                    return
                 context.user_data["template_doc_type"] = template_type
                 context.user_data["step"] = "template_upload"
                 await query.edit_message_text(
@@ -1031,6 +1045,14 @@ class DocumentHandler:
             return
         user = await self.db.get_user(update.effective_user.id)
         lang = user.get("lang", "ru") if user else "ru"
+        if not user or user.get("role") != "kindergarten":
+            context.user_data.clear()
+            await update.message.reply_text(
+                "📄 Загрузка образцов доступна только воспитателям детского сада."
+                if lang == "ru" else
+                "📄 Үлгі жүктеу тек балабақша тәрбиешілеріне қолжетімді."
+            )
+            return
         document = update.message.document
         name = document.file_name or "template.docx"
         if not name.lower().endswith(".docx"):
@@ -1108,7 +1130,7 @@ class DocumentHandler:
             missing = validate_cycle_schedule_answers(answers)
             if missing:
                 await message.reply_text("Не могу создать циклограмму. Заполните поле: " + ", ".join(missing) + ".")
-            return
+                return
 
         if doc_type == DEVELOPMENT_MONITORING:
             await self._generate_monitoring(message, context, lang)
@@ -1145,6 +1167,28 @@ class DocumentHandler:
                 samples_ctx = "\nЭТАЛОННЫЙ ОБРАЗЕЦ (ориентируйся на структуру и стиль):\n" + samples[0]["content"][:3000]
         except Exception:
             pass
+
+        # Личный Word-образец воспитателя — прочитать и передать генератору,
+        # иначе сохранённый файл никак не влияет на результат.
+        try:
+            personal_template = await self.db.get_user_template(user_id, doc_type)
+            if personal_template and os.path.exists(personal_template["file_path"]):
+                from docx import Document
+                template_doc = Document(personal_template["file_path"])
+                template_parts = [p.text.strip() for p in template_doc.paragraphs if p.text.strip()]
+                for table in template_doc.tables:
+                    for row in table.rows:
+                        cells = [cell.text.strip() for cell in row.cells]
+                        if any(cells):
+                            template_parts.append(" | ".join(cells))
+                template_text = "\n".join(template_parts)[:5000]
+                if template_text:
+                    samples_ctx += (
+                        "\nЛИЧНЫЙ ОБРАЗЕЦ ПОЛЬЗОВАТЕЛЯ (сохрани его структуру, "
+                        "названия блоков и формат таблиц):\n" + template_text
+                    )
+        except Exception as exc:
+            print(f"Template read error: {exc}")
 
         user_prompt = (
             f"Создай документ: {doc_name}\n\n"
