@@ -9,6 +9,55 @@ from handlers.texts import t, TEXTS
 from handlers.rag_base import get_system_prompt, SELF_EVAL_PROMPT
 from database import Database, free_limit_for
 
+# Единый реестр подключаемых документов. Остальные типы продолжают работать
+# через существующие DOC_QUESTIONS и общий генератор.
+DOCUMENT_REGISTRY = {
+    "kindergarten_cycle_schedule": {
+        "document_id": "kindergarten_cycle_schedule", "title_ru": "Циклограмма", "title_kz": "Циклограмма", "title_en": "Weekly Cyclogram",
+        "category": "kindergarten", "required_fields": ["group", "period", "week_topic"], "optional_fields": ["events"],
+        "profile_fields": ["school", "name", "age_group"], "forbidden_facts": ["dates", "events", "children", "results"], "word_structure": "landscape_5x5", "validation_rules": ["required_cycle_fields"], "language_support": ["ru", "kz", "en"]
+    },
+    "kg_activity_summary": {
+        "document_id": "kg_activity_summary", "title_ru": "Технологическая карта ОУД", "title_kz": "ҰОҚ технологиялық картасы", "title_en": "Activity Technological Map",
+        "category": "kindergarten", "required_fields": ["topic", "goals", "age_group"], "optional_fields": ["materials"],
+        "profile_fields": ["school", "name", "age_group"], "forbidden_facts": ["materials", "children", "results", "methodist_requirements"], "word_structure": "header_3_stages", "validation_rules": ["no_unconfirmed_materials"], "language_support": ["ru", "kz", "en"]
+    },
+    "kg_individual_development_card": {
+        "document_id": "kg_individual_development_card", "title_ru": "Индивидуальная карта развития ребенка", "title_kz": "Баланың жеке даму картасы", "title_en": "Child Individual Development Card",
+        "category": "kindergarten", "required_fields": ["child_name", "birth_year_age", "group", "school_year", "observations"], "optional_fields": [],
+        "profile_fields": ["school", "age_group"], "forbidden_facts": ["development_levels", "diagnoses", "results"], "word_structure": "five_competency_columns", "validation_rules": ["empty_results_without_observations"], "language_support": ["ru", "kz", "en"]
+    },
+    "lesson_plan": {
+        "document_id": "lesson_plan", "title_ru": "Краткосрочный план (КСП)", "title_kz": "Қысқамерзімді жоспар (ҚМЖ)", "title_en": "Lesson Plan",
+        "category": "school", "required_fields": ["subject_class", "topic", "duration"], "optional_fields": ["goals", "date"], "profile_fields": ["school", "name", "subject", "classes"], "forbidden_facts": ["official_goals", "date", "textbook", "resources"], "word_structure": "lesson_table", "validation_rules": ["no_unconfirmed_official_facts"], "language_support": ["ru", "kz", "en"]
+    },
+    "calendar_plan": {
+        "document_id": "calendar_plan", "title_ru": "Календарно-тематический план (КТП)", "title_kz": "Күнтізбелік-тақырыптық жоспар (КТЖ)", "title_en": "Calendar-Thematic Plan",
+        "category": "school", "required_fields": ["subject_class", "period", "hours_per_week"], "optional_fields": ["textbook", "dates"], "profile_fields": ["school", "subject", "classes"], "forbidden_facts": ["textbook", "hours", "dates", "official_goals"], "word_structure": "calendar_table", "validation_rules": ["blank_unknown_dates"], "language_support": ["ru", "kz", "en"]
+    },
+}
+
+REGISTRY_QUESTIONS = {
+    "ru": {
+        "kg_activity_summary": [{"key": "topic", "q": "Тема занятия?"}, {"key": "age_group", "q": "Группа и возраст?"}, {"key": "goals", "q": "Что дети должны понять или уметь?"}, {"key": "materials", "q": "Какие материалы реально есть? Если нет — напишите «нет»."}],
+        "kg_individual_development_card": [{"key": "child_name", "q": "ФИО ребенка?"}, {"key": "birth_year_age", "q": "Год рождения и возраст?"}, {"key": "group", "q": "Группа?"}, {"key": "school_year", "q": "Учебный год?"}, {"key": "observations", "q": "Есть реальные наблюдения или нужен пустой бланк?"}],
+        "lesson_plan": [{"key": "subject_class", "q": "Предмет и класс?"}, {"key": "topic", "q": "Тема урока?"}, {"key": "goals", "q": "Цели обучения, если вы их знаете? Если нет — оставим пустыми."}, {"key": "date", "q": "Дата и длительность урока?"}],
+        "calendar_plan": [{"key": "subject_class", "q": "Предмет и класс?"}, {"key": "period", "q": "Период?"}, {"key": "textbook", "q": "Учебник или программа? Если нет — напишите «нет»."}, {"key": "hours_per_week", "q": "Часов в неделю? Если неизвестно — напишите «нет»."}, {"key": "dates", "q": "Даты или оставить пустыми?"}],
+    },
+    "kz": {
+        "kg_activity_summary": [{"key": "topic", "q": "ҰОҚ тақырыбы?"}, {"key": "age_group", "q": "Топ және жасы?"}, {"key": "goals", "q": "Балалар нені түсінуі немесе меңгеруі керек?"}, {"key": "materials", "q": "Нақты бар материалдар? Жоқ болса «жоқ» деп жазыңыз."}],
+        "kg_individual_development_card": [{"key": "child_name", "q": "Баланың аты-жөні?"}, {"key": "birth_year_age", "q": "Туған жылы және жасы?"}, {"key": "group", "q": "Тобы?"}, {"key": "school_year", "q": "Оқу жылы?"}, {"key": "observations", "q": "Нақты бақылау бар ма, әлде бос үлгі керек пе?"}],
+        "lesson_plan": [{"key": "subject_class", "q": "Пән және сынып?"}, {"key": "topic", "q": "Сабақ тақырыбы?"}, {"key": "goals", "q": "Оқу мақсаттары, егер білсеңіз?"}, {"key": "date", "q": "Сабақ күні және ұзақтығы?"}],
+        "calendar_plan": [{"key": "subject_class", "q": "Пән және сынып?"}, {"key": "period", "q": "Кезең?"}, {"key": "textbook", "q": "Оқулық немесе бағдарлама?"}, {"key": "hours_per_week", "q": "Аптасына неше сағат?"}, {"key": "dates", "q": "Күндер немесе бос қалдыру керек пе?"}],
+    },
+    "en": {
+        "kg_activity_summary": [{"key": "topic", "q": "Activity topic?"}, {"key": "age_group", "q": "Group and age?"}, {"key": "goals", "q": "What should children understand or learn?"}, {"key": "materials", "q": "Which materials are actually available? If none, write “none”."}],
+        "kg_individual_development_card": [{"key": "child_name", "q": "Child’s full name?"}, {"key": "birth_year_age", "q": "Birth year and age?"}, {"key": "group", "q": "Group?"}, {"key": "school_year", "q": "Academic year?"}, {"key": "observations", "q": "Do you have real observations or need a blank form?"}],
+        "lesson_plan": [{"key": "subject_class", "q": "Subject and class?"}, {"key": "topic", "q": "Lesson topic?"}, {"key": "goals", "q": "Learning objectives, if known?"}, {"key": "date", "q": "Lesson date and duration?"}],
+        "calendar_plan": [{"key": "subject_class", "q": "Subject and class?"}, {"key": "period", "q": "Period?"}, {"key": "textbook", "q": "Textbook or curriculum?"}, {"key": "hours_per_week", "q": "Hours per week?"}, {"key": "dates", "q": "Dates or leave them blank?"}],
+    },
+}
+
 # ══════════════════════════════════════════════════════════════
 # ВОПРОСЫ ДЛЯ ДОКУМЕНТОВ УЧИТЕЛЯ (школа)
 # ══════════════════════════════════════════════════════════════
@@ -425,6 +474,7 @@ DOC_NAMES = {
         # садик
         "kg_thematic_plan": "Тематический план занятий",
         "kg_activity_summary": "Технологическая карта ОУД",
+        "kg_individual_development_card": "Индивидуальная карта развития ребенка",
         "kindergarten_cycle_schedule": "Циклограмма",
         "development_monitoring": "Мониторинг развития",
         "kg_perspective_plan": "Перспективный план работы",
@@ -463,6 +513,7 @@ DOC_NAMES = {
         # балабақша
         "kg_thematic_plan": "Тақырыптық жоспар",
         "kg_activity_summary": "ҰОҚ технологиялық картасы",
+        "kg_individual_development_card": "Баланың жеке даму картасы",
         "kindergarten_cycle_schedule": "Циклограмма",
         "development_monitoring": "Даму мониторингі",
         "kg_perspective_plan": "Перспективалық жұмыс жоспары",
@@ -500,6 +551,7 @@ DOC_NAMES = {
         "announcement": "Announcement",
         "kg_thematic_plan": "Thematic Activity Plan",
         "kg_activity_summary": "Activity Technological Map",
+        "kg_individual_development_card": "Child Individual Development Card",
         "kindergarten_cycle_schedule": "Weekly Cyclogram",
         "kg_perspective_plan": "Monthly Perspective Plan",
         "kg_matinee_script": "Matinee Script",
@@ -529,7 +581,7 @@ CAT_DOCS = {
 
 # Категории документов садика (полностью отдельный набор — НЕ школьные типы)
 CAT_DOCS_KG = {
-    "kg_planning": ["kg_thematic_plan", "kg_activity_summary", "kindergarten_cycle_schedule", "kg_perspective_plan", "kg_matinee_script"],
+    "kg_planning": ["kg_thematic_plan", "kg_activity_summary", "kg_individual_development_card", "kindergarten_cycle_schedule", "kg_perspective_plan", "kg_matinee_script"],
     "kg_reports":  ["kg_monthly_report", "development_monitoring"],
     "kg_children": ["kg_child_characteristic", "kg_parent_letter", "kg_absence_cert"],
     "kg_personal": ["kg_vacation_request", "kg_explanation", "kg_announcement"],
@@ -719,8 +771,11 @@ class DocumentHandler:
             context.user_data["doc_lang"] = doc_lang
             await self.db.upsert_user(user_id, {"document_lang": doc_lang})
             doc_type = context.user_data.get("doc_type", "")
+            if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
+                await self._start_cycle_schedule(query, context, user, lang)
+                return
             q_lang   = doc_lang if doc_lang in DOC_QUESTIONS else "ru"
-            qs = DOC_QUESTIONS.get(q_lang, DOC_QUESTIONS["ru"]).get(doc_type, [])
+            qs = REGISTRY_QUESTIONS.get(doc_lang, {}).get(doc_type) or DOC_QUESTIONS.get(q_lang, DOC_QUESTIONS["ru"]).get(doc_type, [])
             if not qs:
                 fallback_q = {
                     "ru": "✍️ Опишите подробно что нужно создать:",
@@ -728,6 +783,14 @@ class DocumentHandler:
                     "en": "✍️ Describe what you need in detail:",
                 }
                 qs = [{"key": "description", "q": fallback_q.get(doc_lang, "✍️ Describe:")}]
+            profile_values = {
+                "age_group": user.get("age_group", ""), "group": user.get("age_group", ""),
+                "subject_class": ", ".join(x for x in [user.get("subject", ""), user.get("classes", "")] if x),
+            }
+            answers = context.user_data.setdefault("doc_answers", {})
+            for key, value in profile_values.items():
+                if value and key in {q["key"] for q in qs}:
+                    answers[key] = value
             context.user_data["questions"] = qs
             context.user_data["step"]      = "waiting_answer"
             doc_name = DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
@@ -737,7 +800,10 @@ class DocumentHandler:
         if data == "doc_lang_confirm":
             doc_lang = context.user_data.get("doc_lang", lang)
             doc_type = context.user_data.get("doc_type", "")
-            qs = DOC_QUESTIONS.get(doc_lang, DOC_QUESTIONS["ru"]).get(doc_type, [])
+            if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
+                await self._start_cycle_schedule(query, context, user, lang)
+                return
+            qs = REGISTRY_QUESTIONS.get(doc_lang, {}).get(doc_type) or DOC_QUESTIONS.get(doc_lang, DOC_QUESTIONS["ru"]).get(doc_type, [])
             context.user_data["questions"] = qs or [{"key": "description", "q": "✍️ Опишите, что нужно создать:"}]
             context.user_data["step"] = "waiting_answer"
             await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, doc_type))
@@ -855,6 +921,29 @@ class DocumentHandler:
             )
             return
 
+        if doc_type in DOCUMENT_REGISTRY and not context.user_data.get("doc_lang"):
+            saved_doc_lang = user.get("document_lang")
+            context.user_data["doc_type"] = doc_type
+            if saved_doc_lang in DOCUMENT_REGISTRY[doc_type]["language_support"]:
+                context.user_data["doc_lang"] = saved_doc_lang
+                label = _doc_lang_name(saved_doc_lang)
+                await query.edit_message_text(
+                    (f"Язык документа: {label}" if saved_doc_lang == "ru" else f"Құжат тілі: {label}" if saved_doc_lang == "kz" else f"Document language: {label}"),
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Создать" if saved_doc_lang == "ru" else "Жасау" if saved_doc_lang == "kz" else "Create", callback_data="doc_lang_confirm")],
+                        [InlineKeyboardButton("Изменить язык" if saved_doc_lang == "ru" else "Тілді өзгерту" if saved_doc_lang == "kz" else "Change language", callback_data="doc_lang_change")],
+                    ])
+                )
+            else:
+                await query.edit_message_text(
+                    "Выберите язык документа / Құжат тілін таңдаңыз / Choose document language",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🇰🇿 Қазақша", callback_data="doc_lang_kz"), InlineKeyboardButton("🇷🇺 Русский", callback_data="doc_lang_ru")],
+                        [InlineKeyboardButton("🇬🇧 English", callback_data="doc_lang_en")],
+                    ])
+                )
+            return
+
         # Циклограмма использует язык и подтверждённые данные профиля сразу,
         # поэтому не спрашивает их повторно и не проходит общий опросник.
         if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
@@ -924,10 +1013,11 @@ class DocumentHandler:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
     async def _start_cycle_schedule(self, query, context, user, lang):
+        lang = context.user_data.get("doc_lang", lang)
         answers = {
             "organization": user.get("school", ""),
             "educator_name": user.get("name", ""),
-            "lang": user.get("lang", lang),
+            "lang": context.user_data.get("doc_lang", user.get("lang", lang)),
         }
         # age_group в существующем профиле сада содержит название группы/возраст.
         if user.get("age_group"):
@@ -977,6 +1067,15 @@ class DocumentHandler:
                 context.user_data["doc_answers"]["activities"]   = achieve_str
                 context.user_data["doc_answers"]["behavior"]     = student.get("behavior", "хорошее")
 
+        saved_doc_lang = user.get("document_lang")
+        if saved_doc_lang in {"ru", "kz", "en"}:
+            context.user_data["doc_lang"] = saved_doc_lang
+            q_lang = saved_doc_lang if saved_doc_lang in DOC_QUESTIONS else "ru"
+            context.user_data["questions"] = REGISTRY_QUESTIONS.get(saved_doc_lang, {}).get(doc_type) or DOC_QUESTIONS.get(q_lang, DOC_QUESTIONS["ru"]).get(doc_type, [])
+            context.user_data["step"] = "waiting_answer"
+            await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=DOC_NAMES.get(saved_doc_lang, DOC_NAMES["ru"]).get(doc_type, doc_type))
+            return
+
         # Спросить язык документа
         doc_name = DOC_NAMES.get(lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
         text = f"📄 *{doc_name}*\n{DIVIDER}\n🌐 На каком языке создать документ?" if lang == "ru" else f"📄 *{doc_name}*\n{DIVIDER}\n🌐 Құжатты қандай тілде жасау керек?"
@@ -988,6 +1087,7 @@ class DocumentHandler:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
     async def _ask_question(self, message, context, lang, idx, edit=False, query=None, doc_name=""):
+        lang = context.user_data.get("doc_lang", lang)
         qs = context.user_data.get("questions", [])
 
         # Пропускаем вопросы у которых уже есть ответ
@@ -1291,6 +1391,8 @@ class DocumentHandler:
                 doc_name,
                 user.get("name", ""),
                 cycle_data=answers if doc_type == KINDERGARTEN_CYCLE_SCHEDULE else None,
+                monitoring_data=answers if doc_type == "kg_individual_development_card" else None,
+                registry_doc_type=doc_type,
             )
             with open(filename, "rb") as f:
                 caption = {

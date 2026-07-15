@@ -121,7 +121,7 @@ def validate_cycle_schedule_data(data: dict) -> list[str]:
     return [label for key, label in labels.items() if not str(data.get(key, "")).strip()]
 
 
-def generate_word(content: str, title: str, teacher_name: str = "", cycle_data: dict | None = None, monitoring_data: dict | None = None) -> str:
+def generate_word(content: str, title: str, teacher_name: str = "", cycle_data: dict | None = None, monitoring_data: dict | None = None, registry_doc_type: str = "") -> str:
     """
     Генерирует красивый Word документ по стандартам РК.
     Возвращает путь к .docx файлу.
@@ -180,25 +180,46 @@ def generate_word(content: str, title: str, teacher_name: str = "", cycle_data: 
     doc.add_paragraph().paragraph_format.space_after = Pt(6)
 
     # ── ПАРСИМ СОДЕРЖИМОЕ ─────────────────────────────
-    if cycle_data:
+    if registry_doc_type == "kg_individual_development_card":
+        _add_individual_development_card(doc, monitoring_data or {})
+    elif cycle_data:
         _add_kindergarten_cycle_schedule(doc, cycle_data)
     elif monitoring_data:
         _add_development_monitoring(doc, monitoring_data)
     else:
         _parse_content(doc, content)
 
-    # ── ПОДВАЛ ────────────────────────────────────────
-    doc.add_paragraph().paragraph_format.space_before = Pt(12)
-    _add_hrule(doc, "A0AEC0", "6")
-    footer_p = _para(doc,
-                     "Подготовлено в Docura",
-                     align=WD_ALIGN_PARAGRAPH.CENTER,
-                     italic=True, size=8, color=RGBColor(0xA0, 0xAE, 0xC0),
-                     space_before=4)
+    if registry_doc_type != "kg_individual_development_card":
+        doc.add_paragraph().paragraph_format.space_before = Pt(12)
+        _add_hrule(doc, "A0AEC0", "6")
+        _para(doc, "Подготовлено в Docura", align=WD_ALIGN_PARAGRAPH.CENTER,
+              italic=True, size=8, color=RGBColor(0xA0, 0xAE, 0xC0), space_before=4)
 
     fname = os.path.join(tempfile.gettempdir(), f"docura_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx")
     doc.save(fname)
     return fname
+
+
+def _add_individual_development_card(doc, data: dict):
+    """Пустая карта: результаты не заполняются без подтверждённых наблюдений."""
+    kz = data.get("lang") == "kz"
+    labels = (["Баланың аты-жөні", "Туған жылы", "Баланың жасы", "Тобы"] if kz
+              else ["Child’s full name", "Birth year", "Child’s age", "Group"] if data.get("lang") == "en"
+              else ["ФИО ребенка", "Год рождения", "Возраст ребенка", "Группа"])
+    values = [data.get("child_name", ""), data.get("birth_year", ""), data.get("age", ""), data.get("group", "")]
+    info = doc.add_table(rows=4, cols=2); info.style = "Table Grid"
+    for row, label, value in zip(info.rows, labels, values):
+        _set_cell_color(row.cells[0], LIGHT_BLUE_HEX); _run(row.cells[0].paragraphs[0], label, bold=True, size=10); _run(row.cells[1].paragraphs[0], value, size=10)
+    headers = (["Құзыреттіліктер", "Бастапқы бақылау", "Аралық бақылау", "Қорытынды бақылау", "Қорытынды, даму деңгейі"] if kz
+               else ["Competencies", "Initial observation", "Intermediate observation", "Final observation", "Conclusion / level"] if data.get("lang") == "en"
+               else ["Компетенции", "Начальное наблюдение", "Промежуточное наблюдение", "Итоговое наблюдение", "Вывод / уровень"])
+    rows = ["Физикалық қасиеттерді дамыту", "Коммуникативтік дағдыларды дамыту", "Танымдық және зияткерлік дағдыларды дамыту", "Шығармашылық дағдыларды дамыту", "Әлеуметтік-эмоционалды дағдыларды қалыптастыру"] if kz else (["Physical development", "Communication skills", "Cognitive and intellectual skills", "Creative and research skills", "Social-emotional skills"] if data.get("lang") == "en" else ["Развитие физических качеств", "Развитие коммуникативных навыков", "Развитие познавательных навыков", "Развитие творческих навыков", "Формирование социально-эмоциональных навыков"])
+    table = doc.add_table(rows=1 + len(rows), cols=5); table.style = "Table Grid"
+    for i, header in enumerate(headers): _set_cell_color(table.rows[0].cells[i], NAVY_HEX); _run(table.rows[0].cells[i].paragraphs[0], header, bold=True, size=7, color=WHITE)
+    for r, name in enumerate(rows, 1):
+        _run(table.rows[r].cells[0].paragraphs[0], name, size=8)
+    legend = ["I деңгей: төмен", "II деңгей: орташа", "III деңгей: жоғары"] if kz else (["Level I: low", "Level II: medium", "Level III: high"] if data.get("lang") == "en" else ["I уровень: низкий", "II уровень: средний", "III уровень: высокий"])
+    _para(doc, "\n".join(legend), size=9, space_before=8)
 
 
 def _add_kindergarten_cycle_schedule(doc, data: dict):
