@@ -15,7 +15,7 @@ class OnboardingHandler:
         user_id = update.effective_user.id
         user = await self.db.get_user(user_id)
 
-        if user and user.get("name") and user.get("school"):
+        if user and user.get("role") and ((user.get("role") == "kindergarten" and user.get("age_group")) or (user.get("role") == "teacher" and user.get("classes") and user.get("subject"))):
             context.user_data.clear()
             lang = user.get("lang", "ru")
             from handlers.main_menu import MainMenuHandler
@@ -33,10 +33,7 @@ class OnboardingHandler:
             if referrer and referrer["tg_id"] != user_id:
                 await self.db.upsert_user(user_id, {"referred_by": referrer["tg_id"]})
 
-        keyboard = [[
-            InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
-            InlineKeyboardButton("🇰🇿 Қазақша", callback_data="lang_kz"),
-        ]]
+        keyboard = [[InlineKeyboardButton("🇰🇿 Қазақша", callback_data="lang_kz"), InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"), InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")]]
         await update.message.reply_text(
             t("ru", "choose_lang"),
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -62,7 +59,30 @@ class OnboardingHandler:
         if data.startswith("lang_"):
             lang = data.split("_")[1]
             await self.db.upsert_user(user_id, {"lang": lang})
-            await self._show_onboard(query, context, lang, 1)
+            await self._show_institution(query, lang)
+
+        elif data == "role_select_sample":
+            user = await self.db.get_user(user_id)
+            lang = user.get("lang", "ru") if user else "ru"
+            await query.edit_message_text(
+                "Это образец для школы или детского сада?" if lang == "ru" else "Бұл мектепке ме, әлде балабақшаға арналған үлгі ме?" if lang == "kz" else "Is this a school or kindergarten sample?",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🧸 Детский сад" if lang == "ru" else "🧸 Балабақша" if lang == "kz" else "🧸 Kindergarten", callback_data="role_sample_kindergarten")],
+                    [InlineKeyboardButton("🏫 Школа" if lang == "ru" else "🏫 Мектеп" if lang == "kz" else "🏫 School", callback_data="role_sample_teacher")],
+                    [CANCEL_BTN(lang)],
+                ])
+            )
+
+        elif data.startswith("role_sample_"):
+            role = "kindergarten" if data.endswith("kindergarten") else "teacher"
+            await self.db.upsert_user(user_id, {"role": role})
+            lang = (await self.db.get_user(user_id)).get("lang", "ru")
+            if role == "kindergarten":
+                context.user_data["step"] = "template_upload"
+                context.user_data["template_doc_type"] = "kindergarten_cycle_schedule"
+                await query.edit_message_text("Отправьте Word-файл образца циклограммы .docx" if lang == "ru" else "Циклограмма үлгісінің Word .docx файлын жіберіңіз" if lang == "kz" else "Send the cyclogram sample as a .docx Word file", reply_markup=InlineKeyboardMarkup([[CANCEL_BTN(lang)]]))
+            else:
+                await self._show_institution(query, lang)
 
         elif data.startswith("onboard_"):
             user = await self.db.get_user(user_id)
@@ -112,6 +132,16 @@ class OnboardingHandler:
             ]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
+    async def _show_institution(self, query, lang):
+        text = "Где ты работаешь?" if lang == "ru" else "Қай жерде жұмыс істейсіз?" if lang == "kz" else "Where do you work?"
+        kb = [
+            [InlineKeyboardButton("🧸 Детский сад" if lang == "ru" else "🧸 Балабақша" if lang == "kz" else "🧸 Kindergarten", callback_data="role_select_kindergarten")],
+            [InlineKeyboardButton("🏫 Школа" if lang == "ru" else "🏫 Мектеп" if lang == "kz" else "🏫 School", callback_data="role_select_teacher")],
+            [InlineKeyboardButton("📄 У меня есть образец документа" if lang == "ru" else "📄 Менде құжат үлгісі бар" if lang == "kz" else "📄 I have a document sample", callback_data="role_select_sample")],
+            [CANCEL_BTN(lang)],
+        ]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb))
+
     async def _show_onboard(self, query, context, lang, slide):
         titles = {1: t(lang, "onboard_1_title"), 2: t(lang, "onboard_2_title"), 3: t(lang, "onboard_3_title")}
         texts  = {1: t(lang, "onboard_1_text"),  2: t(lang, "onboard_2_text"),  3: t(lang, "onboard_3_text")}
@@ -151,6 +181,22 @@ class OnboardingHandler:
         text = update.message.text.strip()
 
         cancel_kb = [[CANCEL_BTN(lang)]]
+
+        if step in {"onboard_kg_group", "onboard_kg_age", "onboard_teacher_classes", "onboard_teacher_subject"}:
+            field_next = {
+                "onboard_kg_group": ("classes", "onboard_kg_age", "Какой возраст детей в группе? Например: 3-4 года" if lang == "ru" else "Топтағы балалардың жасы қандай? Мысалы: 3-4 жас" if lang == "kz" else "What is the children’s age group? For example: 3-4 years"),
+                "onboard_kg_age": ("age_group", "onboard_doc_lang", "На каком языке обычно нужны документы?" if lang == "ru" else "Құжаттар қай тілде қажет?" if lang == "kz" else "What language do you usually need documents in?"),
+                "onboard_teacher_classes": ("classes", "onboard_teacher_subject", "Какой предмет преподаешь?" if lang == "ru" else "Қандай пәннен сабақ бересіз?" if lang == "kz" else "What subject do you teach?"),
+                "onboard_teacher_subject": ("subject", "onboard_doc_lang", "На каком языке обычно нужны документы?" if lang == "ru" else "Құжаттар қай тілде қажет?" if lang == "kz" else "What language do you usually need documents in?"),
+            }
+            field, next_step, next_q = field_next[step]
+            await self.db.upsert_user(user_id, {field: text})
+            context.user_data["step"] = next_step
+            if next_step == "onboard_doc_lang":
+                await update.message.reply_text(next_q, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🇰🇿 Қазақша", callback_data="onboard_doc_kz"), InlineKeyboardButton("🇷🇺 Русский", callback_data="onboard_doc_ru")], [InlineKeyboardButton("🇬🇧 English", callback_data="onboard_doc_en")], cancel_kb[0]]))
+            else:
+                await update.message.reply_text(next_q, reply_markup=InlineKeyboardMarkup(cancel_kb))
+            return
 
         if len(text) < 2:
             await update.message.reply_text(t(lang, "val_too_short"), reply_markup=InlineKeyboardMarkup(cancel_kb))
