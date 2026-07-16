@@ -34,6 +34,16 @@ class OnboardingHandler:
                 await self.db.upsert_user(user_id, {"referred_by": referrer["tg_id"]})
 
         keyboard = [[InlineKeyboardButton("🇰🇿 Қазақша", callback_data="lang_kz"), InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"), InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")]]
+        if user and user.get("lang"):
+            await update.message.reply_text(
+                "Где ты работаешь?" if user.get("lang") == "ru" else "Қай жерде жұмыс істейсіз?" if user.get("lang") == "kz" else "Where do you work?",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🧸 Детский сад" if user.get("lang") == "ru" else "🧸 Балабақша" if user.get("lang") == "kz" else "🧸 Kindergarten", callback_data="role_select_kindergarten")],
+                    [InlineKeyboardButton("🏫 Школа" if user.get("lang") == "ru" else "🏫 Мектеп" if user.get("lang") == "kz" else "🏫 School", callback_data="role_select_teacher")],
+                    [InlineKeyboardButton("📄 У меня есть образец документа" if user.get("lang") == "ru" else "📄 Менде құжат үлгісі бар" if user.get("lang") == "kz" else "📄 I have a document sample", callback_data="role_select_sample")],
+                ])
+            )
+            return
         await update.message.reply_text(
             t("ru", "choose_lang"),
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -83,6 +93,11 @@ class OnboardingHandler:
                 await query.edit_message_text("Отправьте Word-файл образца циклограммы .docx" if lang == "ru" else "Циклограмма үлгісінің Word .docx файлын жіберіңіз" if lang == "kz" else "Send the cyclogram sample as a .docx Word file", reply_markup=InlineKeyboardMarkup([[CANCEL_BTN(lang)]]))
             else:
                 await self._show_institution(query, lang)
+
+        elif data.startswith("onboard_doc_"):
+            doc_lang = data.split("_")[-1]
+            await self.db.upsert_user(user_id, {"doc_language": doc_lang, "document_lang": doc_lang})
+            await self._finish_minimal(query, context, user_id, lang)
 
         elif data.startswith("onboard_"):
             user = await self.db.get_user(user_id)
@@ -156,21 +171,17 @@ class OnboardingHandler:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
     async def _start_registration(self, query, context, lang, role="teacher"):
-        if role == "kindergarten":
-            # Для садика — отдельная анкета без класс-руководства и школьных полей
-            context.user_data["step"] = "reg_name"
-            context.user_data["role"] = "kindergarten"
-            kb = [[CANCEL_BTN(lang)]]
-            text = "👤 Ваше ФИО?\n\n_Пример: Айгуль Сейткали_" if lang == "ru" else "👤 Аты-жөніңіз?\n\n_Мысалы: Айгуль Сейткали_"
-            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
-        else:
-            context.user_data["step"] = "reg_name"
-            kb = [[CANCEL_BTN(lang)]]
-            await query.edit_message_text(
-                t(lang, "reg_name"),
-                reply_markup=InlineKeyboardMarkup(kb),
-                parse_mode=ParseMode.MARKDOWN
-            )
+        context.user_data["role"] = role
+        context.user_data["step"] = "onboard_kg_group" if role == "kindergarten" else "onboard_teacher_classes"
+        question = (
+            "Как называется твоя группа? Например: «Солнышко»" if role == "kindergarten" and lang == "ru" else
+            "Тобыңыз қалай аталады? Мысалы: «Күншуақ»" if role == "kindergarten" and lang == "kz" else
+            "What is your group called? For example: “Sunshine”" if role == "kindergarten" else
+            "С каким классом ты работаешь? Например: 5 «А»" if lang == "ru" else
+            "Қай сыныппен жұмыс істейсіз? Мысалы: 5 «А»" if lang == "kz" else
+            "Which class do you work with? For example: Grade 5A"
+        )
+        await query.edit_message_text(question, reply_markup=InlineKeyboardMarkup([[CANCEL_BTN(lang)]]))
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
@@ -193,6 +204,10 @@ class OnboardingHandler:
             await self.db.upsert_user(user_id, {field: text})
             context.user_data["step"] = next_step
             if next_step == "onboard_doc_lang":
+                existing_doc_lang = user.get("doc_language")
+                if existing_doc_lang:
+                    await self._finish_minimal(None, context, user_id, lang, update=update)
+                    return
                 await update.message.reply_text(next_q, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🇰🇿 Қазақша", callback_data="onboard_doc_kz"), InlineKeyboardButton("🇷🇺 Русский", callback_data="onboard_doc_ru")], [InlineKeyboardButton("🇬🇧 English", callback_data="onboard_doc_en")], cancel_kb[0]]))
             else:
                 await update.message.reply_text(next_q, reply_markup=InlineKeyboardMarkup(cancel_kb))
@@ -312,3 +327,21 @@ class OnboardingHandler:
         elif update:
             await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
             await mm._send_main_menu(update.message.chat_id, context, user_id, lang)
+
+    async def _finish_minimal(self, query, context, user_id, lang, update=None):
+        """Завершает короткий онбординг, не требуя ФИО и организации."""
+        context.user_data.clear()
+        user = await self.db.get_user(user_id)
+        role = user.get("role", "teacher")
+        if role == "kindergarten":
+            msg = "Готово. Я запомнил твою группу и язык документов\n\nЧто нужно сделать сегодня?" if lang == "ru" else "Дайын. Тобыңыз бен құжат тілін есте сақтадым\n\nБүгін не істейміз?" if lang == "kz" else "Done. I saved your group and document language\n\nWhat would you like to do today?"
+        else:
+            msg = "Готово. Я запомнил твой класс, предмет и язык документов\n\nЧто нужно сделать сегодня?" if lang == "ru" else "Дайын. Сыныбыңыз, пәніңіз және құжат тілі сақталды\n\nБүгін не істейміз?" if lang == "kz" else "Done. I saved your class, subject, and document language\n\nWhat would you like to do today?"
+        from handlers.main_menu import MainMenuHandler
+        mm = MainMenuHandler(self.db)
+        chat_id = query.message.chat_id if query else update.message.chat_id
+        if query:
+            await query.edit_message_text(msg)
+        else:
+            await update.message.reply_text(msg)
+        await mm._send_main_menu(chat_id, context, user_id, lang)

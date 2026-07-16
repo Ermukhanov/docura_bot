@@ -922,7 +922,7 @@ class DocumentHandler:
             return
 
         if doc_type in DOCUMENT_REGISTRY and not context.user_data.get("doc_lang"):
-            saved_doc_lang = user.get("document_lang")
+            saved_doc_lang = user.get("document_lang") or user.get("doc_language")
             context.user_data["doc_type"] = doc_type
             if saved_doc_lang in DOCUMENT_REGISTRY[doc_type]["language_support"]:
                 context.user_data["doc_lang"] = saved_doc_lang
@@ -978,7 +978,7 @@ class DocumentHandler:
         context.user_data["doc_answers"] = {}
         context.user_data["q_index"]     = 0
 
-        saved_doc_lang = user.get("document_lang")
+        saved_doc_lang = user.get("document_lang") or user.get("doc_language")
         if saved_doc_lang in {"ru", "kz", "en"}:
             context.user_data["doc_lang"] = saved_doc_lang
             language_label = _doc_lang_name(saved_doc_lang)
@@ -1033,7 +1033,7 @@ class DocumentHandler:
         ])
 
         context.user_data["doc_type"] = KINDERGARTEN_CYCLE_SCHEDULE
-        context.user_data["doc_lang"] = user.get("lang", lang)
+        context.user_data["doc_lang"] = user.get("document_lang") or user.get("doc_language") or lang
         context.user_data["doc_answers"] = answers
         context.user_data["questions"] = questions
         context.user_data["q_index"] = 0
@@ -1067,7 +1067,7 @@ class DocumentHandler:
                 context.user_data["doc_answers"]["activities"]   = achieve_str
                 context.user_data["doc_answers"]["behavior"]     = student.get("behavior", "хорошее")
 
-        saved_doc_lang = user.get("document_lang")
+        saved_doc_lang = user.get("document_lang") or user.get("doc_language")
         if saved_doc_lang in {"ru", "kz", "en"}:
             context.user_data["doc_lang"] = saved_doc_lang
             q_lang = saved_doc_lang if saved_doc_lang in DOC_QUESTIONS else "ru"
@@ -1280,7 +1280,7 @@ class DocumentHandler:
         answers_text  = "\n".join(f"- {k}: {v}" for k, v in answers.items())
 
         # Профиль пользователя — подставляем автоматически
-        profile_ctx = _build_profile_context(user, lang)
+        profile_ctx = _build_profile_context(user, doc_lang)
 
         # Расписание из агентной памяти (если загружено) — только если реально есть данные
         schedule_ctx = ""
@@ -1296,8 +1296,12 @@ class DocumentHandler:
         samples_ctx = ""
         try:
             samples = await self.db.get_samples_for_type(doc_type, doc_lang, limit=1)
+            if not samples:
+                # Образец может быть на другом языке: используем его только как
+                # каркас, а текст результата всё равно создаём на doc_lang.
+                samples = [s for s in await self.db.get_all_samples(limit=200) if s["doc_type"] == doc_type and s["is_active"]][:1]
             if samples:
-                samples_ctx = "\nЭТАЛОННЫЙ ОБРАЗЕЦ (ориентируйся на структуру и стиль):\n" + samples[0]["content"][:3000]
+                samples_ctx = "\nЭТАЛОННЫЙ ОБРАЗЕЦ (используй только структуру, порядок разделов и формат таблиц; текст переведи на выбранный язык):\n" + samples[0]["content"][:3000]
         except Exception:
             pass
 
@@ -1323,7 +1327,13 @@ class DocumentHandler:
         except Exception as exc:
             print(f"Template read error: {exc}")
 
+        language_instruction = {
+            "ru": "Пиши весь документ только на русском языке.",
+            "kz": "Құжаттың барлық мәтінін тек қазақ тілінде жаз. Орысша үлгі берілсе де, оны аударып, тек құрылымы мен кесте қаңқасын сақта.",
+            "en": "Write the entire document only in English. If the sample is in another language, translate its text while preserving only its structure and table layout.",
+        }.get(doc_lang, "Пиши весь документ только на русском языке.")
         user_prompt = (
+            f"{language_instruction}\n"
             f"Создай документ: {doc_name}\n\n"
             f"{profile_ctx}\n"
             f"{schedule_ctx}\n"

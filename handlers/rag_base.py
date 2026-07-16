@@ -504,7 +504,8 @@ def get_system_prompt(user: dict, lang: str) -> str:
     today = __import__('datetime').datetime.now().strftime("%d.%m.%Y")
     day_names = {
         "ru": ["понедельник","вторник","среда","четверг","пятница","суббота","воскресенье"],
-        "kz": ["дүйсенбі","сейсенбі","сәрсенбі","бейсенбі","жұма","сенбі","жексенбі"]
+        "kz": ["дүйсенбі","сейсенбі","сәрсенбі","бейсенбі","жұма","сенбі","жексенбі"],
+        "en": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
     }
     weekday = day_names[lang][__import__('datetime').datetime.now().weekday()]
     role    = user.get("role", "teacher")

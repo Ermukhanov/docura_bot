@@ -1,4 +1,5 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+import os
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from handlers.texts import t
@@ -11,7 +12,11 @@ class MainMenuHandler:
     async def show(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         user = await self.db.get_user(user_id)
-        if not user or not user.get("name"):
+        onboarding_done = user and user.get("role") and user.get("doc_language") and (
+            (user.get("role") == "kindergarten" and user.get("classes") and user.get("age_group")) or
+            (user.get("role") == "teacher" and user.get("classes") and user.get("subject"))
+        )
+        if not onboarding_done:
             from handlers.onboarding import OnboardingHandler
             await OnboardingHandler(self.db).start(update, context)
             return
@@ -38,10 +43,12 @@ class MainMenuHandler:
         )
 
         keyboard = [
+            *([[InlineKeyboardButton("✨ Открыть кабинет" if lang == "ru" else "✨ Кабинетті ашу" if lang == "kz" else "✨ Open dashboard", web_app=WebAppInfo(url=os.getenv("MINI_APP_URL")))] ] if os.getenv("MINI_APP_URL") else []),
             [InlineKeyboardButton(t(lang, "btn_create"),  callback_data="menu_create")],
             [InlineKeyboardButton(schedule_btn_text, callback_data="agent_schedule")],
             [InlineKeyboardButton(t(lang, "btn_history"), callback_data="menu_history"),
              InlineKeyboardButton(t(lang, "btn_profile"), callback_data="menu_profile")],
+            [InlineKeyboardButton("⭐ " + ("Тариф" if lang == "ru" else "Тариф" if lang == "kz" else "Plan"), callback_data="prof_sub")],
             [InlineKeyboardButton(t(lang, "btn_help"),    callback_data="menu_help")],
         ]
         await context.bot.send_message(
@@ -94,10 +101,12 @@ class MainMenuHandler:
                 ("📅 Расписание" if lang == "ru" else "📅 Кесте")
             )
             keyboard = [
+                *([[InlineKeyboardButton("✨ Открыть кабинет" if lang == "ru" else "✨ Кабинетті ашу" if lang == "kz" else "✨ Open dashboard", web_app=WebAppInfo(url=os.getenv("MINI_APP_URL")))] ] if os.getenv("MINI_APP_URL") else []),
                 [InlineKeyboardButton(t(lang, "btn_create"),  callback_data="menu_create")],
                 [InlineKeyboardButton(schedule_btn_text, callback_data="agent_schedule")],
                 [InlineKeyboardButton(t(lang, "btn_history"), callback_data="menu_history"),
                  InlineKeyboardButton(t(lang, "btn_profile"), callback_data="menu_profile")],
+                [InlineKeyboardButton("⭐ " + ("Тариф" if lang == "ru" else "Тариф" if lang == "kz" else "Plan"), callback_data="prof_sub")],
                 [InlineKeyboardButton(t(lang, "btn_help"),    callback_data="menu_help")],
             ]
             await query.edit_message_text(
