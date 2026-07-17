@@ -1,8 +1,747 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Docura</title><script src="https://telegram.org/js/telegram-web-app.js"></script><style>
-:root{--bg:#f6f6fa;--card:#fff;--ink:#1b1b27;--muted:#858594;--violet:#5b54e8;--dark:#20202e;--line:#ededf3}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 100% 0,#e6e3ff,transparent 34%),var(--bg);font:15px Inter,system-ui;color:var(--ink)}button{font:inherit;cursor:pointer;border:0}main{max-width:980px;margin:auto;padding:18px 18px 100px}.top{display:flex;align-items:center;justify-content:space-between;margin:5px 0 26px}.logo{font-size:24px;font-weight:900;letter-spacing:-1px}.logo i{color:var(--violet);font-style:normal}.avatar{width:45px;height:45px;border-radius:15px;background:var(--dark);color:#fff;display:grid;place-items:center;font-weight:800}.hero{border-radius:29px;padding:27px;color:#fff;background:linear-gradient(135deg,#1d1d2b,#665de8);box-shadow:0 22px 55px #3832a830}.hero small{color:#cfccff;text-transform:uppercase;letter-spacing:2px;font-size:11px}.hero h1{font-size:39px;line-height:.98;letter-spacing:-2.5px;margin:12px 0}.hero p{color:#deddf6;line-height:1.5;max-width:510px}.primary{background:#fff;color:#2b276c;border-radius:13px;padding:13px 17px;font-weight:850}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-top:16px}.card{background:var(--card);border-radius:21px;padding:18px;box-shadow:0 12px 35px #34316c0d}.card strong{display:block;font-size:25px;margin:10px 0 3px}.muted{color:var(--muted);font-size:13px}.section{margin-top:28px}.section h2{font-size:19px;letter-spacing:-.5px;margin:0 0 12px}.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.action{display:flex;align-items:center;gap:11px;text-align:left;background:#fff;border-radius:18px;padding:15px;font-weight:750;color:var(--ink)}.icon{width:39px;height:39px;border-radius:13px;display:grid;place-items:center;background:#e2f8ed;font-size:19px}.action:nth-child(2) .icon{background:#fff0c8}.action:nth-child(3) .icon{background:#e6e3ff}.action:nth-child(4) .icon{background:#ffe1e9}.promo{display:flex;align-items:center;justify-content:space-between;gap:15px;background:#20202e;color:#fff;border-radius:22px;padding:18px}.promo b{display:block;margin-bottom:5px}.promo small{color:#c7c5dd}.promo button{background:#d9d5ff;color:#292368;border-radius:11px;padding:10px 12px;font-weight:800}.row{display:flex;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}.row:last-child{border:0}.rowicon{width:37px;height:37px;border-radius:11px;background:#f0f0f7;display:grid;place-items:center}.row b{display:block;font-size:14px}.row small{color:var(--muted);display:block;margin-top:3px}.panel{display:none}.panel.active{display:block}.back{background:none;color:var(--violet);font-weight:800;padding:0;margin-bottom:17px}.tabs{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(980px,100%);display:grid;grid-template-columns:repeat(4,1fr);padding:10px 18px 14px;background:#f6f6fae8;backdrop-filter:blur(15px)}.tabs button{background:none;color:var(--muted);font-size:11px;padding:5px}.tabs button.active{color:var(--violet);font-weight:850}.loading{text-align:center;padding:70px;color:var(--muted)}@media(max-width:650px){.grid{grid-template-columns:repeat(2,1fr)}.grid .card:last-child{grid-column:span 2}.actions{grid-template-columns:repeat(2,1fr)}.promo{align-items:flex-start}.promo button{white-space:nowrap}}@media(min-width:700px){.hero{padding:40px}.hero h1{font-size:52px}}
-</style></head><body><main id="app"><div class="loading">Открываю Docura…</div></main><script>
-const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();let data;const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-function openBot(){if(tg?.openTelegramLink)tg.openTelegramLink('https://t.me/docurakz_bot');else location.href='https://t.me/docurakz_bot'}
-function layout(tab='home'){const u=data.user||{},name=esc(u.name||tg?.initDataUnsafe?.user?.first_name||'Коллега'),docs=data.documents||[];document.querySelector('#app').innerHTML=`<div class="top"><div class="logo">docura<i>.</i></div><div class="avatar">${esc(name[0])}</div></div><div id="home" class="panel ${tab==='home'?'active':''}"><section class="hero"><small>Персональный кабинет</small><h1>Привет, ${esc(name.split(' ')[0])}.</h1><p>Docura помогает учителям и воспитателям быстро создавать документы, общаться с AI-агентом и хранить всё важное в одном месте.</p><button class="primary" onclick="openBot()">＋ Создать документ в чате</button></section><div class="grid"><div class="card"><span class="muted">Документы</span><strong>${docs.length}</strong><span class="muted">последние</span></div><div class="card"><span class="muted">Приглашено</span><strong>${data.referrals||0}</strong><span class="muted">коллег</span></div><div class="card"><span class="muted">Тариф</span><strong>${u.subscribed?'PRO':'FREE'}</strong><span class="muted">Docura</span></div></div><section class="section"><div class="promo"><div><b>Первый месяц PRO выгоднее</b><small>Больше документов, голосовой ввод и AI без ограничений.</small></div><button onclick="openBot()">Подробнее</button></div></section><section class="section"><h2>Быстрый доступ</h2><div class="actions"><button class="action" onclick="panel('docs')"><span class="icon">✦</span>Документы</button><button class="action" onclick="panel('agent')"><span class="icon">◎</span>AI-агент</button><button class="action" onclick="panel('memory')"><span class="icon">◌</span>Память</button><button class="action" onclick="panel('friends')"><span class="icon">↗</span>Друзья</button></div></section></div><div id="docs" class="panel ${tab==='docs'?'active':''}"><button class="back" onclick="panel('home')">← Главная</button><h2>Мои документы</h2><div class="card">${docs.map(x=>`<div class="row"><span class="rowicon">📄</span><div><b>${esc(x.doc_name)}</b><small>${esc((x.created_at||'').slice(0,10))} · оценка ${x.score||'—'}</small></div></div>`).join('')||'<span class="muted">Документов пока нет. Создай первый в чате.</span>'}</div></div><div id="agent" class="panel ${tab==='agent'?'active':''}"><button class="back" onclick="panel('home')">← Главная</button><h2>AI-агент Docura</h2><div class="card"><strong>Напиши ему в Telegram</strong><p class="muted">Опиши задачу обычными словами — агент поможет выбрать документ, использует профиль и продолжит работу в чате.</p><button class="primary" onclick="openBot()">Открыть AI-чат</button></div></div><div id="memory" class="panel ${tab==='memory'?'active':''}"><button class="back" onclick="panel('home')">← Главная</button><h2>Память AI</h2><div class="card"><strong>${data.memory?'Память активна':'Память пока пустая'}</strong><p class="muted">Docura запоминает полезные настройки и контекст только для твоих документов.</p></div></div><div id="friends" class="panel ${tab==='friends'?'active':''}"><button class="back" onclick="panel('home')">← Главная</button><h2>Друзья и приглашения</h2><div class="card"><strong>${data.referrals||0} приглашённых коллег</strong><p class="muted">Используй существующую реферальную программу `/invite` и получай бонусные документы.</p><button class="primary" onclick="openBot()">Открыть /invite</button></div></div><div class="tabs"><button class="${tab==='home'?'active':''}" onclick="panel('home')">⌂<br>Главная</button><button class="${tab==='docs'?'active':''}" onclick="panel('docs')">▤<br>Документы</button><button class="${tab==='agent'?'active':''}" onclick="panel('agent')">✧<br>AI-агент</button><button class="${tab==='friends'?'active':''}" onclick="panel('friends')">◉<br>Профиль</button></div>`}
-function panel(x){layout(x)}async function boot(){let r=await fetch('/api/me',{headers:{'X-Telegram-Init-Data':tg?.initData||''}});if(!r.ok)throw 0;data=await r.json();layout()}boot().catch(()=>document.querySelector('#app').innerHTML='<div class="loading">Откройте кабинет из Telegram</div>');
-</script></body></html>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Docura</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --navy: #1A2E5A;
+    --blue: #2E75B6;
+    --light-blue: #EBF3FB;
+    --bg: #F5F7FA;
+    --card: #FFFFFF;
+    --ink: #1a202c;
+    --muted: #718096;
+    --border: #E2E8F0;
+    --green: #48BB78;
+    --gold: #F6AD55;
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    padding-bottom: 80px;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--navy);
+    padding: 16px 20px 20px;
+    padding-top: calc(16px + env(safe-area-inset-top));
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .logo {
+    font-size: 20px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.5px;
+  }
+  .logo span { color: #7EB8F0; }
+  .avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px;
+  }
+  .header-sub {
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+  }
+
+  /* ── TABS ── */
+  .tabs {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    display: flex;
+    padding-bottom: env(safe-area-inset-bottom);
+    z-index: 100;
+  }
+  .tab {
+    flex: 1;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 10px 4px;
+    gap: 3px;
+    background: none; border: none; cursor: pointer;
+    color: var(--muted);
+    font-size: 10px; font-weight: 500;
+    transition: color 0.15s;
+  }
+  .tab.active { color: var(--navy); }
+  .tab svg { width: 20px; height: 20px; }
+
+  /* ── CONTENT ── */
+  .content { padding: 16px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+  }
+  .card-title {
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    background: linear-gradient(135deg, var(--navy) 0%, #2E4A8A 100%);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 12px;
+    color: #fff;
+  }
+  .hero-greeting { font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 4px; }
+  .hero-name { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 12px; }
+  .hero-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .hero-stat { text-align: center; }
+  .hero-stat-val { font-size: 20px; font-weight: 800; }
+  .hero-stat-label { font-size: 10px; color: rgba(255,255,255,0.55); margin-top: 2px; }
+
+  /* ── BADGE ── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+  }
+  .badge-pro { background: rgba(255,255,255,0.15); color: #fff; }
+  .badge-free { background: var(--light-blue); color: var(--blue); }
+  .badge-green { background: #F0FFF4; color: #276749; }
+
+  /* ── PROFILE ROWS ── */
+  .profile-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .profile-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .profile-icon {
+    width: 36px; height: 36px; border-radius: var(--radius-sm);
+    background: var(--light-blue);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 16px;
+  }
+  .profile-label { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+  .profile-value { font-size: 14px; font-weight: 600; color: var(--ink); }
+
+  /* ── DOC LIST ── */
+  .doc-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .doc-item:last-child { border-bottom: none; }
+  .doc-icon {
+    width: 38px; height: 38px; border-radius: var(--radius-sm);
+    background: var(--light-blue);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .doc-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .doc-meta { font-size: 11px; color: var(--muted); }
+  .doc-score {
+    margin-left: auto; flex-shrink: 0;
+    font-size: 12px; font-weight: 700;
+    color: var(--blue);
+  }
+
+  /* ── FRIENDS ── */
+  .ref-link-box {
+    background: var(--light-blue);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    font-size: 12px;
+    color: var(--blue);
+    font-weight: 600;
+    word-break: break-all;
+    margin-bottom: 14px;
+    cursor: pointer;
+    border: 1.5px dashed var(--blue);
+  }
+  .ref-link-box:active { opacity: 0.7; }
+  .stat-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-val { font-weight: 700; color: var(--navy); }
+
+  /* ── PRO CARD ── */
+  .pro-card {
+    background: linear-gradient(135deg, #1A2E5A, #2E75B6);
+    border-radius: var(--radius);
+    padding: 20px;
+    color: #fff;
+    margin-bottom: 12px;
+  }
+  .pro-title { font-size: 18px; font-weight: 800; margin-bottom: 6px; }
+  .pro-sub { font-size: 13px; color: rgba(255,255,255,0.65); margin-bottom: 16px; }
+  .pro-features { list-style: none; }
+  .pro-features li {
+    font-size: 13px; color: rgba(255,255,255,0.85);
+    padding: 5px 0;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pro-features li::before { content: "✓"; color: #7EB8F0; font-weight: 700; }
+
+  /* ── MEMORY ── */
+  .memory-item {
+    padding: 10px 12px;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.5;
+  }
+
+  /* ── BUTTON ── */
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%;
+    padding: 13px;
+    border-radius: var(--radius-sm);
+    border: none; cursor: pointer;
+    font-size: 14px; font-weight: 700;
+    font-family: inherit;
+    transition: opacity 0.15s;
+  }
+  .btn:active { opacity: 0.8; }
+  .btn-primary { background: var(--navy); color: #fff; }
+  .btn-outline {
+    background: transparent;
+    color: var(--navy);
+    border: 1.5px solid var(--navy);
+  }
+
+  /* ── LOADING ── */
+  .loading {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: 60vh; gap: 12px;
+    color: var(--muted); font-size: 14px;
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty {
+    text-align: center; padding: 40px 20px;
+    color: var(--muted); font-size: 14px;
+  }
+  .empty-icon { font-size: 36px; margin-bottom: 10px; }
+
+  /* ── SCHEDULE ── */
+  .schedule-day {
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+  .schedule-day-name {
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--blue); margin-bottom: 8px;
+  }
+  .schedule-lesson {
+    font-size: 13px; color: var(--ink);
+    padding: 4px 0;
+    display: flex; gap: 10px;
+  }
+  .schedule-time { color: var(--muted); flex-shrink: 0; min-width: 48px; }
+
+  /* ── SAMPLES ── */
+  .sample-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
+  }
+  .sample-item:last-child { border-bottom: none; }
+  .sample-icon {
+    width: 36px; height: 36px;
+    background: var(--light-blue); border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .sample-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .sample-meta { font-size: 11px; color: var(--muted); }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--navy); color: #fff;
+    padding: 10px 20px; border-radius: 20px;
+    font-size: 13px; font-weight: 600;
+    z-index: 999; opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-top">
+    <div class="logo">docura<span>.</span>kz</div>
+    <div class="avatar" id="avatarEl">—</div>
+  </div>
+  <div class="header-sub" id="headerSub">Личный кабинет</div>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+
+  <!-- HOME -->
+  <div id="tab-home" class="panel active">
+    <div class="loading" id="homeLoading">
+      <div class="spinner"></div>
+      <div>Загружаю данные...</div>
+    </div>
+    <div id="homeContent" style="display:none">
+      <div class="hero" id="heroBlock"></div>
+      <div class="card" id="quickActions"></div>
+    </div>
+  </div>
+
+  <!-- DOCS -->
+  <div id="tab-docs" class="panel">
+    <div class="card">
+      <div class="card-title">Мои документы</div>
+      <div id="docsList"><div class="empty"><div class="empty-icon">📄</div>Документов пока нет</div></div>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div id="tab-profile" class="panel">
+    <div class="card" id="profileCard">
+      <div class="card-title">Профиль</div>
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+    <div class="card" id="subCard"></div>
+    <button class="btn btn-primary" onclick="openBot()">
+      ✏️ Изменить профиль в боте
+    </button>
+  </div>
+
+  <!-- FRIENDS -->
+  <div id="tab-friends" class="panel">
+    <div class="card">
+      <div class="card-title">Реферальная программа</div>
+      <div id="refBlock">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AGENT -->
+  <div id="tab-agent" class="panel">
+    <div class="card">
+      <div class="card-title">Расписание</div>
+      <div id="scheduleBlock">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="card-title">Память AI</div>
+      <div id="memoryBlock">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="card-title">Мои образцы</div>
+      <div id="samplesBlock">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+    <button class="btn btn-outline" onclick="openBot()" style="margin-top:4px">
+      🤖 Открыть AI-чат в боте
+    </button>
+  </div>
+
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('home', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+      <polyline points="9 22 9 12 15 12 15 22"/>
+    </svg>
+    Главная
+  </button>
+  <button class="tab" onclick="switchTab('docs', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+    </svg>
+    Документы
+  </button>
+  <button class="tab" onclick="switchTab('profile', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
+    </svg>
+    Профиль
+  </button>
+  <button class="tab" onclick="switchTab('friends', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+    </svg>
+    Друзья
+  </button>
+  <button class="tab" onclick="switchTab('agent', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+    </svg>
+    AI-агент
+  </button>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+tg?.ready();
+tg?.expand();
+tg?.setHeaderColor('#1A2E5A');
+tg?.setBackgroundColor('#F5F7FA');
+
+let DATA = null;
+
+// ── UTILS ──
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+function openBot() {
+  const url = DATA?.bot_url || 'https://t.me/docurakz_bot';
+  if (tg?.openTelegramLink) tg.openTelegramLink(url);
+  else window.open(url, '_blank');
+}
+function copyText(text) {
+  navigator.clipboard?.writeText(text).then(() => showToast('Ссылка скопирована!')).catch(() => showToast('Скопируйте вручную'));
+}
+
+// ── TABS ──
+function switchTab(name, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── RENDER ──
+function renderHome(d) {
+  const u = d.user;
+  const name = (u.name || '').split(' ')[0] || tg?.initDataUnsafe?.user?.first_name || 'Коллега';
+  document.getElementById('avatarEl').textContent = name[0]?.toUpperCase() || '?';
+  document.getElementById('headerSub').textContent = u.school || 'Личный кабинет';
+
+  const isPro = u.subscribed;
+  const freeLeft = Math.max(0, (3 + (u.bonus_docs || 0)) - (u.free_used || 0));
+
+  document.getElementById('heroBlock').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div>
+        <div class="hero-greeting">Привет,</div>
+        <div class="hero-name">${esc(name)} 👋</div>
+      </div>
+      <span class="badge ${isPro ? 'badge-pro' : 'badge-free'}">
+        ${isPro ? '⭐ PRO' : '🆓 Free'}
+      </span>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="hero-stat-val">${d.documents.length}</div>
+        <div class="hero-stat-label">Документов</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-val">${d.referrals_rewarded || 0}</div>
+        <div class="hero-stat-label">Друзей</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-val">${isPro ? '∞' : freeLeft}</div>
+        <div class="hero-stat-label">${isPro ? 'Безлимит' : 'Осталось'}</div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('quickActions').innerHTML = `
+    <div class="card-title">Быстрые действия</div>
+    <button class="btn btn-primary" onclick="openBot()" style="margin-bottom:10px">
+      📄 Создать документ
+    </button>
+    ${!isPro ? `<button class="btn btn-outline" onclick="switchTab('profile', document.querySelectorAll('.tab')[2])">
+      ⭐ Оформить PRO
+    </button>` : ''}
+  `;
+
+  document.getElementById('homeLoading').style.display = 'none';
+  document.getElementById('homeContent').style.display = 'block';
+}
+
+function renderDocs(d) {
+  const docs = d.documents;
+  if (!docs.length) return;
+  document.getElementById('docsList').innerHTML = docs.map(doc => `
+    <div class="doc-item">
+      <div class="doc-icon">📄</div>
+      <div style="flex:1;min-width:0">
+        <div class="doc-name">${esc(doc.doc_name)}</div>
+        <div class="doc-meta">${(doc.created_at || '').slice(0,10)}</div>
+      </div>
+      <div class="doc-score">${doc.score || 0}/100</div>
+    </div>
+  `).join('');
+}
+
+function renderProfile(d) {
+  const u = d.user;
+  const isPro = u.subscribed;
+  const isKg = u.role === 'kindergarten';
+
+  const rows = [
+    { icon: '👤', label: 'ФИО', value: u.name },
+    { icon: isKg ? '🧸' : '🏫', label: isKg ? 'Детский сад' : 'Школа', value: u.school },
+    isKg
+      ? { icon: '👶', label: 'Группа', value: u.age_group }
+      : { icon: '📚', label: 'Предмет', value: u.subject },
+    isKg
+      ? null
+      : { icon: '🏷', label: 'Классы', value: u.classes },
+    { icon: '💼', label: 'Должность', value: u.position },
+    { icon: isKg ? '👔' : '👔', label: isKg ? 'Заведующая' : 'Директор', value: u.director },
+  ].filter(r => r && r.value);
+
+  document.getElementById('profileCard').innerHTML = `
+    <div class="card-title">Профиль</div>
+    ${rows.map(r => `
+      <div class="profile-row">
+        <div class="profile-icon">${r.icon}</div>
+        <div>
+          <div class="profile-label">${r.label}</div>
+          <div class="profile-value">${esc(r.value)}</div>
+        </div>
+      </div>
+    `).join('')}
+    ${!rows.length ? '<div class="empty"><div class="empty-icon">👤</div>Профиль не заполнен</div>' : ''}
+  `;
+
+  const freeUsed = u.free_used || 0;
+  const freeTotal = 3 + (u.bonus_docs || 0);
+  const freeLeft = Math.max(0, freeTotal - freeUsed);
+
+  document.getElementById('subCard').innerHTML = isPro ? `
+    <div class="card-title">Подписка</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <div style="font-size:32px">⭐</div>
+      <div>
+        <div style="font-size:16px;font-weight:800;color:var(--navy)">Docura PRO</div>
+        <div style="font-size:12px;color:var(--muted)">Безлимитный доступ активен</div>
+      </div>
+    </div>
+    <div class="stat-row"><span>Статус</span><span class="stat-val badge badge-green">Активна ✓</span></div>
+    <div class="stat-row"><span>Документов создано</span><span class="stat-val">${freeUsed}</span></div>
+  ` : `
+    <div class="card-title">Подписка</div>
+    <div class="stat-row"><span>Статус</span><span class="stat-val" style="color:var(--muted)">Бесплатный план</span></div>
+    <div class="stat-row"><span>Осталось документов</span><span class="stat-val">${freeLeft} / ${freeTotal}</span></div>
+    <div class="stat-row"><span>Создано всего</span><span class="stat-val">${freeUsed}</span></div>
+    <button class="btn btn-primary" onclick="openBot()" style="margin-top:14px">
+      ⭐ Оформить PRO — 4 990 тг/мес
+    </button>
+    <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">
+      Безлимитная генерация · Все документы · Голосовой ввод
+    </div>
+  `;
+}
+
+function renderFriends(d) {
+  const link = d.ref_link || '';
+  document.getElementById('refBlock').innerHTML = `
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5">
+      За каждого коллегу, который зарегистрируется по вашей ссылке:<br>
+      <strong style="color:var(--navy)">Вам +5 документов · Им +2 документа</strong>
+    </div>
+    ${link ? `
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Ваша ссылка</div>
+      <div class="ref-link-box" onclick="copyText('${esc(link)}')">
+        🔗 ${esc(link)}<br>
+        <span style="font-size:10px;opacity:0.7">Нажмите чтобы скопировать</span>
+      </div>
+    ` : ''}
+    <div class="stat-row">
+      <span>Приглашено</span>
+      <span class="stat-val">${d.referrals || 0}</span>
+    </div>
+    <div class="stat-row">
+      <span>Подтверждено</span>
+      <span class="stat-val">${d.referrals_rewarded || 0}</span>
+    </div>
+    <div class="stat-row">
+      <span>Бонусных документов</span>
+      <span class="stat-val">${d.bonus_docs || 0}</span>
+    </div>
+    ${link ? `
+      <button class="btn btn-outline" onclick="shareLink('${esc(link)}')" style="margin-top:14px">
+        📤 Поделиться ссылкой
+      </button>
+    ` : ''}
+  `;
+}
+
+function shareLink(link) {
+  if (tg?.openTelegramLink) {
+    tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Попробуй Docura.kz — генерирует документы для учителей за секунды!')}`);
+  } else {
+    copyText(link);
+  }
+}
+
+function renderAgent(d) {
+  // Schedule
+  let schedHtml = '';
+  if (d.schedule?.schedule_data) {
+    try {
+      const s = JSON.parse(d.schedule.schedule_data);
+      const days = Object.entries(s);
+      if (days.length) {
+        schedHtml = days.map(([day, lessons]) => `
+          <div class="schedule-day">
+            <div class="schedule-day-name">${esc(day)}</div>
+            ${Array.isArray(lessons) ? lessons.map(l => `
+              <div class="schedule-lesson">
+                <span class="schedule-time">${esc(l.time || '')}</span>
+                <span>${esc(l.class || '')} ${esc(l.subject || '')}</span>
+              </div>
+            `).join('') : `<div style="font-size:13px">${esc(String(lessons))}</div>`}
+          </div>
+        `).join('');
+      }
+    } catch(e) {}
+  }
+  document.getElementById('scheduleBlock').innerHTML = schedHtml || `
+    <div class="empty">
+      <div class="empty-icon">📅</div>
+      Расписание не загружено
+      <br><br>
+      <button class="btn btn-outline" onclick="openBot()" style="max-width:200px;margin:0 auto">
+        Загрузить в боте
+      </button>
+    </div>
+  `;
+
+  // Memory
+  let memHtml = '';
+  if (d.memory?.context_data) {
+    try {
+      const m = JSON.parse(d.memory.context_data);
+      const items = [];
+      if (m.schedule_loaded) items.push('📅 Расписание загружено');
+      if (m.reminders_enabled) items.push('🔔 Напоминания включены');
+      const conc = m.concierge;
+      if (conc?.history?.length) items.push(`💬 История чата: ${conc.history.length} сообщений`);
+      if (items.length) {
+        memHtml = items.map(i => `<div class="memory-item">${i}</div>`).join('');
+      }
+    } catch(e) {}
+  }
+  document.getElementById('memoryBlock').innerHTML = memHtml || `
+    <div class="empty">
+      <div class="empty-icon">🧠</div>
+      Память пока пустая
+    </div>
+  `;
+
+  // Samples
+  const samples = d.samples || [];
+  document.getElementById('samplesBlock').innerHTML = samples.length ? samples.map(s => `
+    <div class="sample-item">
+      <div class="sample-icon">📎</div>
+      <div>
+        <div class="sample-name">${esc(s.original_name || s.doc_type)}</div>
+        <div class="sample-meta">${esc(s.doc_type)} · ${esc(s.lang)} · ${(s.created_at || '').slice(0,10)}</div>
+      </div>
+    </div>
+  `).join('') : `
+    <div class="empty">
+      <div class="empty-icon">📎</div>
+      Образцы не загружены
+    </div>
+  `;
+}
+
+// ── MAIN ──
+async function boot() {
+  try {
+    const res = await fetch('/api/me', {
+      headers: { 'X-Telegram-Init-Data': tg?.initData || '' }
+    });
+    if (!res.ok) throw new Error('auth');
+    DATA = await res.json();
+
+    renderHome(DATA);
+    renderDocs(DATA);
+    renderProfile(DATA);
+    renderFriends(DATA);
+    renderAgent(DATA);
+
+  } catch(e) {
+    document.getElementById('homeLoading').innerHTML = `
+      <div style="text-align:center;padding:40px 20px">
+        <div style="font-size:40px;margin-bottom:12px">🔐</div>
+        <div style="font-weight:700;margin-bottom:8px">Откройте через Telegram</div>
+        <div style="font-size:13px;color:var(--muted)">Этот кабинет доступен только через бота @docurakz_bot</div>
+      </div>
+    `;
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
