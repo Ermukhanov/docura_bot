@@ -769,7 +769,6 @@ class DocumentHandler:
         if data.startswith("doc_lang_"):
             doc_lang = data.split("_")[2]
             context.user_data["doc_lang"] = doc_lang
-            await self.db.upsert_user(user_id, {"document_lang": doc_lang})
             doc_type = context.user_data.get("doc_type", "")
             if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
                 await self._start_cycle_schedule(query, context, user, lang)
@@ -921,28 +920,22 @@ class DocumentHandler:
             )
             return
 
-        if doc_type in DOCUMENT_REGISTRY and not context.user_data.get("doc_lang"):
-            saved_doc_lang = user.get("document_lang") or user.get("doc_language")
-            context.user_data["doc_type"] = doc_type
-            if saved_doc_lang in DOCUMENT_REGISTRY[doc_type]["language_support"]:
-                context.user_data["doc_lang"] = saved_doc_lang
-                label = _doc_lang_name(saved_doc_lang)
-                await query.edit_message_text(
-                    (f"Язык документа: {label}" if saved_doc_lang == "ru" else f"Құжат тілі: {label}" if saved_doc_lang == "kz" else f"Document language: {label}"),
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("Создать" if saved_doc_lang == "ru" else "Жасау" if saved_doc_lang == "kz" else "Create", callback_data="doc_lang_confirm")],
-                        [InlineKeyboardButton("Изменить язык" if saved_doc_lang == "ru" else "Тілді өзгерту" if saved_doc_lang == "kz" else "Change language", callback_data="doc_lang_change")],
-                    ])
-                )
-            else:
-                await query.edit_message_text(
-                    "Выберите язык документа / Құжат тілін таңдаңыз / Choose document language",
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("🇰🇿 Қазақша", callback_data="doc_lang_kz"), InlineKeyboardButton("🇷🇺 Русский", callback_data="doc_lang_ru")],
-                        [InlineKeyboardButton("🇬🇧 English", callback_data="doc_lang_en")],
-                    ])
-                )
-            return
+        # Выбор языка всегда относится только к текущему документу. Не используем
+        # язык из профиля и не оставляем его от предыдущей генерации.
+        context.user_data.pop("doc_lang", None)
+        context.user_data["doc_type"] = doc_type
+        doc_name = DOC_NAMES.get(lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
+        await query.edit_message_text(
+            (f"📄 *{doc_name}*\n{DIVIDER}\n🌐 На каком языке создать документ?" if lang == "ru"
+             else f"📄 *{doc_name}*\n{DIVIDER}\n🌐 Құжатты қандай тілде жасау керек?"),
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🇷🇺 Русский", callback_data="doc_lang_ru"), InlineKeyboardButton("🇰🇿 Қазақша", callback_data="doc_lang_kz")],
+                [InlineKeyboardButton("🇬🇧 English", callback_data="doc_lang_en")],
+                [InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")],
+            ]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
 
         # Циклограмма использует язык и подтверждённые данные профиля сразу,
         # поэтому не спрашивает их повторно и не проходит общий опросник.

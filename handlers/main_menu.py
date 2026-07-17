@@ -12,7 +12,7 @@ class MainMenuHandler:
     async def show(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         user = await self.db.get_user(user_id)
-        onboarding_done = user and user.get("role") and user.get("doc_language") and (
+        onboarding_done = user and user.get("role") and (
             (user.get("role") == "kindergarten" and user.get("classes") and user.get("age_group")) or
             (user.get("role") == "teacher" and user.get("classes") and user.get("subject"))
         )

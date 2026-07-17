@@ -196,20 +196,18 @@ class OnboardingHandler:
         if step in {"onboard_kg_group", "onboard_kg_age", "onboard_teacher_classes", "onboard_teacher_subject"}:
             field_next = {
                 "onboard_kg_group": ("classes", "onboard_kg_age", "Какой возраст детей в группе? Например: 3-4 года" if lang == "ru" else "Топтағы балалардың жасы қандай? Мысалы: 3-4 жас" if lang == "kz" else "What is the children’s age group? For example: 3-4 years"),
-                "onboard_kg_age": ("age_group", "onboard_doc_lang", "На каком языке обычно нужны документы?" if lang == "ru" else "Құжаттар қай тілде қажет?" if lang == "kz" else "What language do you usually need documents in?"),
+                "onboard_kg_age": ("age_group", None, None),
                 "onboard_teacher_classes": ("classes", "onboard_teacher_subject", "Какой предмет преподаешь?" if lang == "ru" else "Қандай пәннен сабақ бересіз?" if lang == "kz" else "What subject do you teach?"),
-                "onboard_teacher_subject": ("subject", "onboard_doc_lang", "На каком языке обычно нужны документы?" if lang == "ru" else "Құжаттар қай тілде қажет?" if lang == "kz" else "What language do you usually need documents in?"),
+                "onboard_teacher_subject": ("subject", None, None),
             }
             field, next_step, next_q = field_next[step]
             await self.db.upsert_user(user_id, {field: text})
-            context.user_data["step"] = next_step
-            if next_step == "onboard_doc_lang":
-                existing_doc_lang = user.get("doc_language")
-                if existing_doc_lang:
-                    await self._finish_minimal(None, context, user_id, lang, update=update)
-                    return
-                await update.message.reply_text(next_q, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🇰🇿 Қазақша", callback_data="onboard_doc_kz"), InlineKeyboardButton("🇷🇺 Русский", callback_data="onboard_doc_ru")], [InlineKeyboardButton("🇬🇧 English", callback_data="onboard_doc_en")], cancel_kb[0]]))
+            # Язык документа не является частью регистрации: он выбирается заново
+            # перед созданием каждого документа.
+            if next_step is None:
+                await self._finish_minimal(None, context, user_id, lang, update=update)
             else:
+                context.user_data["step"] = next_step
                 await update.message.reply_text(next_q, reply_markup=InlineKeyboardMarkup(cancel_kb))
             return
 
@@ -334,9 +332,9 @@ class OnboardingHandler:
         user = await self.db.get_user(user_id)
         role = user.get("role", "teacher")
         if role == "kindergarten":
-            msg = "Готово. Я запомнил твою группу и язык документов\n\nЧто нужно сделать сегодня?" if lang == "ru" else "Дайын. Тобыңыз бен құжат тілін есте сақтадым\n\nБүгін не істейміз?" if lang == "kz" else "Done. I saved your group and document language\n\nWhat would you like to do today?"
+            msg = "Готово. Я запомнил твою группу.\n\nЧто нужно сделать сегодня?" if lang == "ru" else "Дайын. Тобыңызды есте сақтадым.\n\nБүгін не істейміз?" if lang == "kz" else "Done. I saved your group.\n\nWhat would you like to do today?"
         else:
-            msg = "Готово. Я запомнил твой класс, предмет и язык документов\n\nЧто нужно сделать сегодня?" if lang == "ru" else "Дайын. Сыныбыңыз, пәніңіз және құжат тілі сақталды\n\nБүгін не істейміз?" if lang == "kz" else "Done. I saved your class, subject, and document language\n\nWhat would you like to do today?"
+            msg = "Готово. Я запомнил твой класс и предмет.\n\nЧто нужно сделать сегодня?" if lang == "ru" else "Дайын. Сыныбыңыз бен пәніңіз сақталды.\n\nБүгін не істейміз?" if lang == "kz" else "Done. I saved your class and subject.\n\nWhat would you like to do today?"
         from handlers.main_menu import MainMenuHandler
         mm = MainMenuHandler(self.db)
         chat_id = query.message.chat_id if query else update.message.chat_id
