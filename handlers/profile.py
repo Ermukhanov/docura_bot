@@ -1,6 +1,7 @@
 import json
 import base64
 import hashlib
+from urllib.parse import quote
 import anthropic
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -50,6 +51,8 @@ class ProfileHandler:
         total_free = free_limit_for(user)
         free_left = max(0, total_free - free_used)
         bonus_docs = user.get("bonus_docs", 0) or 0
+        saved_hours = free_used * 0.5
+        saved_hours_text = f"{saved_hours:g}"
 
         if is_pro:
             sub_line = "⭐ *PRO* — безлимитный доступ активен" if lang == "ru" else "⭐ *PRO* — шексіз қол жеткізу белсенді"
@@ -74,7 +77,8 @@ class ProfileHandler:
                     f"👔 *Заведующая:* {director}\n\n"
                     f"{'━' * 28}\n"
                     f"{sub_line}\n"
-                    f"📄 Создано документов: *{free_used}*"
+                    f"📄 Создано документов: *{free_used}*\n"
+                    f"⏱ Сэкономлено времени: примерно *{saved_hours_text} ч*"
                 )
             else:
                 text = (
@@ -87,7 +91,8 @@ class ProfileHandler:
                     f"👔 *Меңгеруші:* {director}\n\n"
                     f"{'━' * 28}\n"
                     f"{sub_line}\n"
-                    f"📄 Жасалған құжаттар: *{free_used}*"
+                    f"📄 Жасалған құжаттар: *{free_used}*\n"
+                    f"⏱ Үнемделген уақыт: шамамен *{saved_hours_text} сағ*"
                 )
         else:
             subject  = user.get("subject", "—")
@@ -106,7 +111,8 @@ class ProfileHandler:
                     f"🏫 *Кл.рук:* {is_ct}\n\n"
                     f"{'━' * 28}\n"
                     f"{sub_line}\n"
-                    f"📄 Создано документов: *{free_used}*"
+                    f"📄 Создано документов: *{free_used}*\n"
+                    f"⏱ Сэкономлено времени: примерно *{saved_hours_text} ч*"
                 )
             else:
                 text = (
@@ -120,7 +126,8 @@ class ProfileHandler:
                     f"👔 *Директор:* {director}\n\n"
                     f"{'━' * 28}\n"
                     f"{sub_line}\n"
-                    f"📄 Жасалған құжаттар: *{free_used}*"
+                    f"📄 Жасалған құжаттар: *{free_used}*\n"
+                    f"⏱ Үнемделген уақыт: шамамен *{saved_hours_text} сағ*"
                 )
 
         students_btn_text = t(lang, "btn_my_children") if is_kg else t(lang, "btn_my_students")
@@ -132,6 +139,7 @@ class ProfileHandler:
             [InlineKeyboardButton("🔔 " + ("Напоминания" if lang == "ru" else "Еске салғыштар"), callback_data="agent_reminders")],
             [InlineKeyboardButton("⭐ " + t(lang, "btn_subscription"),  callback_data="prof_sub")],
             [InlineKeyboardButton("🌐 " + t(lang, "btn_change_lang"),   callback_data="prof_lang")],
+            [InlineKeyboardButton("✉️ " + ("Жалоба или отзыв" if lang == "ru" else "Шағым немесе пікір"), callback_data="prof_complaint")],
             [MENU_BTN(lang)],
         ]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
@@ -170,6 +178,15 @@ class ProfileHandler:
                  else "✏️ *Профильді өңдеу*\n\nАты-жөніңізді енгізіңіз:"),
                 reply_markup=InlineKeyboardMarkup(kb),
                 parse_mode=ParseMode.MARKDOWN
+            )
+
+        elif data == "prof_complaint":
+            context.user_data["step"] = "prof_complaint"
+            await query.edit_message_text(
+                ("✉️ Напишите жалобу, отзыв или опишите ошибку одним сообщением.\n\nПосле отправки появится кнопка для письма на docurakz@gmail.com."
+                 if lang == "ru" else
+                 "✉️ Шағымды, пікірді немесе қатені бір хабарламада жазыңыз.\n\nЖібергеннен кейін docurakz@gmail.com поштасына арналған батырма шығады."),
+                reply_markup=InlineKeyboardMarkup([[CANCEL_BTN(lang)]])
             )
 
         elif data == "prof_students":
@@ -556,6 +573,17 @@ class ProfileHandler:
         step    = context.user_data.get("step", "")
 
         cancel_kb = [[CANCEL_BTN(lang)]]
+
+        if step == "prof_complaint":
+            context.user_data["step"] = None
+            subject = quote("Docura: отзыв или жалоба")
+            body = quote(text)
+            mail_url = f"mailto:docurakz@gmail.com?subject={subject}&body={body}"
+            await update.message.reply_text(
+                "✅ Спасибо! Нажмите кнопку ниже, чтобы отправить сообщение." if lang == "ru" else "✅ Рахмет! Хабарламаны жіберу үшін төмендегі батырманы басыңыз.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✉️ Отправить на почту" if lang == "ru" else "✉️ Поштаға жіберу", url=mail_url)], [MENU_BTN(lang)]])
+            )
+            return
 
         # ── Редактирование профиля: САДИК ──
         kg_prof_steps = {

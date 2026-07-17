@@ -152,7 +152,7 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for d in docs:
             lines.append(f"📄 {d['doc_name']} — {d['created_at'][:10]} ⭐{d['score']}/100")
         text = "\n".join(lines)
-    kb = [[InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")]]
+    kb = [[InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")]]
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
 
 
@@ -165,15 +165,9 @@ async def _start_after_account_reset(update: Update, context: ContextTypes.DEFAU
 
     context.user_data.clear()
     # Язык профиля был сброшен; русский нужен только как стартовый язык интерфейса.
-    await db.upsert_user(update.effective_user.id, {"reset_pending": 0, "lang": "ru"})
-    keyboard = [[
-        InlineKeyboardButton("🏫 Школа", callback_data="role_select_teacher"),
-        InlineKeyboardButton("🧸 Детский сад", callback_data="role_select_kindergarten"),
-    ]]
-    await update.effective_message.reply_text(
-        "Привет, я Docura. Помогу подготовить документы для школы или садика",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
+    # После сброса запускаем единый onboarding: сначала выбор языка.
+    await db.upsert_user(update.effective_user.id, {"reset_pending": 0, "lang": None, "lang_selected": 0})
+    await OnboardingHandler(db).start(update, context)
     return True
 
 

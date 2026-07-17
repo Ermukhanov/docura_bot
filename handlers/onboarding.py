@@ -34,7 +34,9 @@ class OnboardingHandler:
                 await self.db.upsert_user(user_id, {"referred_by": referrer["tg_id"]})
 
         keyboard = [[InlineKeyboardButton("🇰🇿 Қазақша", callback_data="lang_kz"), InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"), InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")]]
-        if user and user.get("lang"):
+        # lang в старых базах имеет значение по умолчанию 'ru', поэтому нельзя
+        # считать его признаком реального выбора пользователя.
+        if user and user.get("lang_selected"):
             await update.message.reply_text(
                 "Где ты работаешь?" if user.get("lang") == "ru" else "Қай жерде жұмыс істейсіз?" if user.get("lang") == "kz" else "Where do you work?",
                 reply_markup=InlineKeyboardMarkup([
@@ -68,7 +70,7 @@ class OnboardingHandler:
 
         if data.startswith("lang_"):
             lang = data.split("_")[1]
-            await self.db.upsert_user(user_id, {"lang": lang})
+            await self.db.upsert_user(user_id, {"lang": lang, "lang_selected": 1})
             context.user_data["step"] = "reg_name"
             await query.edit_message_text(
                 "👤 Как вас зовут? Введите ФИО:" if lang == "ru" else

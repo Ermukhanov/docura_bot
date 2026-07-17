@@ -1,6 +1,7 @@
 import os
 import json
 import anthropic
+from urllib.parse import quote
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
@@ -582,8 +583,8 @@ CAT_DOCS = {
 # Категории документов садика (полностью отдельный набор — НЕ школьные типы)
 CAT_DOCS_KG = {
     "kg_planning": ["kg_thematic_plan", "kg_activity_summary", "kg_individual_development_card", "kindergarten_cycle_schedule", "kg_perspective_plan", "kg_matinee_script"],
-    "kg_reports":  ["kg_monthly_report", "development_monitoring"],
-    "kg_children": ["kg_child_characteristic", "kg_parent_letter", "kg_absence_cert"],
+    "kg_reports":  ["kg_monthly_report"],
+    "kg_children": ["kg_child_characteristic", "kg_parent_letter", "kg_absence_cert", "development_monitoring"],
     "kg_personal": ["kg_vacation_request", "kg_explanation", "kg_announcement"],
 }
 
@@ -1037,10 +1038,11 @@ class DocumentHandler:
     async def _start_development_monitoring(self, query, context, user, lang):
         questions = [
             {"key": "period", "q": "За какой период нужен мониторинг?" if lang == "ru" else "Мониторинг қай кезеңге керек?"},
-            {"key": "group", "q": "Для какой группы он нужен?" if lang == "ru" else "Ол қай топқа арналған?"},
-            {"key": "children", "q": "Пришли список детей или загрузи таблицу с именами" if lang == "ru" else "Балалардың тізімін немесе аттары бар кестені жіберіңіз"},
+            {"key": "age_group", "q": "Для какой возрастной группы он нужен?" if lang == "ru" else "Ол қай жас тобына арналған?"},
+            {"key": "children", "q": "Пришлите список детей: по одному имени в строке или через запятую." if lang == "ru" else "Балалардың тізімін жіберіңіз: әр жолға бір баладан немесе үтір арқылы."},
         ]
-        context.user_data.update({"doc_type": DEVELOPMENT_MONITORING, "doc_lang": lang, "doc_answers": {"organization": user.get("school", ""), "educator_name": user.get("name", ""), "age_group": user.get("age_group", "")}, "questions": questions, "q_index": 0, "step": "waiting_answer"})
+        saved_group = user.get("age_group", "")
+        context.user_data.update({"doc_type": DEVELOPMENT_MONITORING, "doc_lang": lang, "doc_answers": {"organization": user.get("school", ""), "educator_name": user.get("name", ""), "group": saved_group, "age_group": saved_group}, "questions": questions, "q_index": 0, "step": "waiting_answer"})
         await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING])
 
     async def _use_student_data(self, query, context, user_id, user, lang, student_id):
@@ -1445,8 +1447,8 @@ class DocumentHandler:
                             else f"🔥 PRO {TIER_PRICES['pro_promo']} тг",
                             callback_data="prof_choose_pro_promo"
                         )],
-                        [InlineKeyboardButton("🎁 Или пригласить и получить +5", callback_data="menu_invite")],
-                        [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
+                        [InlineKeyboardButton("🎁 Или пригласить и получить +5" if lang == "ru" else "🎁 Шақырып, +5 алыңыз", callback_data="menu_invite")],
+                        [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
                     ]
                     note = (
                         f"⚠️ *Бесплатные документы исчерпаны!*\n\n"
@@ -1460,9 +1462,9 @@ class DocumentHandler:
                     )
                 else:
                     kb_after = [
-                        [InlineKeyboardButton("🎁 Пригласить и получить +5", callback_data="menu_invite")],
-                        [InlineKeyboardButton("⭐ Оформить PRO — безлимит", callback_data="prof_sub")],
-                        [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
+                        [InlineKeyboardButton("🎁 Пригласить и получить +5" if lang == "ru" else "🎁 Шақырып, +5 алыңыз", callback_data="menu_invite")],
+                        [InlineKeyboardButton("⭐ Оформить PRO — безлимит" if lang == "ru" else "⭐ PRO рәсімдеу — шексіз", callback_data="prof_sub")],
+                        [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
                     ]
                     note = ("⚠️ *Бесплатные документы исчерпаны!*\n"
                             "Оформите PRO или пригласите коллегу через /invite — за каждого +5 документов.") if lang == "ru" else \
@@ -1470,17 +1472,22 @@ class DocumentHandler:
                             "PRO рәсімдеңіз немесе /invite арқылы әріптесіңізді шақырыңыз.")
             else:
                 kb_after = [
-                    [InlineKeyboardButton("📄 Создать ещё", callback_data="menu_create")],
-                    [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
+                    [InlineKeyboardButton("📄 Создать ещё" if lang == "ru" else "📄 Тағы жасау", callback_data="menu_create")],
+                    [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
                 ]
                 note = (f"🆓 Осталось бесплатных: *{free_left}/{total_free}*") if lang == "ru" else \
                        (f"🆓 Қалған тегін: *{free_left}/{total_free}*")
         else:
             kb_after = [
-                [InlineKeyboardButton("📄 Создать ещё", callback_data="menu_create")],
-                [InlineKeyboardButton("🏠 Главное меню", callback_data="menu_main")],
+                [InlineKeyboardButton("📄 Создать ещё" if lang == "ru" else "📄 Тағы жасау", callback_data="menu_create")],
+                [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
             ]
             note = "⭐ *PRO* — безлимитный доступ" if lang == "ru" else "⭐ *PRO* — шексіз қол жеткізу"
+
+        share_title = DOC_NAMES.get(lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
+        share_text = quote(f"Создал документ «{share_title}» за 1 минуту в @docurakz_bot\nПопробуй бесплатно 👇")
+        share_url = f"https://t.me/share/url?url=https://t.me/docurakz_bot&text={share_text}"
+        kb_after.insert(0, [InlineKeyboardButton("📤 Поделиться" if lang == "ru" else "📤 Бөлісу", url=share_url)])
 
         await message.reply_text(
             note,

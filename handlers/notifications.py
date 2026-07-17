@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import random
 from telegram.ext import Application
 from telegram.constants import ParseMode
 from database import Database
@@ -26,10 +27,20 @@ async def send_reminders(app: Application, db: Database, concierge=None):
                             state["pending"] = pending
                             await concierge._save_state(tg_id, state)
                     else:
-                        from handlers.texts import t
                         name = (user.get("name") or "").split()[0]
-                        text_key = "notif_reminder_kg" if user.get("role") == "kindergarten" else "notif_reminder"
-                        text = t(lang, text_key, name=name)
+                        variants = {
+                            "ru": [
+                                f"{name}, на этой неделе ещё не создавали документы. Нужна помощь? 📄",
+                                f"{name}, быстро создайте нужный документ — это займёт меньше минуты 🚀",
+                                f"{name}, не забудьте про документы! Я помогу сделать всё быстро ✅",
+                            ],
+                            "kz": [
+                                f"{name}, осы аптада әлі құжат жасамадыңыз. Көмек керек пе? 📄",
+                                f"{name}, қажетті құжатты жылдам жасаңыз — бір минуттан аз уақыт кетеді 🚀",
+                                f"{name}, құжаттарды ұмытпаңыз! Мен жылдам көмектесемін ✅",
+                            ],
+                        }
+                        text = random.choice(variants.get(lang, variants["ru"]))
 
                     await app.bot.send_message(
                         chat_id=tg_id,
