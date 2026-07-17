@@ -69,7 +69,13 @@ class OnboardingHandler:
         if data.startswith("lang_"):
             lang = data.split("_")[1]
             await self.db.upsert_user(user_id, {"lang": lang})
-            await self._show_institution(query, lang)
+            context.user_data["step"] = "reg_name"
+            await query.edit_message_text(
+                "👤 Как вас зовут? Введите ФИО:" if lang == "ru" else
+                "👤 Аты-жөніңіз кім? Аты-жөніңізді енгізіңіз:" if lang == "kz" else
+                "👤 What is your full name?",
+                reply_markup=InlineKeyboardMarkup([[CANCEL_BTN(lang)]])
+            )
 
         elif data == "role_select_sample":
             user = await self.db.get_user(user_id)
@@ -172,14 +178,16 @@ class OnboardingHandler:
 
     async def _start_registration(self, query, context, lang, role="teacher"):
         context.user_data["role"] = role
-        context.user_data["step"] = "onboard_kg_group" if role == "kindergarten" else "onboard_teacher_classes"
+        user = await self.db.get_user(query.from_user.id)
+        has_name = bool(user and user.get("name"))
+        context.user_data["step"] = "reg_school" if has_name else "reg_name"
         question = (
-            "Как называется твоя группа? Например: «Солнышко»" if role == "kindergarten" and lang == "ru" else
-            "Тобыңыз қалай аталады? Мысалы: «Күншуақ»" if role == "kindergarten" and lang == "kz" else
-            "What is your group called? For example: “Sunshine”" if role == "kindergarten" else
-            "С каким классом ты работаешь? Например: 5 «А»" if lang == "ru" else
-            "Қай сыныппен жұмыс істейсіз? Мысалы: 5 «А»" if lang == "kz" else
-            "Which class do you work with? For example: Grade 5A"
+            ("🏫 Название детского сада?" if role == "kindergarten" else "🏫 Название школы?") if lang == "ru" and has_name else
+            ("🏫 Балабақшаның атауы?" if role == "kindergarten" else "🏫 Мектептің атауы?") if lang == "kz" and has_name else
+            ("🏫 Kindergarten name?" if role == "kindergarten" else "🏫 School name?") if has_name else
+            ("👤 Как вас зовут? Введите ФИО:" if lang == "ru" else
+             "👤 Аты-жөніңіз кім? Аты-жөніңізді енгізіңіз:" if lang == "kz" else
+             "👤 What is your full name?")
         )
         await query.edit_message_text(question, reply_markup=InlineKeyboardMarkup([[CANCEL_BTN(lang)]]))
 
@@ -218,6 +226,20 @@ class OnboardingHandler:
             await update.message.reply_text(t(lang, "val_too_long"), reply_markup=InlineKeyboardMarkup(cancel_kb))
             return
 
+        # Сначала сохраняем ФИО, затем пользователь выбирает: школа или садик.
+        if step == "reg_name" and not user.get("role"):
+            await self.db.upsert_user(user_id, {"name": text})
+            context.user_data["step"] = "reg_choose_role"
+            await update.message.reply_text(
+                "🏫 Где вы работаете?" if lang == "ru" else "🏫 Қай жерде жұмыс істейсіз?" if lang == "kz" else "🏫 Where do you work?",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🧸 Детский сад" if lang == "ru" else "🧸 Балабақша" if lang == "kz" else "🧸 Kindergarten", callback_data="role_select_kindergarten")],
+                    [InlineKeyboardButton("🏫 Школа" if lang == "ru" else "🏫 Мектеп" if lang == "kz" else "🏫 School", callback_data="role_select_teacher")],
+                    [CANCEL_BTN(lang)],
+                ])
+            )
+            return
+
         if role == "kindergarten":
             # Отдельный (упрощённый) онбординг для садика:
             # ФИО -> название садика -> возрастная группа -> должность -> заведующая
@@ -246,6 +268,9 @@ class OnboardingHandler:
             if step in kg_steps:
                 field, next_step, next_q = kg_steps[step]
                 await self.db.upsert_user(user_id, {field: text})
+                # Для садика это одновременно рабочая группа и возрастная группа.
+                if step == "reg_age_group":
+                    await self.db.upsert_user(user_id, {"classes": text})
                 context.user_data["step"] = next_step
                 await update.message.reply_text(next_q, reply_markup=InlineKeyboardMarkup(cancel_kb), parse_mode=ParseMode.MARKDOWN)
             elif step == "reg_director":
@@ -255,10 +280,10 @@ class OnboardingHandler:
             # Стандартный онбординг для учителей школы
             steps_flow = {
                 "reg_name":     ("name",     "reg_school",   t(lang, "reg_school")),
-                "reg_school":   ("school",   "reg_subject",  t(lang, "reg_subject")),
-                "reg_subject":  ("subject",  "reg_classes",  t(lang, "reg_classes")),
-                "reg_classes":  ("classes",  "reg_position", t(lang, "reg_position")),
-                "reg_position": ("position", "reg_director", t(lang, "reg_director")),
+                "reg_school":   ("school",   "reg_position", t(lang, "reg_position")),
+                "reg_position": ("position", "reg_classes", t(lang, "reg_classes")),
+                "reg_classes":  ("classes",  "reg_subject",  t(lang, "reg_subject")),
+                "reg_subject":  ("subject",  "reg_director", t(lang, "reg_director")),
             }
 
             if step in steps_flow:
@@ -269,16 +294,7 @@ class OnboardingHandler:
 
             elif step == "reg_director":
                 await self.db.upsert_user(user_id, {"director": text})
-                context.user_data["step"] = "reg_class_teacher"
-                keyboard = [[
-                    InlineKeyboardButton("✅ " + t(lang, "yes"), callback_data="role_class_yes"),
-                    InlineKeyboardButton("❌ " + t(lang, "no"),  callback_data="role_class_no"),
-                ]]
-                await update.message.reply_text(
-                    t(lang, "reg_is_class_teacher"),
-                    reply_markup=InlineKeyboardMarkup(keyboard),
-                    parse_mode=ParseMode.MARKDOWN
-                )
+                await self._finish_registration(None, context, user_id, lang, update=update)
 
             elif step == "reg_class_name":
                 await self.db.upsert_user(user_id, {"classes": text})
