@@ -179,6 +179,71 @@ class AgentHandler:
             await self.db.update_agent_context(user_id, {"reminders_enabled": not bool(memory.get("reminders_enabled"))})
             await query.edit_message_text("✅ Настройка напоминаний сохранена. Напоминание предложит документ, но не создаст его без подтверждения." if lang == "ru" else "✅ Еске салғыш параметрі сақталды. Құжат растаусыз жасалмайды.", reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]]))
 
+        elif data == "agent_reminders_off":
+            await self.db.update_agent_context(user_id, {"reminders_enabled": False})
+            await query.edit_message_text(
+                "🔕 Напоминания отключены. Включить их можно в разделе «Напоминания»." if lang == "ru"
+                else "🔕 Еске салғыштар өшірілді. Оларды «Еске салғыштар» бөлімінен қайта қоса аласыз.",
+                reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]])
+            )
+
+        elif data == "agent_remind_later":
+            # Не меняем предпочтение пользователя: лишь переносим следующее уведомление.
+            await self.db.update_notified(user_id)
+            await query.edit_message_text(
+                "Хорошо, напомню позже." if lang == "ru" else "Жақсы, кейінірек еске саламын.",
+                reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]])
+            )
+
+        elif data == "agent_skip":
+            await query.edit_message_text(
+                "Хорошо, не буду создавать автоматически." if lang == "ru" else "Жақсы, автоматты түрде жасамаймын.",
+                reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]])
+            )
+
+        elif data in {"agent_auto_generate_ksp", "agent_auto_generate_cycle"}:
+            if not user or not user.get("subscribed") or not user.get("auto_generate"):
+                await query.edit_message_text(
+                    "Автогенерация доступна только в PRO после её включения." if lang == "ru"
+                    else "Автоматты жасау тек PRO тарифінде және ол қосылғанда қолжетімді.",
+                    reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]])
+                )
+                return
+
+            from handlers.documents import DocumentHandler
+            doc_type = "lesson_plan" if data == "agent_auto_generate_ksp" else "kindergarten_cycle_schedule"
+            schedule_json = await self.db.get_schedule(user_id)
+            schedule = json.loads(schedule_json) if schedule_json else {}
+            monday = schedule.get("Понедельник", []) if isinstance(schedule, dict) else []
+            first_lesson = next((item for item in monday if isinstance(item, dict)), {})
+
+            # _generate использует профиль и полный контекст расписания. Для циклограммы
+            # также заполняем обязательные поля минимальными подтверждёнными данными.
+            answers = {}
+            if doc_type == "lesson_plan":
+                subject = first_lesson.get("subject") or user.get("subject", "")
+                class_name = first_lesson.get("class") or user.get("classes", "")
+                if subject or class_name:
+                    answers["subject_class"] = " ".join(part for part in [subject, class_name] if part)
+            else:
+                answers = {
+                    "organization": user.get("school", ""),
+                    "group": user.get("age_group", ""),
+                    "period": "следующая неделя" if lang == "ru" else "келесі апта",
+                    "week_topic": "[уточнить]",
+                    "events": "нет" if lang == "ru" else "жоқ",
+                }
+
+            context.user_data.update({
+                "doc_type": doc_type,
+                "doc_lang": user.get("document_lang") or lang,
+                "doc_answers": answers,
+                "q_index": 0,
+                "step": "waiting_answer",
+            })
+            await query.edit_message_text("✅ Начинаю генерацию..." if lang == "ru" else "✅ Жасауды бастаймын...")
+            await DocumentHandler(self.db, self.api_key)._generate(query.message, context, lang)
+
         elif data == "agent_suggest_doc":
             doc_type = context.user_data.get("suggested_doc_type")
             if doc_type:
@@ -369,13 +434,11 @@ class AgentHandler:
     # ══════════════════════════════════════════════════════
 
     async def get_context_for_generation(self, user_id: int) -> str:
-        """Возвращает контекст агента для подстановки в промпт при генерации"""
+        """Собирает сохранённые данные пользователя для точной генерации."""
+        user = await self.db.get_user(user_id)
         schedule_json = await self.db.get_schedule(user_id)
-        if not schedule_json:
-            return ""
-
         try:
-            schedule = json.loads(schedule_json)
+            schedule = json.loads(schedule_json) if schedule_json else {}
             today = datetime.now().strftime("%A")
 
             day_map = {
@@ -383,9 +446,41 @@ class AgentHandler:
                 "Thursday": "Четверг", "Friday": "Пятница", "Saturday": "Суббота",
             }
             today_ru = day_map.get(today, "")
-            today_lessons = schedule.get(today_ru, [])
+            today_lessons = schedule.get(today_ru, []) if isinstance(schedule, dict) else []
+            lines = ["КОНТЕКСТ ПОЛЬЗОВАТЕЛЯ ДЛЯ ТОЧНОЙ ГЕНЕРАЦИИ:"]
 
-            lines = ["\nРАСПИСАНИЕ / РЕЖИМ ДНЯ:"]
+            if user:
+                is_kg = user.get("role") == "kindergarten"
+                institution = "детский сад" if is_kg else "школа"
+                lines.append(f"Учреждение: {institution}" + (f" ({user.get('school')})" if user.get("school") else ""))
+                if is_kg:
+                    values = [user.get("age_group"), user.get("position")]
+                    if any(values):
+                        lines.append("Группа и возраст: " + ", ".join(value for value in values if value))
+                else:
+                    values = [user.get("subject"), user.get("classes")]
+                    if any(values):
+                        lines.append("Предмет и классы: " + ", ".join(value for value in values if value))
+
+            documents = await self.db.get_history(user_id, limit=5)
+            if documents:
+                recent = []
+                for document in documents:
+                    label = document.get("doc_name") or document.get("doc_type", "документ")
+                    date = (document.get("created_at") or "")[:10]
+                    recent.append(f"{label} ({date})" if date else label)
+                lines.append("Последние документы: " + "; ".join(recent))
+
+            students = await self.db.get_students(user_id)
+            if students:
+                by_class = {}
+                for student in students:
+                    by_class.setdefault(student.get("class_name") or "без группы", []).append(student.get("name", ""))
+                student_parts = [f"{group}: {', '.join(names[:20])}" for group, names in by_class.items()]
+                lines.append("База учеников/детей: " + "; ".join(student_parts))
+
+            if schedule:
+                lines.append("РАСПИСАНИЕ / РЕЖИМ ДНЯ:")
             for day, lessons in schedule.items():
                 if isinstance(lessons, list):
                     lessons_str = ", ".join(
@@ -400,8 +495,8 @@ class AgentHandler:
                     if isinstance(l, dict):
                         lines.append(f"  • {l.get('time', '')} — {l.get('class', '')} {l.get('subject', '')}")
 
-            return "\n".join(lines)
-        except:
+            return "\n".join(lines) if len(lines) > 1 else ""
+        except Exception:
             return ""
 
     async def suggest_after_generation(self, user_id: int, doc_type: str, lang: str) -> dict | None:

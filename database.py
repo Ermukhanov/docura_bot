@@ -115,6 +115,14 @@ class Database:
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(tg_id, doc_type, scope)
                 );
+
+                CREATE TABLE IF NOT EXISTS funnel_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tg_id INTEGER NOT NULL,
+                    event TEXT NOT NULL,
+                    doc_type TEXT DEFAULT '',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
             """)
             await db.commit()
 
@@ -129,6 +137,20 @@ class Database:
             await self._ensure_column(db, "users", "reset_pending", "INTEGER DEFAULT 0")
             await self._ensure_column(db, "users", "document_lang", "TEXT")
             await self._ensure_column(db, "users", "lang_selected", "INTEGER DEFAULT 0")
+            # Память агента и настройки персональных напоминаний.
+            # Добавляются отдельно, чтобы не ломать уже созданные базы SQLite.
+            await self._ensure_column(db, "users", "last_doc_type", "TEXT")
+            await self._ensure_column(db, "users", "last_doc_date", "TEXT")
+            await self._ensure_column(db, "users", "auto_generate", "INTEGER DEFAULT 0")
+            await self._ensure_column(db, "users", "reminder_days", "INTEGER DEFAULT 7")
+            await self._ensure_column(db, "students", "parents", "TEXT")
+            await self._ensure_column(db, "students", "parent_phone", "TEXT")
+            await self._ensure_column(db, "students", "address", "TEXT")
+            await self._ensure_column(db, "students", "birth_date", "TEXT")
+            await self._ensure_column(db, "students", "health_group", "TEXT")
+            await self._ensure_column(db, "students", "notes_extended", "TEXT")
+            await self._ensure_column(db, "analytics", "rating", "INTEGER")
+            await self._ensure_column(db, "users", "funnel_step", "TEXT")
             await db.commit()
 
             # Уникальный индекс на ref_code — создаём отдельно от ALTER TABLE,
@@ -152,6 +174,17 @@ class Database:
             cols = [row[1] for row in await cur.fetchall()]
         if column not in cols:
             await db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+
+    async def log_funnel(self, tg_id: int, step: str):
+        """Сохраняет последний достигнутый шаг воронки пользователя."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE users SET funnel_step=? WHERE tg_id=?", (step, tg_id))
+            await db.commit()
+
+    async def log_funnel_event(self, tg_id: int, event: str, doc_type: str = ""):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("INSERT INTO funnel_events (tg_id, event, doc_type) VALUES (?,?,?)", (tg_id, event, doc_type))
+            await db.commit()
 
     # ===== USERS =====
     async def get_user(self, tg_id: int):

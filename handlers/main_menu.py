@@ -49,6 +49,7 @@ class MainMenuHandler:
             [InlineKeyboardButton(t(lang, "btn_history"), callback_data="menu_history"),
              InlineKeyboardButton(t(lang, "btn_profile"), callback_data="menu_profile")],
             [InlineKeyboardButton("⭐ " + ("Тариф" if lang == "ru" else "Тариф" if lang == "kz" else "Plan"), callback_data="prof_sub")],
+            [InlineKeyboardButton("💬 " + ("Написать разработчику" if lang == "ru" else "Әзірлеушіге жазу"), callback_data="menu_feedback")],
             [InlineKeyboardButton(t(lang, "btn_help"),    callback_data="menu_help")],
         ]
         await context.bot.send_message(
@@ -79,6 +80,10 @@ class MainMenuHandler:
         elif data == "menu_invite":
             await self._show_invite(query, context, user_id, user, lang)
 
+        elif data == "menu_feedback":
+            context.user_data["step"] = "feedback_waiting"
+            await query.edit_message_text("Напишите ваш вопрос или отзыв." if lang == "ru" else "Сұрағыңызды жазыңыз.")
+
         elif data == "menu_help":
             help_key = "help_text_kg" if user.get("role") == "kindergarten" else "help_text"
             keyboard = [[InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")]]
@@ -107,6 +112,7 @@ class MainMenuHandler:
                 [InlineKeyboardButton(t(lang, "btn_history"), callback_data="menu_history"),
                  InlineKeyboardButton(t(lang, "btn_profile"), callback_data="menu_profile")],
                 [InlineKeyboardButton("⭐ " + ("Тариф" if lang == "ru" else "Тариф" if lang == "kz" else "Plan"), callback_data="prof_sub")],
+                [InlineKeyboardButton("💬 " + ("Написать разработчику" if lang == "ru" else "Әзірлеушіге жазу"), callback_data="menu_feedback")],
                 [InlineKeyboardButton(t(lang, "btn_help"),    callback_data="menu_help")],
             ]
             await query.edit_message_text(

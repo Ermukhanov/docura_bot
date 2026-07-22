@@ -111,6 +111,15 @@ def _para(doc, text="", align=WD_ALIGN_PARAGRAPH.LEFT,
     return p
 
 
+def _add_signature_block(doc, teacher_name: str, director_name: str):
+    """Добавляет обязательный блок подписей в конец каждого Word-документа."""
+    doc.add_paragraph().paragraph_format.space_before = Pt(12)
+    _add_hrule(doc, "A0AEC0", "6")
+    _para(doc, f"Педагог: {teacher_name} ____________________", space_before=6)
+    _para(doc, f"Руководитель: {director_name} ____________________")
+    _para(doc, "Дата: ____________________")
+    _para(doc, "М.П.")
+
 def validate_cycle_schedule_data(data: dict) -> list[str]:
     """Проверяет обязательные поля до создания циклограммы."""
     labels = {
@@ -121,12 +130,13 @@ def validate_cycle_schedule_data(data: dict) -> list[str]:
     return [label for key, label in labels.items() if not str(data.get(key, "")).strip()]
 
 
-def generate_word(content: str, title: str, teacher_name: str = "", cycle_data: dict | None = None, monitoring_data: dict | None = None, registry_doc_type: str = "") -> str:
+def generate_word(content: str, title: str, teacher_name: str = "", director_name: str = "", cycle_data: dict | None = None, monitoring_data: dict | None = None, registry_doc_type: str = "") -> str:
     """
     Генерирует красивый Word документ по стандартам РК.
     Возвращает путь к .docx файлу.
     """
     doc = Document()
+    doc.core_properties.author = "Docura"
 
     # ── Страница: поля ГОСТ РК ────────────────────────
     for section in doc.sections:
@@ -150,24 +160,7 @@ def generate_word(content: str, title: str, teacher_name: str = "", cycle_data: 
     style.paragraph_format.line_spacing = Pt(18)
     style.paragraph_format.space_after  = Pt(0)
 
-    # ── ШАПКА — тёмно-синяя таблица ──────────────────
-    hdr_table = doc.add_table(rows=1, cols=1)
-    hdr_table.style = "Table Grid"
-    hdr_cell = hdr_table.rows[0].cells[0]
-    _set_cell_color(hdr_cell, NAVY_HEX)
-    _set_cell_borders(hdr_cell, NAVY_HEX)
-    hdr_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    hp = hdr_cell.paragraphs[0]
-    hp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    hp.paragraph_format.space_before = Pt(6)
-    hp.paragraph_format.space_after  = Pt(6)
-    hr = hp.add_run("Подготовлено в Docura")
-    hr.font.name  = FONT_MAIN
-    hr.font.size  = Pt(9)
-    hr.font.color.rgb = WHITE
-    hr.font.bold  = True
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(6)
+    # Бренд Docura сохраняется только в метаданных файла.
 
     # ── ЗАГОЛОВОК ДОКУМЕНТА ───────────────────────────
     title_p = _para(doc, title.upper(),
@@ -189,11 +182,7 @@ def generate_word(content: str, title: str, teacher_name: str = "", cycle_data: 
     else:
         _parse_content(doc, content)
 
-    if registry_doc_type != "kg_individual_development_card":
-        doc.add_paragraph().paragraph_format.space_before = Pt(12)
-        _add_hrule(doc, "A0AEC0", "6")
-        _para(doc, "Подготовлено в Docura", align=WD_ALIGN_PARAGRAPH.CENTER,
-              italic=True, size=8, color=RGBColor(0xA0, 0xAE, 0xC0), space_before=4)
+    _add_signature_block(doc, teacher_name, director_name)
 
     fname = os.path.join(tempfile.gettempdir(), f"docura_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx")
     doc.save(fname)

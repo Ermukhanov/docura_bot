@@ -1,6 +1,7 @@
 import json
 import base64
 import hashlib
+import re
 from urllib.parse import quote
 import anthropic
 from datetime import datetime
@@ -153,7 +154,7 @@ class ProfileHandler:
         lang    = user.get("lang", "ru") if user else "ru"
         is_kg   = (user or {}).get("role") == "kindergarten"
 
-        if data in ("prof_students", "prof_add_student") and (not user or not user.get("subscribed")):
+        if data in ("prof_students", "prof_add_student", "prof_upload_students") and (not user or not user.get("subscribed")):
             await query.edit_message_text(
                 "Эта функция доступна в PRO. В PRO можно хранить группы и детей/учеников и использовать их в документах."
                 if lang == "ru" else
@@ -261,6 +262,44 @@ class ProfileHandler:
             )
             await query.edit_message_text(name_q, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
+        elif data == "prof_upload_students":
+            context.user_data["step"] = "student_bulk_upload"
+            await query.edit_message_text(
+                ("Отправьте список учеников одним сообщением или фото журнала класса.\n\n"
+                 "Формат текста:\n1. Иванов Алмаз, 2010, родитель: Иванов А.С.\n2. Петрова Айгерим, 2011\n\n"
+                 "Или просто имена через запятую:\nАлмаз Иванов, Айгерим Петрова, Нурлан Ахметов") if lang == "ru" else
+                "Оқушылар тізімін бір хабарламамен немесе сынып журналының суретімен жіберіңіз.",
+                reply_markup=InlineKeyboardMarkup([[CANCEL_BTN(lang)]])
+            )
+
+        elif data == "prof_bulk_confirm":
+            pending = context.user_data.pop("bulk_students", [])
+            default_class = user.get("age_group") if is_kg else user.get("classes", "")
+            for item in pending:
+                data = {
+                    "name": item["name"], "class_name": item.get("class_name") or default_class or "—",
+                    "grades": {}, "achievements": [], "absences": 0,
+                    "behavior": "хорошее" if lang == "ru" else "жақсы",
+                }
+                await self.db.add_student(user_id, data)
+                students = await self.db.get_students(user_id)
+                saved = next((student for student in reversed(students) if student["name"] == item["name"]), None)
+                if saved:
+                    await self.db.update_student(saved["id"], {
+                        "birth_date": item.get("birth_date", ""), "parents": item.get("parent_name", ""),
+                        "parent_phone": item.get("phone", ""),
+                    })
+            context.user_data["step"] = None
+            await query.edit_message_text(
+                (f"✅ Добавлено учеников: {len(pending)}" if lang == "ru" else f"✅ Қосылған оқушылар: {len(pending)}"),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("👥 " + ("Мои ученики" if not is_kg and lang == "ru" else "Мои воспитанники" if is_kg and lang == "ru" else "Менің оқушыларым"), callback_data="prof_students")], [MENU_BTN(lang)]])
+            )
+
+        elif data == "prof_bulk_cancel":
+            context.user_data.pop("bulk_students", None)
+            context.user_data["step"] = None
+            await self._show_students(query, user_id, lang, is_kg)
+
         elif data.startswith("student_del_"):
             student_id = int(data[12:])
             await self.db.delete_student(student_id)
@@ -285,6 +324,7 @@ class ProfileHandler:
         if not students:
             keyboard = [
                 [InlineKeyboardButton("➕ " + add_btn_text, callback_data="prof_add_student")],
+                [InlineKeyboardButton("📋 " + ("Загрузить список" if lang == "ru" else "Тізімді жүктеу"), callback_data="prof_upload_students")],
                 [MENU_BTN(lang)],
             ]
             await query.edit_message_text(
@@ -309,6 +349,7 @@ class ProfileHandler:
                 InlineKeyboardButton("🗑", callback_data=f"student_del_{s['id']}"),
             ])
         keyboard.append([InlineKeyboardButton("➕ " + add_btn_text, callback_data="prof_add_student")])
+        keyboard.append([InlineKeyboardButton("📋 " + ("Загрузить список" if lang == "ru" else "Тізімді жүктеу"), callback_data="prof_upload_students")])
         keyboard.append([MENU_BTN(lang)])
 
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
@@ -330,6 +371,9 @@ class ProfileHandler:
             f"🏷 {group_label}: {s['class_name']}\n"
             f"😊 Поведение: {s.get('behavior', '—')}\n"
             f"📅 Пропуски: {s.get('absences', 0)} дн.\n\n"
+            f"👪 Родители: {s.get('parents') or '—'}\n"
+            f"📞 Телефон: {s.get('parent_phone') or '—'}\n"
+            f"🎂 Дата рождения: {s.get('birth_date') or '—'}\n\n"
             f"📊 *{'Достижения' if is_kg else 'Оценки'}:*\n{'' if is_kg else grades_str}\n\n"
             f"🏆 *Достижения:*\n{achieve_str}"
         ) if lang == "ru" else (
@@ -337,6 +381,9 @@ class ProfileHandler:
             f"🏷 {group_label}: {s['class_name']}\n"
             f"😊 Мінез-құлық: {s.get('behavior', '—')}\n"
             f"📅 Өткізулер: {s.get('absences', 0)} күн\n\n"
+            f"👪 Ата-ана: {s.get('parents') or '—'}\n"
+            f"📞 Телефон: {s.get('parent_phone') or '—'}\n"
+            f"🎂 Туған күні: {s.get('birth_date') or '—'}\n\n"
             f"🏆 *Жетістіктер:*\n{achieve_str}"
         )
 
@@ -418,6 +465,15 @@ class ProfileHandler:
 
     async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Получает скриншот чека Kaspi и проверяет его через Claude Vision"""
+        if context.user_data.get("step") == "student_bulk_upload":
+            await self._parse_students_from_photo(update, context)
+            return
+        if context.user_data.get("step") == "template_photo":
+            # Фото образца может первым попасть в общий обработчик профиля.
+            # Передаём его в штатный поток документов, не затрагивая чеки.
+            from handlers.documents import DocumentHandler
+            await DocumentHandler(self.db, self.api_key).handle_photo(update, context)
+            return
         await self._process_receipt(update, context, source="photo")
 
     async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -585,6 +641,10 @@ class ProfileHandler:
             )
             return
 
+        if step == "student_bulk_upload":
+            await self._parse_students_from_text(update, context, text)
+            return
+
         # ── Редактирование профиля: САДИК ──
         kg_prof_steps = {
             "prof_edit_name":     ("name",     "prof_edit_school",    ("🏫 Введите название детского сада:" if lang == "ru" else "🏫 Балабақшаның атауын енгізіңіз:")),
@@ -732,6 +792,30 @@ class ProfileHandler:
             }
             behavior = behavior_map.get(text, text)
             context.user_data["new_student"]["behavior"] = behavior
+            context.user_data["step"] = "student_parents"
+            await update.message.reply_text(
+                "👪 ФИО родителей (или «пропустить»):" if lang == "ru" else "👪 Ата-анасының аты-жөні (немесе «өткізу»):",
+                reply_markup=InlineKeyboardMarkup(cancel_kb)
+            )
+
+        elif step == "student_parents":
+            context.user_data["new_student"]["parents"] = "" if text.lower() in {"пропустить", "өткізу", "-", "нет", "жоқ"} else text
+            context.user_data["step"] = "student_parent_phone"
+            await update.message.reply_text(
+                "📞 Телефон родителей (или «пропустить»):" if lang == "ru" else "📞 Ата-анасының телефоны (немесе «өткізу»):",
+                reply_markup=InlineKeyboardMarkup(cancel_kb)
+            )
+
+        elif step == "student_parent_phone":
+            context.user_data["new_student"]["parent_phone"] = "" if text.lower() in {"пропустить", "өткізу", "-", "нет", "жоқ"} else text
+            context.user_data["step"] = "student_birth_date"
+            await update.message.reply_text(
+                "🎂 Дата рождения (или «пропустить»):" if lang == "ru" else "🎂 Туған күні (немесе «өткізу»):",
+                reply_markup=InlineKeyboardMarkup(cancel_kb)
+            )
+
+        elif step == "student_birth_date":
+            context.user_data["new_student"]["birth_date"] = "" if text.lower() in {"пропустить", "өткізу", "-", "нет", "жоқ"} else text
             await self._finish_add_student(update, context, user_id, lang, is_kg)
 
     async def _finish_add_student(self, update, context, user_id, lang, is_kg=False):
@@ -739,6 +823,15 @@ class ProfileHandler:
         if not student_data.get("behavior"):
             student_data["behavior"] = "хорошее" if lang == "ru" else "жақсы"
         await self.db.add_student(user_id, student_data)
+        # Базовый метод БД сохраняет прежние поля; новые добавляем тем же безопасным
+        # интерфейсом обновления, не меняя существующую структуру добавления.
+        saved = next((s for s in reversed(await self.db.get_students(user_id)) if s["name"] == student_data.get("name")), None)
+        if saved:
+            await self.db.update_student(saved["id"], {
+                "parents": student_data.get("parents", ""),
+                "parent_phone": student_data.get("parent_phone", ""),
+                "birth_date": student_data.get("birth_date", ""),
+            })
         context.user_data["step"] = None
         name = student_data.get("name", "")
         add_btn_text = t(lang, "btn_add_child") if is_kg else t(lang, "btn_add_student")
@@ -752,4 +845,55 @@ class ProfileHandler:
             f"✅ *{name}* добавлен в базу!" if lang == "ru" else f"✅ *{name}* базаға қосылды!",
             reply_markup=InlineKeyboardMarkup(kb),
             parse_mode=ParseMode.MARKDOWN
+        )
+
+    async def _parse_students_from_text(self, update, context, raw_text: str):
+        await self._parse_students_with_ai(update, context, [{"type": "text", "text": raw_text}])
+
+    async def _parse_students_from_photo(self, update, context):
+        user = await self.db.get_user(update.effective_user.id)
+        lang = user.get("lang", "ru") if user else "ru"
+        wait = await update.message.reply_text("🔍 Читаю список..." if lang == "ru" else "🔍 Тізім оқылуда...")
+        try:
+            photo = update.message.photo[-1]
+            file_obj = await photo.get_file()
+            import tempfile, os
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                await file_obj.download_to_drive(tmp.name)
+                path = tmp.name
+            with open(path, "rb") as file:
+                encoded = base64.standard_b64encode(file.read()).decode("utf-8")
+            os.unlink(path)
+            await wait.delete()
+            await self._parse_students_with_ai(update, context, [{"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": encoded}}])
+        except Exception:
+            await wait.delete()
+            await update.message.reply_text("Не удалось прочитать фото. Пришлите более чёткое изображение." if lang == "ru" else "Фотоны оқу мүмкін болмады. Анығырақ сурет жіберіңіз.")
+
+    async def _parse_students_with_ai(self, update, context, content: list):
+        user = await self.db.get_user(update.effective_user.id)
+        lang = user.get("lang", "ru") if user else "ru"
+        prompt = ("Извлеки список учеников из текста или изображения. Верни ТОЛЬКО JSON-массив: "
+                  "[{\"name\":\"\", \"birth_date\":\"\", \"parent_name\":\"\", \"phone\":\"\"}]. "
+                  "Если данных нет — оставь поле пустым. Не придумывай данные.")
+        try:
+            client = anthropic.Anthropic(api_key=self.api_key)
+            response = client.messages.create(model="claude-haiku-4-5", max_tokens=1200,
+                                              messages=[{"role": "user", "content": content + [{"type": "text", "text": prompt}]}])
+            raw = re.sub(r"```[a-z]*", "", response.content[0].text.strip()).strip("` \n")
+            match = re.search(r"\[.*\]", raw, re.DOTALL)
+            parsed = json.loads(match.group(0) if match else raw)
+            students = [item for item in parsed if isinstance(item, dict) and str(item.get("name", "")).strip()]
+        except Exception as exc:
+            print(f"Student list parse error: {exc}")
+            students = []
+        if not students:
+            await update.message.reply_text("Не удалось найти учеников. Попробуйте другой текст или более чёткое фото." if lang == "ru" else "Оқушылар тізімі табылмады. Басқа мәтін не анығырақ фото жіберіңіз.")
+            return
+        context.user_data["bulk_students"] = students
+        context.user_data["step"] = "student_bulk_confirm"
+        names = "\n".join(f"• {item['name']}" for item in students[:30])
+        await update.message.reply_text(
+            (f"Нашёл {len(students)} учеников. Добавить всех?\n\n{names}" if lang == "ru" else f"{len(students)} оқушы табылды. Барлығын қосу керек пе?\n\n{names}"),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Добавить всех" if lang == "ru" else "Барлығын қосу", callback_data="prof_bulk_confirm")], [InlineKeyboardButton("Отмена" if lang == "ru" else "Болдырмау", callback_data="prof_bulk_cancel")]])
         )

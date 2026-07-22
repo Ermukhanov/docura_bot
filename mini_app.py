@@ -61,6 +61,7 @@ def api_me():
             'SELECT doc_type, original_name, lang, created_at FROM user_templates WHERE tg_id=?',
             (tg['id'],)
         ).fetchall()
+        student_count = db.execute('SELECT COUNT(*) FROM students WHERE teacher_id=?', (tg['id'],)).fetchone()[0]
 
     user_dict = dict(user)
     # Убираем чувствительные поля
@@ -80,6 +81,7 @@ def api_me():
         memory=dict(memory) if memory else None,
         schedule=dict(schedule) if schedule else None,
         samples=[dict(s) for s in samples],
+        student_count=student_count,
         bot_url=f'https://t.me/{bot_username}'
     )
 
@@ -97,6 +99,30 @@ def api_stats():
             (tg['id'],)
         ).fetchone()[0]
     return jsonify(total_docs=total_docs, this_month=this_month)
+
+@app.get('/api/analytics')
+def api_analytics():
+    tg = telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+    with conn() as db:
+        by_type = db.execute('SELECT doc_type, COUNT(*) AS count FROM documents WHERE teacher_id=? GROUP BY doc_type ORDER BY count DESC', (tg['id'],)).fetchall()
+        average_rating = db.execute('SELECT AVG(rating) FROM analytics WHERE teacher_id=? AND rating IS NOT NULL', (tg['id'],)).fetchone()[0]
+        activity = db.execute("SELECT date(created_at) AS day, COUNT(*) AS count FROM documents WHERE teacher_id=? AND date(created_at) >= date('now','-29 days') GROUP BY date(created_at) ORDER BY day", (tg['id'],)).fetchall()
+    top = dict(by_type[0]) if by_type else None
+    return jsonify(documents_by_type=[dict(row) for row in by_type], average_rating=round(average_rating, 2) if average_rating else None, activity=[dict(row) for row in activity], top_document=top)
+
+@app.get('/api/funnel')
+def api_funnel():
+    tg = telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+    with conn() as db:
+        total = db.execute("SELECT COUNT(DISTINCT tg_id) FROM funnel_events WHERE event='onboarding_start'").fetchone()[0]
+        counts = {event: db.execute('SELECT COUNT(DISTINCT tg_id) FROM funnel_events WHERE event=?', (event,)).fetchone()[0] for event in ('onboarding_done', 'doc_selected', 'generation_done')}
+        rating = db.execute('SELECT AVG(rating) FROM analytics WHERE rating IS NOT NULL').fetchone()[0]
+    percent = lambda value: round(value * 100 / total, 1) if total else 0
+    return jsonify(onboarding_started=total, onboarding_done=counts['onboarding_done'], onboarding_done_percent=percent(counts['onboarding_done']), doc_selected=counts['doc_selected'], doc_selected_percent=percent(counts['doc_selected']), generation_done=counts['generation_done'], generation_done_percent=percent(counts['generation_done']), average_rating=round(rating, 2) if rating else None)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))

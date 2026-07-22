@@ -1,4 +1,6 @@
 import os
+import base64
+import aiosqlite
 import json
 import anthropic
 from urllib.parse import quote
@@ -42,14 +44,14 @@ REGISTRY_QUESTIONS = {
     "ru": {
         "kg_activity_summary": [{"key": "topic", "q": "Тема занятия?"}, {"key": "age_group", "q": "Группа и возраст?"}, {"key": "goals", "q": "Что дети должны понять или уметь?"}, {"key": "materials", "q": "Какие материалы реально есть? Если нет — напишите «нет»."}],
         "kg_individual_development_card": [{"key": "child_name", "q": "ФИО ребенка?"}, {"key": "birth_year_age", "q": "Год рождения и возраст?"}, {"key": "group", "q": "Группа?"}, {"key": "school_year", "q": "Учебный год?"}, {"key": "observations", "q": "Есть реальные наблюдения или нужен пустой бланк?"}],
-        "lesson_plan": [{"key": "subject_class", "q": "Предмет и класс?"}, {"key": "topic", "q": "Тема урока?"}, {"key": "goals", "q": "Цели обучения, если вы их знаете? Если нет — оставим пустыми."}, {"key": "date", "q": "Дата и длительность урока?"}],
-        "calendar_plan": [{"key": "subject_class", "q": "Предмет и класс?"}, {"key": "period", "q": "Период?"}, {"key": "textbook", "q": "Учебник или программа? Если нет — напишите «нет»."}, {"key": "hours_per_week", "q": "Часов в неделю? Если неизвестно — напишите «нет»."}, {"key": "dates", "q": "Даты или оставить пустыми?"}],
+        "lesson_plan": [{"key": "subject_class", "q": "Предмет и класс?"}, {"key": "topic", "q": "Тема урока?"}, {"key": "goals", "q": "Цели обучения знаете? Если да — напишите. Если нет — напишите «автоматически»."}, {"key": "date", "q": "Дата и длительность урока?"}],
+        "calendar_plan": [{"key": "subject_class", "q": "Предмет и класс?"}, {"key": "period", "q": "На какой период: четверть, месяц или год?"}, {"key": "textbook", "q": "Учебник или программа? Если не знаете — напишите «стандартная программа МОН РК»."}, {"key": "hours_per_week", "q": "Часов в неделю? Если не знаете — напишите «не знаю»."}],
     },
     "kz": {
         "kg_activity_summary": [{"key": "topic", "q": "ҰОҚ тақырыбы?"}, {"key": "age_group", "q": "Топ және жасы?"}, {"key": "goals", "q": "Балалар нені түсінуі немесе меңгеруі керек?"}, {"key": "materials", "q": "Нақты бар материалдар? Жоқ болса «жоқ» деп жазыңыз."}],
         "kg_individual_development_card": [{"key": "child_name", "q": "Баланың аты-жөні?"}, {"key": "birth_year_age", "q": "Туған жылы және жасы?"}, {"key": "group", "q": "Тобы?"}, {"key": "school_year", "q": "Оқу жылы?"}, {"key": "observations", "q": "Нақты бақылау бар ма, әлде бос үлгі керек пе?"}],
-        "lesson_plan": [{"key": "subject_class", "q": "Пән және сынып?"}, {"key": "topic", "q": "Сабақ тақырыбы?"}, {"key": "goals", "q": "Оқу мақсаттары, егер білсеңіз?"}, {"key": "date", "q": "Сабақ күні және ұзақтығы?"}],
-        "calendar_plan": [{"key": "subject_class", "q": "Пән және сынып?"}, {"key": "period", "q": "Кезең?"}, {"key": "textbook", "q": "Оқулық немесе бағдарлама?"}, {"key": "hours_per_week", "q": "Аптасына неше сағат?"}, {"key": "dates", "q": "Күндер немесе бос қалдыру керек пе?"}],
+        "lesson_plan": [{"key": "subject_class", "q": "Пән және сынып?"}, {"key": "topic", "q": "Сабақ тақырыбы?"}, {"key": "goals", "q": "Оқу мақсаттарын білесіз бе? Иә болса — жазыңыз. Білмесеңіз, «автоматты» деп жазыңыз."}, {"key": "date", "q": "Сабақ күні және ұзақтығы?"}],
+        "calendar_plan": [{"key": "subject_class", "q": "Пән және сынып?"}, {"key": "period", "q": "Қандай кезеңге: тоқсанға, айға немесе жылға?"}, {"key": "textbook", "q": "Оқулық немесе бағдарлама? Білмесеңіз, «ҚР ОАМ стандартты бағдарламасы» деп жазыңыз."}, {"key": "hours_per_week", "q": "Аптасына неше сағат? Білмесеңіз, «білмеймін» деп жазыңыз."}],
     },
     "en": {
         "kg_activity_summary": [{"key": "topic", "q": "Activity topic?"}, {"key": "age_group", "q": "Group and age?"}, {"key": "goals", "q": "What should children understand or learn?"}, {"key": "materials", "q": "Which materials are actually available? If none, write “none”."}],
@@ -68,13 +70,13 @@ DOC_QUESTIONS = {
             {"key": "subject_class", "q": "📚 Предмет и класс?\n\n_Пример: Математика, 7А_"},
             {"key": "topic",         "q": "📖 Тема урока?"},
             {"key": "duration",      "q": "⏱ Длительность?\n\n_Пример: 45 минут_"},
-            {"key": "goals",         "q": "🎯 Цели обучения?\n\n_Или напишите «автоматически»_"},
+            {"key": "goals",         "q": "🎯 Цели обучения знаете? Если да — напишите.\n\n_Если нет — напишите «автоматически»_"},
         ],
         "calendar_plan": [
             {"key": "subject_class",  "q": "📚 Предмет и класс?\n\n_Пример: Алгебра, 8А_"},
-            {"key": "month",          "q": "📅 На какой месяц?\n\n_Пример: Ноябрь 2024_"},
-            {"key": "hours_per_week", "q": "⏰ Часов в неделю?\n\n_Пример: 3 часа_"},
-            {"key": "topics",         "q": "📋 Темы уроков через запятую\n\n_Или напишите «по программе МОН»_"},
+            {"key": "period",         "q": "📅 На какой период?\n\n_Пример: четверть, месяц или год_"},
+            {"key": "textbook",       "q": "📘 Учебник или программа?\n\n_Если не знаете — напишите «стандартная программа МОН РК»_"},
+            {"key": "hours_per_week", "q": "⏰ Часов в неделю?\n\n_Если не знаете — напишите «не знаю»_"},
         ],
         "lesson_summary": [
             {"key": "subject_class", "q": "📚 Предмет и класс?"},
@@ -90,14 +92,15 @@ DOC_QUESTIONS = {
         "control_analysis": [
             {"key": "subject_class", "q": "📚 Предмет и класс?"},
             {"key": "date",          "q": "📅 Дата контрольной работы?"},
-            {"key": "results",       "q": "📊 Результаты?\n\n_Пример: 5 — 3 уч., 4 — 8 уч., 3 — 5 уч., 2 — 2 уч._"},
+            {"key": "results",       "q": "📊 Сколько учеников получили каждую оценку?\n\n_Формат: 5 — N учеников, 4 — N учеников и так далее. Пример: 5 — 3 ученика, 4 — 8 учеников, 3 — 5 учеников, 2 — 2 ученика._"},
             {"key": "topic",         "q": "📖 Тема контрольной работы?"},
         ],
         "sor_soch": [
-            {"key": "sor_or_soch",   "q": "📋 СОР (за раздел) или СОЧ (за четверть)?\n\n_Напишите СОР или СОЧ_"},
+            {"key": "sor_or_soch",   "q": "📋 СОР или СОЧ?\n\n_Напишите СОР или СОЧ_"},
             {"key": "subject_class", "q": "📚 Предмет и класс?"},
-            {"key": "section_topic", "q": "📖 Раздел / тема, по которой оценивание?"},
-            {"key": "criteria",      "q": "📊 Критерии оценивания?\n\n_Или напишите «автоматически» — составлю по целям обучения_"},
+            {"key": "section_topic", "q": "📖 Раздел или тема?"},
+            {"key": "max_score",     "q": "🔢 Максимальный балл?\n\n_Обычно 10 или 15_"},
+            {"key": "criteria",      "q": "📊 Есть готовые критерии? Если да — напишите.\n\n_Если нет — напишите «автоматически»_"},
         ],
         "sor_soch_analysis": [
             {"key": "sor_or_soch",   "q": "📋 Анализ СОР или СОЧ?"},
@@ -134,7 +137,7 @@ DOC_QUESTIONS = {
             {"key": "details",      "q": "📝 Детали письма?"},
         ],
         "vacation_request": [
-            {"key": "vacation_type", "q": "🏖 Вид отпуска?\n\n1️⃣ Ежегодный трудовой (56 дней)\n2️⃣ За свой счёт\n3️⃣ Учебный\n\n_Напишите номер или название_"},
+            {"key": "vacation_type", "q": "🏖 Выберите вид отпуска:\n\n1 — Ежегодный трудовой, 56 дней\n2 — За свой счёт\n3 — Учебный отпуск\n\n_Пример: 1_"},
             {"key": "dates",         "q": "📅 Даты?\n\n_Пример: с 01.07.2025 по 25.08.2025_"},
         ],
         "explanation": [
@@ -201,7 +204,7 @@ DOC_QUESTIONS = {
             {"key": "reason",        "q": "❓ Причина?\n\n_Пример: болезнь (справка есть)_"},
         ],
         "kg_vacation_request": [
-            {"key": "vacation_type", "q": "🏖 Вид отпуска?\n\n1️⃣ Ежегодный трудовой\n2️⃣ За свой счёт\n\n_Напишите номер или название_"},
+            {"key": "vacation_type", "q": "🏖 Выберите вид отпуска:\n\n1 — Ежегодный трудовой\n2 — За свой счёт\n\n_Пример: 1_"},
             {"key": "dates",         "q": "📅 Даты?\n\n_Пример: с 01.07.2025 по 25.08.2025_"},
         ],
         "kg_explanation": [
@@ -252,7 +255,7 @@ DOC_QUESTIONS = {
             {"key": "subject_class", "q": "📚 Пән және сынып?\n\n_Мысалы: Математика, 7А_"},
             {"key": "topic",         "q": "📖 Сабақтың тақырыбы?"},
             {"key": "duration",      "q": "⏱ Ұзақтығы?\n\n_Мысалы: 45 минут_"},
-            {"key": "goals",         "q": "🎯 Оқу мақсаттары?\n\n_Немесе «автоматты» деп жазыңыз_"},
+            {"key": "goals",         "q": "🎯 Оқу мақсаттарын білесіз бе? Иә болса — жазыңыз.\n\n_Білмесеңіз, «автоматты» деп жазыңыз_"},
         ],
         "monthly_report": [
             {"key": "period",      "q": "📅 Қандай кезең?\n\n_Мысалы: Қазан 2024_"},
@@ -261,7 +264,7 @@ DOC_QUESTIONS = {
             {"key": "extra",       "q": "🏆 Сыныптан тыс іс-шаралар?\n\n_Жоқ болса «жоқ» деп жазыңыз_"},
         ],
         "vacation_request": [
-            {"key": "vacation_type", "q": "🏖 Демалыс түрі?\n\n1️⃣ Жылдық еңбек (56 күн)\n2️⃣ Ақысыз\n3️⃣ Оқу\n\n_Нөмірін жазыңыз_"},
+            {"key": "vacation_type", "q": "🏖 Демалыс түрін таңдаңыз:\n\n1 — Жыл сайынғы еңбек демалысы, 56 күн\n2 — Жалақысыз демалыс\n3 — Оқу демалысы\n\n_Мысалы: 1_"},
             {"key": "dates",         "q": "📅 Күндері?\n\n_Мысалы: 01.07.2025-тен 25.08.2025-ке дейін_"},
         ],
         "explanation": [
@@ -293,21 +296,22 @@ DOC_QUESTIONS = {
         ],
         "calendar_plan": [
             {"key": "subject_class",  "q": "📚 Пән және сынып?"},
-            {"key": "month",          "q": "📅 Қандай ай?\n\n_Мысалы: Қараша 2024_"},
-            {"key": "hours_per_week", "q": "⏰ Аптасына неше сағат?"},
-            {"key": "topics",         "q": "📋 Тақырыптар немесе «МОН бағдарламасы бойынша»"},
+            {"key": "period",         "q": "📅 Қандай кезеңге?\n\n_Мысалы: тоқсан, ай немесе жыл_"},
+            {"key": "textbook",       "q": "📘 Оқулық немесе бағдарлама?\n\n_Білмесеңіз, «ҚР ОАМ стандартты бағдарламасы» деп жазыңыз_"},
+            {"key": "hours_per_week", "q": "⏰ Аптасына неше сағат?\n\n_Білмесеңіз, «білмеймін» деп жазыңыз_"},
         ],
         "control_analysis": [
             {"key": "subject_class", "q": "📚 Пән және сынып?"},
             {"key": "date",          "q": "📅 Бақылау жұмысының күні?"},
-            {"key": "results",       "q": "📊 Нәтижелер?\n\n_Мысалы: 5 — 3 оқ., 4 — 8 оқ._"},
+            {"key": "results",       "q": "📊 Әр бағаны қанша оқушы алғанын жазыңыз.\n\n_Пішімі: 5 — N оқушы, 4 — N оқушы және т. б. Мысалы: 5 — 3 оқушы, 4 — 8 оқушы, 3 — 5 оқушы, 2 — 2 оқушы._"},
             {"key": "topic",         "q": "📖 Тақырыбы?"},
         ],
         "sor_soch": [
-            {"key": "sor_or_soch",   "q": "📋 БЖБ (бөлім) немесе ТЖБ (тоқсан)?"},
+            {"key": "sor_or_soch",   "q": "📋 БЖБ немесе ТЖБ?"},
             {"key": "subject_class", "q": "📚 Пән және сынып?"},
-            {"key": "section_topic", "q": "📖 Бөлім/тақырып?"},
-            {"key": "criteria",      "q": "📊 Бағалау критерийлері?\n\n_Немесе «автоматты»_"},
+            {"key": "section_topic", "q": "📖 Бөлім немесе тақырып?"},
+            {"key": "max_score",     "q": "🔢 Ең жоғары балл?\n\n_Әдетте 10 немесе 15_"},
+            {"key": "criteria",      "q": "📊 Дайын бағалау критерийлері бар ма? Бар болса — жазыңыз.\n\n_Жоқ болса, «автоматты» деп жазыңыз_"},
         ],
         "sor_soch_analysis": [
             {"key": "sor_or_soch",   "q": "📋 БЖБ немесе ТЖБ талдауы?"},
@@ -385,7 +389,7 @@ DOC_QUESTIONS = {
             {"key": "reason",        "q": "❓ Себебі?"},
         ],
         "kg_vacation_request": [
-            {"key": "vacation_type", "q": "🏖 Демалыс түрі?"},
+            {"key": "vacation_type", "q": "🏖 Демалыс түрін таңдаңыз:\n\n1 — Жыл сайынғы еңбек демалысы\n2 — Жалақысыз демалыс\n\n_Мысалы: 1_"},
             {"key": "dates",         "q": "📅 Күндері?"},
         ],
         "kg_explanation": [
@@ -676,6 +680,20 @@ class DocumentHandler:
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
 
+        if data in {"rating_good", "rating_ok", "rating_bad"}:
+            rating = {"rating_good": 3, "rating_ok": 2, "rating_bad": 1}[data]
+            doc_type = context.user_data.get("rating_doc_type", "")
+            async with aiosqlite.connect(self.db.db_path) as database:
+                await database.execute("UPDATE analytics SET rating=? WHERE id=(SELECT id FROM analytics WHERE teacher_id=? AND doc_type=? ORDER BY id DESC LIMIT 1)", (rating, user_id, doc_type))
+                await database.commit()
+            if data == "rating_bad":
+                context.user_data["step"] = "rating_feedback"
+                await query.edit_message_text("Что именно не понравилось? Напишите коротко." if lang == "ru" else "Не ұнамады? Қысқаша жазыңыз.")
+            else:
+                await query.edit_message_text("Спасибо за оценку!" if lang == "ru" else "Бағаңызға рақмет!")
+                await self._show_referral_after_first_rating(query, user, lang)
+            return
+
         # ── Отмена генерации ──
         if data == "doc_cancel":
             context.user_data.clear()
@@ -706,6 +724,20 @@ class DocumentHandler:
                 ])
             )
             return
+        if data in {"doc_template_word", "doc_template_photo", "doc_template_text"}:
+            mode = data.rsplit("_", 1)[-1]
+            context.user_data["step"] = f"template_{mode}"
+            prompt = {
+                "word": "Отправь Word-файл .docx, который принимает твой методист",
+                "photo": "Отправьте фото документа — я распознаю его текст.",
+                "text": "Вставьте текст документа одним сообщением.",
+            }[mode] if lang == "ru" else {
+                "word": "Әдіскер қабылдайтын Word .docx файлын жіберіңіз",
+                "photo": "Құжаттың суретін жіберіңіз — мәтінін танимын.",
+                "text": "Құжат мәтінін бір хабарламада жіберіңіз.",
+            }[mode]
+            await query.edit_message_text(prompt, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена" if lang == "ru" else "Бас тарту", callback_data="doc_cancel")]]))
+            return
         if data.startswith("doc_template_"):
             template_type = data[len("doc_template_"):]
             if template_type in {KINDERGARTEN_CYCLE_SCHEDULE, DEVELOPMENT_MONITORING}:
@@ -717,10 +749,13 @@ class DocumentHandler:
                     )
                     return
                 context.user_data["template_doc_type"] = template_type
-                context.user_data["step"] = "template_upload"
                 await query.edit_message_text(
-                    "Отправь Word-файл .docx, который принимает твой методист" if lang == "ru" else "Әдіскер қабылдайтын Word .docx файлын жіберіңіз",
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена" if lang == "ru" else "Бас тарту", callback_data="doc_cancel")]])
+                    "Как хотите добавить образец?" if lang == "ru" else "Үлгіні қалай қосқыңыз келеді?",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("📄 Word файл .docx" if lang == "ru" else "📄 Word файл .docx", callback_data="doc_template_word")],
+                        [InlineKeyboardButton("📸 Фото документа" if lang == "ru" else "📸 Құжат суреті", callback_data="doc_template_photo")],
+                        [InlineKeyboardButton("✍️ Вставить текст" if lang == "ru" else "✍️ Мәтінді енгізу", callback_data="doc_template_text")],
+                    ])
                 )
                 return
         if data == "doc_template_personal":
@@ -843,9 +878,30 @@ class DocumentHandler:
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
         # ── Выбрать ученика/воспитанника из базы ──
-        elif data.startswith("gen_student_"):
+        elif data.startswith("gen_student_") and data not in {"gen_student_confirm", "gen_student_choose"}:
             student_id = int(data[12:])
-            await self._use_student_data(query, context, user_id, user, lang, student_id)
+            if student_id == 0:
+                await self._use_student_data(query, context, user_id, user, lang, student_id)
+            else:
+                student = await self.db.get_student(student_id)
+                if not student:
+                    return
+                grades = json.loads(student.get("grades", "{}"))
+                grade_text = ", ".join(f"{name}: {grade}" for name, grade in grades.items()) or ("нет данных" if lang == "ru" else "дерек жоқ")
+                context.user_data["selected_student_id"] = student_id
+                text = (f"👤 *{student['name']}*\n🏷 {student['class_name']}\n📊 {grade_text}\n👪 {student.get('parents') or '—'}\n\nИспользовать данные {student['name']} для документа?" if lang == "ru" else
+                        f"👤 *{student['name']}*\n🏷 {student['class_name']}\n📊 {grade_text}\n👪 {student.get('parents') or '—'}\n\nОсы деректерді құжатқа қолдану керек пе?")
+                await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Да" if lang == "ru" else "Иә", callback_data="gen_student_confirm")], [InlineKeyboardButton("Выбрать другого" if lang == "ru" else "Басқасын таңдау", callback_data="gen_student_choose")]]), parse_mode=ParseMode.MARKDOWN)
+
+        elif data == "gen_student_confirm":
+            await self._use_student_data(query, context, user_id, user, lang, context.user_data.pop("selected_student_id", 0))
+
+        elif data == "gen_student_choose":
+            doc_type = context.user_data.get("doc_type", "")
+            students = await self.db.get_students(user_id)
+            keyboard = [[InlineKeyboardButton(f"👤 {student['name']} ({student['class_name']})", callback_data=f"gen_student_{student['id']}")] for student in students[:8]]
+            keyboard.append([InlineKeyboardButton("✍️ Ввести вручную" if lang == "ru" else "✍️ Қолмен енгізу", callback_data="gen_student_0")])
+            await query.edit_message_text("Выберите ученика из базы:" if lang == "ru" else "Базадан оқушыны таңдаңыз:", reply_markup=InlineKeyboardMarkup(keyboard))
 
     async def _show_doc_list(self, query, lang, cat):
         docs  = CAT_DOCS_ALL.get(cat, [])
@@ -1039,10 +1095,10 @@ class DocumentHandler:
         questions = [
             {"key": "period", "q": "За какой период нужен мониторинг?" if lang == "ru" else "Мониторинг қай кезеңге керек?"},
             {"key": "age_group", "q": "Для какой возрастной группы он нужен?" if lang == "ru" else "Ол қай жас тобына арналған?"},
-            {"key": "children", "q": "Пришлите список детей: по одному имени в строке или через запятую." if lang == "ru" else "Балалардың тізімін жіберіңіз: әр жолға бір баладан немесе үтір арқылы."},
+            {"key": "children", "q": "Пришлите список детей в любом формате: нумерованным списком или через запятую. Для пустого бланка напишите «пустой»." if lang == "ru" else "Балалар тізімін кез келген форматта жіберіңіз: нөмірленген тізіммен немесе үтір арқылы. Бос бланк үшін «бос» деп жазыңыз."},
         ]
         saved_group = user.get("age_group", "")
-        context.user_data.update({"doc_type": DEVELOPMENT_MONITORING, "doc_lang": lang, "doc_answers": {"organization": user.get("school", ""), "educator_name": user.get("name", ""), "group": saved_group, "age_group": saved_group}, "questions": questions, "q_index": 0, "step": "waiting_answer"})
+        context.user_data.update({"doc_type": DEVELOPMENT_MONITORING, "doc_lang": lang, "doc_answers": {"organization": user.get("school", ""), "educator_name": user.get("name", ""), "group": saved_group, "age_group": saved_group, "director_name": user.get("director", "")}, "questions": questions, "q_index": 0, "step": "waiting_answer"})
         await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING])
 
     async def _use_student_data(self, query, context, user_id, user, lang, student_id):
@@ -1061,6 +1117,12 @@ class DocumentHandler:
                 context.user_data["doc_answers"]["performance"]  = grades_str
                 context.user_data["doc_answers"]["activities"]   = achieve_str
                 context.user_data["doc_answers"]["behavior"]     = student.get("behavior", "хорошее")
+                context.user_data["doc_answers"]["parents"]      = student.get("parents", "")
+                context.user_data["doc_answers"]["parent_phone"] = student.get("parent_phone", "")
+                context.user_data["doc_answers"]["birth_date"]   = student.get("birth_date", "")
+                context.user_data["doc_answers"]["absences"]     = student.get("absences", 0)
+                context.user_data["doc_answers"]["address"]      = student.get("address", "")
+                context.user_data["doc_answers"]["health_group"] = student.get("health_group", "")
 
         saved_doc_lang = user.get("document_lang") or user.get("doc_language")
         if saved_doc_lang in {"ru", "kz", "en"}:
@@ -1127,6 +1189,23 @@ class DocumentHandler:
         text    = update.message.text.strip()
         step    = context.user_data.get("step", "")
 
+        if step == "rating_feedback":
+            doc_type = context.user_data.get("rating_doc_type", "")
+            await context.bot.send_message(
+                chat_id=6561112046,
+                text=f"👎 Отзыв от {user_id} {user.get('name', '')} — документ {doc_type}:\n{text}"
+            )
+            context.user_data["step"] = None
+            await update.message.reply_text("Спасибо, передали команде." if lang == "ru" else "Рақмет, командаға жіберілді.")
+            return
+
+        if step == "template_text":
+            dtype = context.user_data.get("template_doc_type", "")
+            await self.db.add_sample(dtype, lang, text, f"Текстовый образец {dtype}", user_id)
+            context.user_data.clear()
+            await update.message.reply_text("Образец сохранён. Бот будет ориентироваться на его структуру при генерации." if lang == "ru" else "Үлгі сақталды. Бот құжат жасағанда оның құрылымына бағдарланады.")
+            return
+
         if len(text) < 1:
             if (step == "waiting_answer" and
                     context.user_data.get("doc_type") == KINDERGARTEN_CYCLE_SCHEDULE):
@@ -1152,7 +1231,9 @@ class DocumentHandler:
             doc_type = context.user_data.get("doc_type", "")
             doc_lang = context.user_data.get("doc_lang", lang)
             doc_name = DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, "")
-            if doc_type == DEVELOPMENT_MONITORING and idx + 1 >= len(qs):
+            if doc_type == DEVELOPMENT_MONITORING and idx + 1 >= len(qs) and text.strip().lower() in {"пустой", "бос"}:
+                await self._generate_monitoring(update.message, context, lang)
+            elif doc_type == DEVELOPMENT_MONITORING and idx + 1 >= len(qs):
                 await update.message.reply_text("У тебя есть реальные наблюдения и уровни развития по детям?" if lang == "ru" else "Балалар бойынша нақты бақылаулар мен даму деңгейлері бар ма?", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Да, отправлю данные" if lang == "ru" else "Иә, деректерді жіберемін", callback_data="doc_monitoring_data_yes")], [InlineKeyboardButton("Нет, нужен пустой бланк" if lang == "ru" else "Жоқ, бос бланк керек", callback_data="doc_monitoring_data_no")], [InlineKeyboardButton("Отмена" if lang == "ru" else "Бас тарту", callback_data="doc_cancel")]]))
             else:
                 await self._ask_question(update.message, context, lang, idx + 1, doc_name=doc_name)
@@ -1169,7 +1250,7 @@ class DocumentHandler:
             await self._handle_help_write(update, context, user, lang, text)
 
     async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if context.user_data.get("step") != "template_upload":
+        if context.user_data.get("step") != "template_word":
             return
         user = await self.db.get_user(update.effective_user.id)
         lang = user.get("lang", "ru") if user else "ru"
@@ -1197,12 +1278,60 @@ class DocumentHandler:
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Только для меня" if lang == "ru" else "Тек мен үшін", callback_data="doc_template_personal")], [InlineKeyboardButton("Для всей организации" if lang == "ru" else "Бүкіл ұйым үшін", callback_data="doc_template_org")], [InlineKeyboardButton("Отмена" if lang == "ru" else "Бас тарту", callback_data="doc_cancel")]])
         )
 
+    async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if context.user_data.get("step") != "template_photo":
+            return
+        user = await self.db.get_user(update.effective_user.id)
+        lang = user.get("lang", "ru") if user else "ru"
+        wait = await update.message.reply_text("🔍 Распознаю образец..." if lang == "ru" else "🔍 Үлгі танылуда...")
+        try:
+            file_obj = await update.message.photo[-1].get_file()
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                await file_obj.download_to_drive(tmp.name)
+                path = tmp.name
+            with open(path, "rb") as file:
+                image_data = base64.standard_b64encode(file.read()).decode("utf-8")
+            os.remove(path)
+            client = anthropic.Anthropic(api_key=self.api_key)
+            response = client.messages.create(
+                model="claude-haiku-4-5", max_tokens=3000,
+                messages=[{"role": "user", "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_data}},
+                    {"type": "text", "text": "Распознай весь текст документа. Сохрани заголовки, разделы и таблицы в понятном текстовом виде. Не добавляй комментарии."},
+                ]}],
+            )
+            content = response.content[0].text
+            await self.db.add_sample(context.user_data.get("template_doc_type", ""), lang, content, "Фото-образец", update.effective_user.id)
+            context.user_data.clear()
+            await wait.delete()
+            await update.message.reply_text("Образец сохранён. Бот будет ориентироваться на его структуру при генерации." if lang == "ru" else "Үлгі сақталды. Бот құжат жасағанда оның құрылымына бағдарланады.")
+        except Exception as exc:
+            print(f"Template photo recognition error: {exc}")
+            await wait.delete()
+            await update.message.reply_text("Не удалось распознать фото. Попробуйте более чёткое изображение." if lang == "ru" else "Фотоны тану мүмкін болмады. Анығырақ сурет жіберіңіз.")
+
+    async def _send_rating_request(self, message, context, lang, doc_type):
+        context.user_data["rating_doc_type"] = doc_type
+        await message.reply_text(
+            "Как вам документ?" if lang == "ru" else "Құжат қалай болды?",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⭐ Отлично" if lang == "ru" else "⭐ Өте жақсы", callback_data="rating_good")], [InlineKeyboardButton("👌 Нормально" if lang == "ru" else "👌 Қалыпты", callback_data="rating_ok")], [InlineKeyboardButton("👎 Нужно лучше" if lang == "ru" else "👎 Жақсарту керек", callback_data="rating_bad")]])
+        )
+
+    async def _show_referral_after_first_rating(self, query, user, lang):
+        if user and not user.get("subscribed") and user.get("free_used") == 1:
+            await query.message.reply_text(
+                "Поделитесь с коллегой — получите +5 документов:" if lang == "ru" else "Әріптеспен бөлісіңіз — +5 құжат аласыз:",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📤 Поделиться" if lang == "ru" else "📤 Бөлісу", callback_data="menu_invite")]])
+            )
+
     async def _generate_monitoring(self, message, context, lang):
         from handlers.word_generator import generate_word
         answers = context.user_data.get("doc_answers", {})
-        children = [x.strip() for x in answers.get("children", "").replace("\n", ",").split(",") if x.strip()]
+        raw_children = answers.get("children", "").strip().lower()
+        children = (["—"] * 15 if raw_children in {"пустой", "бос"} else [x.strip() for x in answers.get("children", "").replace("\n", ",").split(",") if x.strip()])
         rows = answers.get("rows", [])
-        filename = generate_word("", DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], monitoring_data={**answers, "children": children, "rows": rows, "lang": lang})
+        filename = generate_word("", DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], teacher_name=answers.get("educator_name", ""), director_name=answers.get("director_name", ""), monitoring_data={**answers, "children": children, "rows": rows, "lang": lang})
         with open(filename, "rb") as f:
             await message.reply_document(document=f, filename=f"monitoring_{datetime.now().strftime('%d%m%Y')}.docx", caption="📄 Мониторинг развития" if lang == "ru" else "📄 Даму мониторингі")
         os.remove(filename)
@@ -1212,6 +1341,7 @@ class DocumentHandler:
         if user and not user.get("subscribed"):
             await self.db.increment_free(message.chat_id)
         context.user_data.clear()
+        await self._send_rating_request(message, context, lang, DEVELOPMENT_MONITORING)
 
     async def _handle_help_write(self, update, context, user, lang, user_input):
         field    = context.user_data.get("help_field", "")
@@ -1395,6 +1525,7 @@ class DocumentHandler:
                 result,
                 doc_name,
                 user.get("name", ""),
+                director_name=user.get("director", ""),
                 cycle_data=answers if doc_type == KINDERGARTEN_CYCLE_SCHEDULE else None,
                 monitoring_data=answers if doc_type == "kg_individual_development_card" else None,
                 registry_doc_type=doc_type,
@@ -1425,6 +1556,10 @@ class DocumentHandler:
 
         # Сохранить в БД
         await self.db.save_document(user_id, doc_type, doc_name, result, score)
+        await self.db.upsert_user(user_id, {
+            "last_doc_type": doc_type,
+            "last_doc_date": datetime.now().isoformat(),
+        })
         await self.db.log_analytics(user_id, doc_type, score, doc_lang)
 
         # Обновляем счётчик бесплатных — берём свежие данные из БД
@@ -1495,3 +1630,4 @@ class DocumentHandler:
             parse_mode=ParseMode.MARKDOWN
         )
         context.user_data.clear()
+        await self._send_rating_request(message, context, lang, doc_type)
