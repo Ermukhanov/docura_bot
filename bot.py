@@ -33,30 +33,55 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
 
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Краткая помощь, доступная пользователю в любой момент через /help."""
     db   = context.application.bot_data["db"]
     user = await db.get_user(update.effective_user.id)
     lang = user.get("lang", "ru") if user else "ru"
     text = (
-        "📋 *Команды Docura.kz:*\n\n"
+        "❓ *Помощь Docura.kz*\n\n"
+        "Я помогу создать школьные и дошкольные документы за несколько шагов.\n\n"
+        "*Быстрый способ:* просто напишите, что нужно. Например:\n"
+        "• «Сделай циклограмму на завтра»\n"
+        "• «Создай КСП по математике для 7 класса»\n"
+        "• «Нужна характеристика на ученика»\n\n"
+        "*Команды:*\n"
         "/menu — 🏠 Главное меню\n"
         "/profile — 👤 Мой профиль\n"
         "/new — 📄 Создать документ\n"
         "/history — 📚 История документов\n"
         "/invite — 🎁 Пригласить и получить бонус\n"
+        "/tariffs — ⭐ Тарифы и подписка\n"
+        "/support — 💬 Связаться с поддержкой\n"
         "/cancel — ❌ Отменить операцию\n"
         "/help — ❓ Помощь\n\n"
-        "💡 Можно также отправить голосовое сообщение!"
+        "\n💡 Можно также отправить голосовое сообщение или открыть «Создать документ» в меню."
     ) if lang == "ru" else (
-        "📋 *Docura.kz командалары:*\n\n"
+        "❓ *Docura.kz көмегі*\n\n"
+        "Мектеп және балабақша құжаттарын бірнеше қадаммен жасауға көмектесемін.\n\n"
+        "*Жылдам жол:* не керек екенін жай ғана жазыңыз. Мысалы:\n"
+        "• «Ертеңге циклограмма жаса»\n"
+        "• «7-сынып математикасына ҚМЖ жаса»\n"
+        "• «Оқушыға мінездеме керек»\n\n"
+        "*Командалар:*\n"
         "/menu — 🏠 Басты мәзір\n"
         "/profile — 👤 Менің профилім\n"
         "/new — 📄 Құжат жасау\n"
         "/history — 📚 Тарих\n"
         "/invite — 🎁 Шақыру және бонус алу\n"
+        "/tariffs — ⭐ Тарифтер мен жазылым\n"
+        "/support — 💬 Қолдау қызметі\n"
         "/cancel — ❌ Болдырмау\n"
-        "/help — ❓ Көмек"
+        "/help — ❓ Көмек\n\n"
+        "💡 Дауыс хабарламасын да жібере аласыз."
     )
-    await update.message.reply_text(text, parse_mode="Markdown")
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    await update.message.reply_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")
+        ]]),
+        parse_mode="Markdown",
+    )
 
 
 async def cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -88,6 +113,38 @@ async def cmd_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     lang = user.get("lang", "ru")
     await ProfileHandler(db).show(MessageQueryAdapter(update.message), update.effective_user.id, lang)
+
+
+async def cmd_tariffs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Открывает актуальные тарифы тем же экраном, что и кнопка подписки."""
+    db = context.application.bot_data["db"]
+    user_id = update.effective_user.id
+    user = await db.get_user(user_id)
+    if not user or not user.get("name"):
+        await OnboardingHandler(db).start(update, context)
+        return
+    lang = user.get("lang", "ru")
+    await ProfileHandler(db)._show_subscription(MessageQueryAdapter(update.message), user, lang)
+
+
+async def cmd_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Запускает безопасный сценарий сообщения в поддержку."""
+    db = context.application.bot_data["db"]
+    user = await db.get_user(update.effective_user.id)
+    if not user or not user.get("name"):
+        await OnboardingHandler(db).start(update, context)
+        return
+    lang = user.get("lang", "ru")
+    # Используем существующую обработку ProfileHandler для сохранения обратной совместимости.
+    context.user_data["step"] = "prof_complaint"
+    await update.message.reply_text(
+        "💬 Опишите вопрос, ошибку или пожелание одним сообщением.\n\nПосле отправки появится кнопка связи с поддержкой."
+        if lang == "ru" else
+        "💬 Сұрағыңызды, қатені немесе ұсынысыңызды бір хабарламада жазыңыз.\n\nЖібергеннен кейін қолдау қызметіне хабарласу батырмасы шығады.",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("❌ Отмена" if lang == "ru" else "❌ Болдырмау", callback_data="menu_main")
+        ]]),
+    )
 
 
 async def cmd_invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -182,7 +239,9 @@ async def _route_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     key  = context.application.bot_data["anthropic_key"]
     if await _start_after_account_reset(update, context):
         return
-    step = context.user_data.get("step", "")
+    # Некоторые сценарии сбрасывают step значением None. Для маршрутизации
+    # это означает отсутствие активного сценария, а не ошибку .startswith().
+    step = context.user_data.get("step") or ""
 
     if step.startswith("onboard_") or step.startswith("reg_"):
         await OnboardingHandler(db).handle_text(update, context)
@@ -218,6 +277,8 @@ async def post_init(app: Application):
         BotCommand("profile", "👤 Мой профиль"),
         BotCommand("history", "📚 История документов"),
         BotCommand("invite",  "🎁 Пригласить и получить бонус"),
+        BotCommand("tariffs", "⭐ Тарифы и подписка"),
+        BotCommand("support", "💬 Связаться с поддержкой"),
         BotCommand("cancel",  "❌ Отменить операцию"),
         BotCommand("help",    "❓ Помощь и список команд"),
     ]
@@ -269,6 +330,8 @@ async def run():
     app.add_handler(CommandHandler("profile", cmd_profile))
     app.add_handler(CommandHandler("history", cmd_history))
     app.add_handler(CommandHandler("invite",  cmd_invite))
+    app.add_handler(CommandHandler("tariffs", cmd_tariffs))
+    app.add_handler(CommandHandler("support", cmd_support))
     app.add_handler(CommandHandler("help",    cmd_help))
 
     # Голос
