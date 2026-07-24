@@ -29,35 +29,41 @@ class MainMenuHandler:
         free_used  = user.get("free_used", 0)
         total_free = free_limit_for(user)
         free_left  = max(0, total_free - free_used)
-        is_kg      = user.get("role") == "kindergarten"
-
         if subscribed:
             status = t(lang, "status_pro")
         else:
             status = t(lang, "status_free", n=free_left, total=total_free)
 
-        schedule_btn_text = (
-            ("📅 Режим дня / занятия" if lang == "ru" else "📅 Күн тәртібі")
-            if is_kg else
-            ("📅 Расписание" if lang == "ru" else "📅 Кесте")
-        )
-
-        keyboard = [
-            *([[InlineKeyboardButton("✨ Открыть кабинет" if lang == "ru" else "✨ Кабинетті ашу" if lang == "kz" else "✨ Open dashboard", web_app=WebAppInfo(url=os.getenv("MINI_APP_URL")))] ] if os.getenv("MINI_APP_URL") else []),
-            [InlineKeyboardButton(t(lang, "btn_create"),  callback_data="menu_create")],
-            [InlineKeyboardButton(schedule_btn_text, callback_data="agent_schedule")],
-            [InlineKeyboardButton(t(lang, "btn_history"), callback_data="menu_history"),
-             InlineKeyboardButton(t(lang, "btn_profile"), callback_data="menu_profile")],
-            [InlineKeyboardButton("⭐ " + ("Тариф" if lang == "ru" else "Тариф" if lang == "kz" else "Plan"), callback_data="prof_sub")],
-            [InlineKeyboardButton("💬 " + ("Написать разработчику" if lang == "ru" else "Әзірлеушіге жазу"), callback_data="menu_feedback")],
-            [InlineKeyboardButton(t(lang, "btn_help"),    callback_data="menu_help")],
-        ]
+        keyboard = self._main_keyboard(lang)
         await context.bot.send_message(
             chat_id=chat_id,
             text=t(lang, "main_menu", status=status),
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.MARKDOWN
         )
+
+    def _main_keyboard(self, lang):
+        """Короткое главное меню: редкие настройки вынесены на второй экран."""
+        return [
+            [InlineKeyboardButton(t(lang, "btn_create"), callback_data="menu_create")],
+            *([[InlineKeyboardButton("✨ Личный кабинет" if lang == "ru" else "✨ Жеке кабинет", web_app=WebAppInfo(url=os.getenv("MINI_APP_URL")))]] if os.getenv("MINI_APP_URL") else []),
+            [InlineKeyboardButton("⚙️ Настройки" if lang == "ru" else "⚙️ Баптаулар", callback_data="menu_settings")],
+            [InlineKeyboardButton(t(lang, "btn_help"), callback_data="menu_help")],
+        ]
+
+    def _settings_keyboard(self, lang, is_kg):
+        students = "👥 Мои воспитанники" if is_kg and lang == "ru" else "👥 Мои ученики" if lang == "ru" else "👥 Менің тәрбиеленушілерім"
+        schedule = "📅 Расписание / режим дня" if lang == "ru" else "📅 Кесте / күн тәртібі"
+        return [
+            [InlineKeyboardButton("👤 Мой профиль" if lang == "ru" else "👤 Менің профилім", callback_data="menu_profile")],
+            [InlineKeyboardButton(students, callback_data="prof_students")],
+            [InlineKeyboardButton(schedule, callback_data="agent_schedule")],
+            [InlineKeyboardButton("🔔 Напоминания" if lang == "ru" else "🔔 Еске салғыштар", callback_data="agent_reminders")],
+            [InlineKeyboardButton("⭐ Тариф и подписка" if lang == "ru" else "⭐ Тариф және жазылым", callback_data="prof_sub")],
+            [InlineKeyboardButton("💬 Написать разработчику" if lang == "ru" else "💬 Әзірлеушіге жазу", callback_data="menu_feedback")],
+            [InlineKeyboardButton("🌐 Сменить язык" if lang == "ru" else "🌐 Тілді өзгерту", callback_data="prof_lang")],
+            [InlineKeyboardButton("← Назад" if lang == "ru" else "← Артқа", callback_data="menu_main")],
+        ]
 
     async def callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
@@ -76,6 +82,13 @@ class MainMenuHandler:
         elif data == "menu_profile":
             from handlers.profile import ProfileHandler
             await ProfileHandler(self.db).show(query, user_id, lang)
+
+        elif data == "menu_settings":
+            await query.edit_message_text(
+                "⚙️ *Настройки*" if lang == "ru" else "⚙️ *Баптаулар*",
+                reply_markup=InlineKeyboardMarkup(self._settings_keyboard(lang, user.get("role") == "kindergarten")),
+                parse_mode=ParseMode.MARKDOWN,
+            )
 
         elif data == "menu_invite":
             await self._show_invite(query, context, user_id, user, lang)
@@ -98,23 +111,8 @@ class MainMenuHandler:
             free_used  = user.get("free_used", 0)
             total_free = free_limit_for(user)
             free_left  = max(0, total_free - free_used)
-            is_kg      = user.get("role") == "kindergarten"
             status = t(lang, "status_pro") if subscribed else t(lang, "status_free", n=free_left, total=total_free)
-            schedule_btn_text = (
-                ("📅 Режим дня / занятия" if lang == "ru" else "📅 Күн тәртібі")
-                if is_kg else
-                ("📅 Расписание" if lang == "ru" else "📅 Кесте")
-            )
-            keyboard = [
-                *([[InlineKeyboardButton("✨ Открыть кабинет" if lang == "ru" else "✨ Кабинетті ашу" if lang == "kz" else "✨ Open dashboard", web_app=WebAppInfo(url=os.getenv("MINI_APP_URL")))] ] if os.getenv("MINI_APP_URL") else []),
-                [InlineKeyboardButton(t(lang, "btn_create"),  callback_data="menu_create")],
-                [InlineKeyboardButton(schedule_btn_text, callback_data="agent_schedule")],
-                [InlineKeyboardButton(t(lang, "btn_history"), callback_data="menu_history"),
-                 InlineKeyboardButton(t(lang, "btn_profile"), callback_data="menu_profile")],
-                [InlineKeyboardButton("⭐ " + ("Тариф" if lang == "ru" else "Тариф" if lang == "kz" else "Plan"), callback_data="prof_sub")],
-                [InlineKeyboardButton("💬 " + ("Написать разработчику" if lang == "ru" else "Әзірлеушіге жазу"), callback_data="menu_feedback")],
-                [InlineKeyboardButton(t(lang, "btn_help"),    callback_data="menu_help")],
-            ]
+            keyboard = self._main_keyboard(lang)
             await query.edit_message_text(
                 t(lang, "main_menu", status=status),
                 reply_markup=InlineKeyboardMarkup(keyboard),

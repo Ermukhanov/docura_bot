@@ -680,15 +680,37 @@ class DocumentHandler:
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
 
+        if data == "doc_rate":
+            await query.edit_message_text(
+                "Как вам документ?" if lang == "ru" else "Құжат қалай болды?",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⭐ Отлично" if lang == "ru" else "⭐ Өте жақсы", callback_data="rating_good")],
+                    [InlineKeyboardButton("👌 Нормально" if lang == "ru" else "👌 Қалыпты", callback_data="rating_ok")],
+                    [InlineKeyboardButton("👎 Нужно лучше" if lang == "ru" else "👎 Жақсарту керек", callback_data="rating_bad")],
+                ]),
+            )
+            return
+
         if data in {"rating_good", "rating_ok", "rating_bad"}:
             rating = {"rating_good": 3, "rating_ok": 2, "rating_bad": 1}[data]
             doc_type = context.user_data.get("rating_doc_type", "")
+            document_id = context.user_data.get("rating_doc_id")
             async with aiosqlite.connect(self.db.db_path) as database:
                 await database.execute("UPDATE analytics SET rating=? WHERE id=(SELECT id FROM analytics WHERE teacher_id=? AND doc_type=? ORDER BY id DESC LIMIT 1)", (rating, user_id, doc_type))
                 await database.commit()
+            if document_id:
+                feedback = {3: "excellent", 2: "normal", 1: "needs_improvement"}[rating]
+                await self.db.update_document_feedback(document_id, feedback)
             if data == "rating_bad":
-                context.user_data["step"] = "rating_feedback"
-                await query.edit_message_text("Что именно не понравилось? Напишите коротко." if lang == "ru" else "Не ұнамады? Қысқаша жазыңыз.")
+                document = await self.db.get_document(document_id) if document_id else None
+                content = (document or {}).get("content", "")[:500]
+                await context.bot.send_message(
+                    chat_id=6561112046,
+                    text=(f"👎 Плохая оценка от {user_id} {user.get('name', '')}\n"
+                          f"Документ: {(document or {}).get('doc_name', doc_type)}\n"
+                          f"Содержимое: {content}")
+                )
+                await query.edit_message_text("Спасибо, передали команде." if lang == "ru" else "Рақмет, командаға жіберілді.")
             else:
                 await query.edit_message_text("Спасибо за оценку!" if lang == "ru" else "Бағаңызға рақмет!")
                 await self._show_referral_after_first_rating(query, user, lang)
@@ -1311,8 +1333,9 @@ class DocumentHandler:
             await wait.delete()
             await update.message.reply_text("Не удалось распознать фото. Попробуйте более чёткое изображение." if lang == "ru" else "Фотоны тану мүмкін болмады. Анығырақ сурет жіберіңіз.")
 
-    async def _send_rating_request(self, message, context, lang, doc_type):
+    async def _send_rating_request(self, message, context, lang, doc_type, document_id=None):
         context.user_data["rating_doc_type"] = doc_type
+        context.user_data["rating_doc_id"] = document_id
         await message.reply_text(
             "Как вам документ?" if lang == "ru" else "Құжат қалай болды?",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⭐ Отлично" if lang == "ru" else "⭐ Өте жақсы", callback_data="rating_good")], [InlineKeyboardButton("👌 Нормально" if lang == "ru" else "👌 Қалыпты", callback_data="rating_ok")], [InlineKeyboardButton("👎 Нужно лучше" if lang == "ru" else "👎 Жақсарту керек", callback_data="rating_bad")]])
@@ -1336,12 +1359,47 @@ class DocumentHandler:
             await message.reply_document(document=f, filename=f"monitoring_{datetime.now().strftime('%d%m%Y')}.docx", caption="📄 Мониторинг развития" if lang == "ru" else "📄 Даму мониторингі")
         os.remove(filename)
         user = await self.db.get_user(message.chat_id)
-        await self.db.save_document(message.chat_id, DEVELOPMENT_MONITORING, DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], "", 100)
+        document_id = await self.db.save_document(message.chat_id, DEVELOPMENT_MONITORING, DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], "", 100)
         await self.db.log_analytics(message.chat_id, DEVELOPMENT_MONITORING, 100, lang)
         if user and not user.get("subscribed"):
             await self.db.increment_free(message.chat_id)
         context.user_data.clear()
-        await self._send_rating_request(message, context, lang, DEVELOPMENT_MONITORING)
+        await self._send_post_document_actions(message, context, lang, user, DEVELOPMENT_MONITORING, document_id)
+
+    async def _send_post_document_actions(self, message, context, lang, user, doc_type, document_id):
+        """Единый следующий шаг после любого Word-файла."""
+        # Контекст нужен обработчику кнопки «Оценить документ».
+        context.user_data["rating_doc_type"] = doc_type
+        context.user_data["rating_doc_id"] = document_id
+        ref_code = user.get("ref_code")
+        if not ref_code:
+            ref_code = await self.db.generate_unique_ref_code()
+            await self.db.upsert_user(message.chat_id, {"ref_code": ref_code})
+        username = context.bot.username or (await context.bot.get_me()).username
+        ref_link = f"https://t.me/{username}?start=ref_{ref_code}"
+        share_text = quote(
+            "Создал документ за 30 секунд в @docurakz_bot 🚀\n"
+            f"Попробуй бесплатно: {ref_link}\n"
+            "Ты получишь +2 документа, я +5"
+        )
+        share_url = f"https://t.me/share/url?url={quote(ref_link)}&text={share_text}"
+        keyboard = [
+            [InlineKeyboardButton("📤 Поделиться с коллегой" if lang == "ru" else "📤 Әріптеспен бөлісу", url=share_url)],
+            [InlineKeyboardButton("⭐ Оценить документ" if lang == "ru" else "⭐ Құжатты бағалау", callback_data="doc_rate")],
+            [InlineKeyboardButton("📄 Создать ещё" if lang == "ru" else "📄 Тағы жасау", callback_data="menu_create")],
+            [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
+        ]
+        await message.reply_text(
+            "📄 Документ готов! Что дальше?" if lang == "ru" else "📄 Құжат дайын! Келесі не?",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+        # Первое бесплатное создание — отдельное ненавязчивое приглашение.
+        fresh_user = await self.db.get_user(message.chat_id)
+        if fresh_user and not fresh_user.get("subscribed") and fresh_user.get("free_used") == 1:
+            await message.reply_text(
+                "🎁 Понравилось? Пригласи коллегу — оба получите бонусные документы!" if lang == "ru" else "🎁 Ұнады ма? Әріптесіңізді шақырыңыз — екеуіңіз де бонус құжат аласыз!",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📤 Поделиться ссылкой" if lang == "ru" else "📤 Сілтемемен бөлісу", url=share_url)]]),
+            )
 
     async def _handle_help_write(self, update, context, user, lang, user_input):
         field    = context.user_data.get("help_field", "")
@@ -1555,7 +1613,7 @@ class DocumentHandler:
             pass
 
         # Сохранить в БД
-        await self.db.save_document(user_id, doc_type, doc_name, result, score)
+        document_id = await self.db.save_document(user_id, doc_type, doc_name, result, score)
         await self.db.upsert_user(user_id, {
             "last_doc_type": doc_type,
             "last_doc_date": datetime.now().isoformat(),
@@ -1619,15 +1677,11 @@ class DocumentHandler:
             ]
             note = "⭐ *PRO* — безлимитный доступ" if lang == "ru" else "⭐ *PRO* — шексіз қол жеткізу"
 
-        share_title = DOC_NAMES.get(lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
-        share_text = quote(f"Создал документ «{share_title}» за 1 минуту в @docurakz_bot\nПопробуй бесплатно 👇")
-        share_url = f"https://t.me/share/url?url=https://t.me/docurakz_bot&text={share_text}"
-        kb_after.insert(0, [InlineKeyboardButton("📤 Поделиться" if lang == "ru" else "📤 Бөлісу", url=share_url)])
-
         await message.reply_text(
             note,
             reply_markup=InlineKeyboardMarkup(kb_after),
             parse_mode=ParseMode.MARKDOWN
         )
+        # После отправки файла всегда даём единый набор следующих действий.
         context.user_data.clear()
-        await self._send_rating_request(message, context, lang, doc_type)
+        await self._send_post_document_actions(message, context, lang, fresh_user or user, doc_type, document_id)

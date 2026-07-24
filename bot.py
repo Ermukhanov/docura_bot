@@ -288,7 +288,7 @@ async def run():
     # Колбэки
     app.add_handler(CallbackQueryHandler(onboarding.callback, pattern="^(lang_|role_|onboard_)"))
     app.add_handler(CallbackQueryHandler(main_menu.callback,  pattern="^menu_"))
-    app.add_handler(CallbackQueryHandler(documents.callback,  pattern="^(doc_|cat_|ans_|gen_)"))
+    app.add_handler(CallbackQueryHandler(documents.callback,  pattern="^(doc_|cat_|ans_|gen_|rating_)"))
     app.add_handler(CallbackQueryHandler(profile.callback,    pattern="^(prof_|sub_|student_)"))
     app.add_handler(CallbackQueryHandler(admin.callback,      pattern="^admin_"))
     app.add_handler(CallbackQueryHandler(agent.callback,      pattern="^agent_"))

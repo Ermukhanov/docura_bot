@@ -3,6 +3,7 @@ Docura.kz — AI-агент с памятью
 Загружает расписание/режим дня, помнит контекст, предлагает нужные документы
 """
 import json
+import re
 import base64
 import tempfile
 import os
@@ -81,6 +82,24 @@ class AgentHandler:
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
         is_kg   = (user or {}).get("role") == "kindergarten"
+
+        if data == "agent_direct_confirm":
+            pending = context.user_data.get("direct_doc", {})
+            if not pending:
+                await query.edit_message_text("Запрос устарел. Создайте документ ещё раз." if lang == "ru" else "Сұрау мерзімі өтті. Құжатты қайта жасаңыз.")
+                return
+            from handlers.documents import DocumentHandler
+            context.user_data.update({"doc_type": pending["doc_type"], "doc_answers": pending["answers"],
+                                      "doc_lang": user.get("document_lang") or lang, "step": "waiting_answer"})
+            context.user_data.pop("direct_doc", None)
+            await query.edit_message_text("✅ Начинаю генерацию..." if lang == "ru" else "✅ Жасауды бастаймын...")
+            await DocumentHandler(self.db, self.api_key)._generate(query.message, context, lang)
+            return
+        if data == "agent_direct_edit":
+            context.user_data.pop("direct_doc", None)
+            context.user_data["step"] = None
+            await query.edit_message_text("Хорошо, отправьте запрос заново." if lang == "ru" else "Жақсы, сұрауды қайта жіберіңіз.")
+            return
 
         if data.startswith("agent_schedule") and (not user or not user.get("subscribed")):
             await query.edit_message_text(
@@ -366,6 +385,26 @@ class AgentHandler:
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает текстовое расписание / режим дня"""
+        if context.user_data.get("step") == "agent_direct_doc":
+            user = await self.db.get_user(update.effective_user.id)
+            lang = user.get("lang", "ru") if user else "ru"
+            pending = context.user_data.get("direct_doc", {})
+            field = pending.get("field")
+            if not pending or not field:
+                context.user_data["step"] = None
+                return False
+            value = update.message.text.strip()
+            # Для КСП одной фразой принимаем «предмет, класс — тема».
+            if pending.get("doc_type") == "lesson_plan" and field == "subject_class":
+                parts = re.split(r"\s*[-—]\s*", value, maxsplit=1)
+                pending["answers"]["subject_class"] = parts[0]
+                pending["answers"]["topic"] = parts[1] if len(parts) > 1 else "[уточнить]"
+                pending["answers"]["duration"] = "45 минут"
+            else:
+                pending["answers"][field] = "этот месяц" if value.lower() == "этот месяц" else value
+            context.user_data["direct_doc"] = pending
+            await self.show_direct_confirmation(update.message, context, user, lang)
+            return True
         if context.user_data.get("step") != "agent_waiting_schedule_text":
             return False
 
@@ -428,6 +467,25 @@ class AgentHandler:
                 else "❌ Өңдеу мүмкін болмады."
             )
             return True
+
+    async def show_direct_confirmation(self, message, context, user, lang):
+        """Показывает собранные агентом данные до обращения к генератору."""
+        from handlers.documents import DOC_NAMES
+        pending = context.user_data.get("direct_doc", {})
+        doc_type = pending.get("doc_type", "")
+        answers = pending.get("answers", {})
+        doc_name = DOC_NAMES.get(lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
+        group = user.get("age_group") if user.get("role") == "kindergarten" else user.get("classes")
+        period = answers.get("period") or datetime.now().strftime("%d.%m.%Y")
+        topic = answers.get("week_topic") or answers.get("topic") or answers.get("student_name") or answers.get("request", "—")
+        text = (f"Создаю *{doc_name}:*\n"
+                f"• Группа/Класс: {group or '—'}\n"
+                f"• Период: {period}\n"
+                f"• Тема: {topic}")
+        await message.reply_text(text, reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Да, создать" if lang == "ru" else "✅ Иә, жасау", callback_data="agent_direct_confirm")],
+            [InlineKeyboardButton("✏️ Изменить" if lang == "ru" else "✏️ Өзгерту", callback_data="agent_direct_edit")],
+        ]), parse_mode=ParseMode.MARKDOWN)
 
     # ══════════════════════════════════════════════════════
     # УМНЫЕ ПОДСКАЗКИ НА ОСНОВЕ ПАМЯТИ

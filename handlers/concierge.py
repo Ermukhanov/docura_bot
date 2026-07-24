@@ -57,6 +57,37 @@ DAY_MAP_RU = {
     4: "Пятница", 5: "Суббота", 6: "Воскресенье",
 }
 
+# Прямые формулировки пользователя не должны зависеть от расписания.
+DIRECT_DOCUMENT_INTENTS = [
+    (("циклограмма", "cyclogram"), "kindergarten_cycle_schedule"),
+    (("ксп", "краткосрочный план", "қысқамерзімді"), "lesson_plan"),
+    (("ктп", "календарный план"), "calendar_plan"),
+    (("характеристика", "мінездеме"), "characteristic"),
+    (("тематический план", "тақырыптық жоспар"), "kg_thematic_plan"),
+    (("отчёт", "отчет", "есеп"), "monthly_report"),
+    (("конспект",), "lesson_summary"),
+    (("заявление на отпуск",), "vacation_request"),
+    (("объяснительная",), "explanation"),
+]
+
+
+def _direct_document_type(text: str, role: str) -> str | None:
+    lowered = text.lower()
+    for keywords, doc_type in DIRECT_DOCUMENT_INTENTS:
+        if any(word in lowered for word in keywords):
+            if role == "kindergarten":
+                return {"characteristic": "kg_child_characteristic", "monthly_report": "kg_monthly_report",
+                        "vacation_request": "kg_vacation_request", "explanation": "kg_explanation"}.get(doc_type, doc_type)
+            return doc_type
+    return None
+
+
+def _week_period() -> str:
+    today = datetime.now().date()
+    monday = today - timedelta(days=today.weekday())
+    sunday = monday + timedelta(days=6)
+    return f"{monday:%d.%m.%Y}–{sunday:%d.%m.%Y}"
+
 
 def _greeting_word(lang: str) -> str:
     hour = datetime.now().hour
@@ -260,6 +291,11 @@ class ConciergeHandler:
             )
             return
 
+        doc_type = _direct_document_type(text, user.get("role", "teacher"))
+        if doc_type:
+            await self._start_direct_document(update, context, user, lang, doc_type, text)
+            return
+
         state = await self._load_state(user_id)
         schedule_json = await self.db.get_schedule(user_id)
         schedule = json.loads(schedule_json) if schedule_json else None
@@ -322,6 +358,43 @@ class ConciergeHandler:
         docs = DocumentHandler(self.db, self.anthropic_api_key)
         adapter = MessageQueryAdapter(update.message)
         await docs._start_doc(adapter, context, user_id, user, lang, doc_type)
+
+    async def _start_direct_document(self, update, context, user, lang, doc_type, request_text):
+        """Передаёт сбор минимальных полей агенту; Claude вызывается только генератором."""
+        user_id = update.effective_user.id
+        schedule_json = await self.db.get_schedule(user_id)
+        try:
+            schedule = json.loads(schedule_json) if schedule_json else {}
+        except json.JSONDecodeError:
+            schedule = {}
+        tomorrow = DAY_MAP_RU[(datetime.now().weekday() + 1) % 7]
+        lessons = schedule.get(tomorrow, []) if isinstance(schedule, dict) else []
+        first_lesson = next((item for item in lessons if isinstance(item, dict)), {})
+        answers = {"request": request_text}
+        field = None
+        prompt = None
+        if doc_type == "kindergarten_cycle_schedule":
+            answers.update({"organization": user.get("school", ""), "group": user.get("age_group", ""),
+                            "period": _week_period(), "events": "нет" if lang == "ru" else "жоқ"})
+            field, prompt = "week_topic", f"Делаю циклограмму на эту неделю ({_week_period()}). Тема недели?"
+        elif doc_type == "lesson_plan":
+            if first_lesson:
+                answers.update({"subject_class": " ".join(filter(None, [first_lesson.get("subject"), first_lesson.get("class")])),
+                                "topic": "по расписанию", "duration": "45 минут"})
+            else:
+                field, prompt = "subject_class", "Предмет и класс? Тема урока?"
+        elif doc_type in {"characteristic", "kg_child_characteristic"}:
+            field, prompt = "student_name", "Имя ученика?" if lang == "ru" else "Оқушының аты-жөні?"
+        elif doc_type in {"monthly_report", "kg_monthly_report"}:
+            field, prompt = "period", "За какой период? (или напишите «этот месяц»)" if lang == "ru" else "Қай кезеңге? («осы ай» деп жаза аласыз)"
+
+        context.user_data["direct_doc"] = {"doc_type": doc_type, "answers": answers, "field": field}
+        context.user_data["step"] = "agent_direct_doc"
+        if prompt:
+            await update.message.reply_text(prompt)
+        else:
+            from handlers.agent import AgentHandler
+            await AgentHandler(self.db, self.anthropic_api_key).show_direct_confirmation(update.message, context, user, lang)
 
     # ══════════════════════════════════════════════════════
     # ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ (используется notifications.py)

@@ -59,6 +59,7 @@ class Database:
                     doc_name TEXT NOT NULL,
                     content TEXT NOT NULL,
                     score INTEGER DEFAULT 0,
+                    feedback TEXT,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (teacher_id) REFERENCES users(tg_id)
                 );
@@ -150,6 +151,8 @@ class Database:
             await self._ensure_column(db, "students", "health_group", "TEXT")
             await self._ensure_column(db, "students", "notes_extended", "TEXT")
             await self._ensure_column(db, "analytics", "rating", "INTEGER")
+            # Оценка пользователя хранится у конкретного созданного документа.
+            await self._ensure_column(db, "documents", "feedback", "TEXT")
             await self._ensure_column(db, "users", "funnel_step", "TEXT")
             await db.commit()
 
@@ -332,11 +335,25 @@ class Database:
     # ===== DOCUMENTS =====
     async def save_document(self, teacher_id: int, doc_type: str, doc_name: str, content: str, score: int):
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
+            cursor = await db.execute(
                 "INSERT INTO documents (teacher_id, doc_type, doc_name, content, score) VALUES (?,?,?,?,?)",
                 (teacher_id, doc_type, doc_name, content, score)
             )
             await db.commit()
+            return cursor.lastrowid
+
+    async def update_document_feedback(self, document_id: int, feedback: str):
+        """Сохраняет оценку, не меняя историю и содержимое документа."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE documents SET feedback=? WHERE id=?", (feedback, document_id))
+            await db.commit()
+
+    async def get_document(self, document_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM documents WHERE id=?", (document_id,)) as cur:
+                row = await cur.fetchone()
+                return dict(row) if row else None
 
     async def get_history(self, teacher_id: int, limit: int = 20):
         async with aiosqlite.connect(self.db_path) as db:
