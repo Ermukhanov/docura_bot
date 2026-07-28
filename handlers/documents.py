@@ -831,6 +831,9 @@ class DocumentHandler:
             if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
                 await self._start_cycle_schedule(query, context, user, lang)
                 return
+            if doc_type == DEVELOPMENT_MONITORING:
+                await self._start_development_monitoring(query, context, user, lang)
+                return
             q_lang   = doc_lang if doc_lang in DOC_QUESTIONS else "ru"
             qs = REGISTRY_QUESTIONS.get(doc_lang, {}).get(doc_type) or DOC_QUESTIONS.get(q_lang, DOC_QUESTIONS["ru"]).get(doc_type, [])
             if not qs:
@@ -1620,68 +1623,12 @@ class DocumentHandler:
         })
         await self.db.log_analytics(user_id, doc_type, score, doc_lang)
 
-        # Обновляем счётчик бесплатных — берём свежие данные из БД
+        # Обновляем счётчик бесплатных.
         fresh_user = await self.db.get_user(user_id)
         if not fresh_user.get("subscribed"):
             await self.db.increment_free(user_id)
             fresh_user = await self.db.get_user(user_id)
-            free_used = fresh_user.get("free_used", 0)
-            total_free = free_limit_for(fresh_user)
-            free_left = max(0, total_free - free_used)
 
-            if free_left == 0:
-                from handlers.profile import TIER_PRICES
-                promo_available = not fresh_user.get("promo_used")
-
-                if promo_available:
-                    kb_after = [
-                        [InlineKeyboardButton(
-                            f"🔥 PRO за {TIER_PRICES['pro_promo']} тг (вместо {TIER_PRICES['pro']})" if lang == "ru"
-                            else f"🔥 PRO {TIER_PRICES['pro_promo']} тг",
-                            callback_data="prof_choose_pro_promo"
-                        )],
-                        [InlineKeyboardButton("🎁 Или пригласить и получить +5" if lang == "ru" else "🎁 Шақырып, +5 алыңыз", callback_data="menu_invite")],
-                        [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
-                    ]
-                    note = (
-                        f"⚠️ *Бесплатные документы исчерпаны!*\n\n"
-                        f"🔥 Месяц PRO с безлимитной генерацией — всего *{TIER_PRICES['pro_promo']} тг* "
-                        f"(вместо {TIER_PRICES['pro']} тг). Разовое предложение для вас.\n"
-                        f"Или пригласите коллегу через /invite — за каждого +5 документов."
-                    ) if lang == "ru" else (
-                        f"⚠️ *Тегін құжаттар таусылды!*\n\n"
-                        f"🔥 Шексіз PRO — небары *{TIER_PRICES['pro_promo']} тг* ({TIER_PRICES['pro']} тг орнына).\n"
-                        f"Немесе /invite арқылы әріптесіңізді шақырыңыз."
-                    )
-                else:
-                    kb_after = [
-                        [InlineKeyboardButton("🎁 Пригласить и получить +5" if lang == "ru" else "🎁 Шақырып, +5 алыңыз", callback_data="menu_invite")],
-                        [InlineKeyboardButton("⭐ Оформить PRO — безлимит" if lang == "ru" else "⭐ PRO рәсімдеу — шексіз", callback_data="prof_sub")],
-                        [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
-                    ]
-                    note = ("⚠️ *Бесплатные документы исчерпаны!*\n"
-                            "Оформите PRO или пригласите коллегу через /invite — за каждого +5 документов.") if lang == "ru" else \
-                           ("⚠️ *Тегін құжаттар таусылды!*\n"
-                            "PRO рәсімдеңіз немесе /invite арқылы әріптесіңізді шақырыңыз.")
-            else:
-                kb_after = [
-                    [InlineKeyboardButton("📄 Создать ещё" if lang == "ru" else "📄 Тағы жасау", callback_data="menu_create")],
-                    [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
-                ]
-                note = (f"🆓 Осталось бесплатных: *{free_left}/{total_free}*") if lang == "ru" else \
-                       (f"🆓 Қалған тегін: *{free_left}/{total_free}*")
-        else:
-            kb_after = [
-                [InlineKeyboardButton("📄 Создать ещё" if lang == "ru" else "📄 Тағы жасау", callback_data="menu_create")],
-                [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
-            ]
-            note = "⭐ *PRO* — безлимитный доступ" if lang == "ru" else "⭐ *PRO* — шексіз қол жеткізу"
-
-        await message.reply_text(
-            note,
-            reply_markup=InlineKeyboardMarkup(kb_after),
-            parse_mode=ParseMode.MARKDOWN
-        )
-        # После отправки файла всегда даём единый набор следующих действий.
+        # Показываем кнопки после документа.
         context.user_data.clear()
         await self._send_post_document_actions(message, context, lang, fresh_user or user, doc_type, document_id)

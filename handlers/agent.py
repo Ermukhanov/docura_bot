@@ -89,8 +89,21 @@ class AgentHandler:
                 await query.edit_message_text("Запрос устарел. Создайте документ ещё раз." if lang == "ru" else "Сұрау мерзімі өтті. Құжатты қайта жасаңыз.")
                 return
             from handlers.documents import DocumentHandler
-            context.user_data.update({"doc_type": pending["doc_type"], "doc_answers": pending["answers"],
-                                      "doc_lang": user.get("document_lang") or lang, "step": "waiting_answer"})
+            # Явно вычисляем doc_lang — защита от попадания мусора
+            doc_lang = (
+                pending.get("answers", {}).get("lang")
+                or user.get("document_lang")
+                or user.get("lang", "ru")
+            )
+            if doc_lang not in ("ru", "kz", "en"):
+                doc_lang = user.get("lang", "ru")
+
+            context.user_data.update({
+                "doc_type": pending["doc_type"],
+                "doc_answers": pending["answers"],
+                "doc_lang": doc_lang,
+                "step": None,
+            })
             context.user_data.pop("direct_doc", None)
             await query.edit_message_text("✅ Начинаю генерацию..." if lang == "ru" else "✅ Жасауды бастаймын...")
             await DocumentHandler(self.db, self.api_key)._generate(query.message, context, lang)
