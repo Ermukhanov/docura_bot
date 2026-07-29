@@ -314,6 +314,25 @@ class ProfileHandler:
             await self._show_students(query, user_id, lang, is_kg)
 
     async def _show_students(self, query, user_id, lang, is_kg=False):
+        if not await self.db.has_seen_section(user_id, "students"):
+            await self.db.mark_section_seen(user_id, "students")
+            intro = (
+                "👥 *Добро пожаловать в базу учеников!*\n\n"
+                "Здесь вы храните данные своих учеников.\n\n"
+                "Бот использует эти данные автоматически:\n"
+                "✅ При создании характеристик — подставит оценки и достижения\n"
+                "✅ При письмах родителям — вставит имя и данные\n"
+                "✅ Не придётся вводить данные каждый раз\n\n"
+                "Добавьте первого ученика 👇"
+            ) if lang == "ru" else (
+                "👥 *Оқушылар базасына қош келдіңіз!*\n\n"
+                "Мұнда оқушыларыңыздың деректерін сақтайсыз.\n\n"
+                "Бот бұл деректерді автоматты пайдаланады:\n"
+                "✅ Мінездеме жасағанда — бағалар мен жетістіктерді қосады\n"
+                "✅ Ата-аналарға хат жазғанда — атын қосады\n\n"
+                "Бірінші оқушыны қосыңыз 👇"
+            )
+            await query.message.reply_text(intro, parse_mode=ParseMode.MARKDOWN)
         students = await self.db.get_students(user_id)
         keyboard = []
         add_btn_text = t(lang, "btn_add_child") if is_kg else t(lang, "btn_add_student")

@@ -728,6 +728,20 @@ class DocumentHandler:
             )
             return
 
+        if data == "doc_prev_question":
+            idx = context.user_data.get("q_index", 0)
+            if idx > 0:
+                qs = context.user_data.get("questions", [])
+                prev_idx = idx - 1
+                prev_key = qs[prev_idx]["key"] if prev_idx < len(qs) else None
+                if prev_key and prev_key in context.user_data.get("doc_answers", {}):
+                    del context.user_data["doc_answers"][prev_key]
+                doc_lang = context.user_data.get("doc_lang", lang)
+                doc_type = context.user_data.get("doc_type", "")
+                doc_name = DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, "")
+                await self._ask_question(query.message, context, lang, prev_idx, edit=True, query=query, doc_name=doc_name)
+            return
+
         if data == "doc_template":
             if not user or user.get("role") != "kindergarten":
                 await query.edit_message_text(
@@ -1198,9 +1212,10 @@ class DocumentHandler:
             f"{bar}\n{DIVIDER}\n\n{q['q']}"
         )
 
-        keyboard = [
-            [InlineKeyboardButton("❌ " + t(lang, "cancel"), callback_data="doc_cancel")],
-        ]
+        keyboard = []
+        if idx > 0:
+            keyboard.append([InlineKeyboardButton("← Назад" if lang == "ru" else "← Артқа", callback_data="doc_prev_question")])
+        keyboard.append([InlineKeyboardButton("❌ " + t(lang, "cancel"), callback_data="doc_cancel")])
 
         if edit and query:
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)

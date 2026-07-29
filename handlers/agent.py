@@ -32,6 +32,26 @@ class AgentHandler:
 
     async def show_schedule_menu(self, update_or_query, context, lang, is_kg=False):
         """Меню управления расписанием (для сада — режим дня и занятия по группе)"""
+        user_id = update_or_query.from_user.id if hasattr(update_or_query, "from_user") else update_or_query.message.chat_id
+        if not await self.db.has_seen_section(user_id, "schedule"):
+            await self.db.mark_section_seen(user_id, "schedule")
+            intro = (
+                "📅 *Добро пожаловать в раздел Расписание!*\n\n"
+                "Здесь вы можете загрузить своё расписание уроков или режим дня группы.\n\n"
+                "После загрузки бот будет:\n"
+                "✅ Автоматически подставлять данные в документы\n"
+                "✅ Напоминать о нужных документах по расписанию\n"
+                "✅ Предлагать создать КСП перед уроком\n\n"
+                "Загрузите фото расписания или введите текстом 👇"
+            ) if lang == "ru" else (
+                "📅 *Кесте бөліміне қош келдіңіз!*\n\n"
+                "Мұнда сабақ кестеңізді немесе топтың күн тәртібін жүктей аласыз.\n\n"
+                "Жүктегеннен кейін бот:\n"
+                "✅ Деректерді автоматты құжаттарға қосады\n"
+                "✅ Кесте бойынша құжаттарды еске салады\n\n"
+                "Кесте суретін жіберіңіз немесе мәтінмен жазыңыз 👇"
+            )
+            await update_or_query.message.reply_text(intro, parse_mode=ParseMode.MARKDOWN)
         if is_kg:
             text = (
                 "📅 *Режим дня и занятия*\n\n"

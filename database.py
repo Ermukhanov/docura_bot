@@ -154,6 +154,7 @@ class Database:
             # Оценка пользователя хранится у конкретного созданного документа.
             await self._ensure_column(db, "documents", "feedback", "TEXT")
             await self._ensure_column(db, "users", "funnel_step", "TEXT")
+            await self._ensure_column(db, "users", "seen_sections", "TEXT DEFAULT '{}'")
             await db.commit()
 
             # Уникальный индекс на ref_code — создаём отдельно от ALTER TABLE,
@@ -196,6 +197,26 @@ class Database:
             async with db.execute("SELECT * FROM users WHERE tg_id=?", (tg_id,)) as cur:
                 row = await cur.fetchone()
                 return dict(row) if row else None
+
+    async def has_seen_section(self, tg_id: int, section: str) -> bool:
+        user = await self.get_user(tg_id)
+        if not user:
+            return False
+        try:
+            return json.loads(user.get("seen_sections") or "{}").get(section, False)
+        except (TypeError, json.JSONDecodeError):
+            return False
+
+    async def mark_section_seen(self, tg_id: int, section: str):
+        user = await self.get_user(tg_id)
+        if not user:
+            return
+        try:
+            seen = json.loads(user.get("seen_sections") or "{}")
+        except (TypeError, json.JSONDecodeError):
+            seen = {}
+        seen[section] = True
+        await self.upsert_user(tg_id, {"seen_sections": json.dumps(seen)})
 
     async def upsert_user(self, tg_id: int, data: dict):
         user = await self.get_user(tg_id)

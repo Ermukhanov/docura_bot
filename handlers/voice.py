@@ -131,6 +131,32 @@ class VoiceHandler:
                 parse_mode=ParseMode.MARKDOWN
             )
 
+            # Быстрое распознавание частых запросов без лишнего вызова LLM.
+            voice_keywords = {
+                "kindergarten_cycle_schedule": ["циклограмм", "циклограм", "цикло", "cyclogram"],
+                "lesson_plan": ["ксп", "краткосрочн", "қысқамерзімді", "қмж"],
+                "calendar_plan": ["ктп", "календарн", "күнтізбелік"],
+                "kg_thematic_plan": ["тематическ", "тематикалық", "тақырыптық жоспар"],
+                "monthly_report": ["отчёт", "отчет", "есеп", "месячн"],
+                "characteristic": ["характеристик", "мінездеме"],
+                "sor_soch": [" сор ", " соч ", "бжб", "тжб", "суммативн"],
+                "kg_activity_summary": ["конспект занятия", "технологическ", "оуд", "ұоқ"],
+                "vacation_request": ["заявление на отпуск", "демалыс", "отпуск"],
+            }
+            voice_lower = voice_text.lower()
+            quick_doc_type = next((dtype for dtype, keywords in voice_keywords.items() if any(word in voice_lower for word in keywords)), None)
+            if quick_doc_type and is_kg:
+                quick_doc_type = {
+                    "characteristic": "kg_child_characteristic",
+                    "monthly_report": "kg_monthly_report",
+                    "lesson_plan": "kg_activity_summary",
+                }.get(quick_doc_type, quick_doc_type)
+            if quick_doc_type:
+                from handlers.concierge import ConciergeHandler
+                concierge = ConciergeHandler(self.db, self.anthropic_key)
+                await concierge._start_direct_document(update, context, user, lang, quick_doc_type, voice_text)
+                return
+
             client = anthropic.Anthropic(api_key=self.anthropic_key)
 
             if is_kg:
