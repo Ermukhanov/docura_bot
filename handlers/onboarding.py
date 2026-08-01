@@ -1,8 +1,11 @@
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from handlers.texts import t
 from database import Database
+
+SITE_URL = os.getenv("SITE_URL", "https://docura.kz")
 
 MENU_BTN   = lambda lang: InlineKeyboardButton("🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"), callback_data="menu_main")
 CANCEL_BTN = lambda lang: InlineKeyboardButton("❌ " + ("Отмена" if lang == "ru" else "Болдырмау"), callback_data="menu_main")
@@ -36,11 +39,15 @@ class OnboardingHandler:
         context.user_data.clear()
         context.user_data["onboard_step"] = 0
         await update.message.reply_text(
-            "👋 Добро пожаловать в *Docura.kz*!\n\n"
-            "Я помогаю учителям и воспитателям Казахстана создавать официальные документы за 30 секунд.\n\n"
-            "📄 КСП, КТП, СОР/СОЧ\n🧸 Циклограммы, тематические планы\n📝 Характеристики, отчёты, заявления\n\n"
-            "🎁 *3 документа бесплатно* — без регистрации карты",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"), InlineKeyboardButton("🇰🇿 Қазақша", callback_data="lang_kz")]]),
+            "👋 Привет! Я *AI-агент Docura* — ваш персональный помощник для создания официальных документов.\n\n"
+            "📄 КСП, КТП, СОР/СОЧ — для учителей\n"
+            "🧸 Циклограммы, тематические планы — для воспитателей\n"
+            "📝 Характеристики, отчёты, заявления — всё по МОН РК\n\n"
+            "🎁 *3 документа бесплатно* — без карты\n\nСоздайте профиль чтобы начать:",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"), InlineKeyboardButton("🇰🇿 Қазақша", callback_data="lang_kz")],
+                [InlineKeyboardButton("🌐 Открыть сайт", url=SITE_URL)],
+            ]),
             parse_mode=ParseMode.MARKDOWN,
         )
 
@@ -282,6 +289,7 @@ class OnboardingHandler:
         text = (f"🎉 *Добро пожаловать, {name}!*\n\nЯ — ваш AI-ассистент. Давайте прямо сейчас создадим ваш первый документ!\n\nПросто напишите мне, например:\n• «Сделай КСП по математике для 7 класса»\n• «Нужна характеристика на ученика»\n• «Создай циклограмму на эту неделю»\n\nИли выберите из меню 👇" if lang == "ru" else f"🎉 *Қош келдіңіз, {name}!*\n\nМен сіздің AI-көмекшіңізмін. Бірінші құжатты қазір жасайық!\n\nМаған жай жазыңыз, мысалы:\n• «7 сынып математикасына ҚМЖ жаса»\n• «Оқушыға мінездеме керек»\n• «Осы аптаға циклограмма жаса»\n\nНемесе мәзірден таңдаңыз 👇")
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("📄 Создать первый документ" if lang == "ru" else "📄 Бірінші құжатты жасау", callback_data="menu_create")],
+            [InlineKeyboardButton("🌐 Личный кабинет" if lang == "ru" else "🌐 Жеке кабинет", url=SITE_URL)],
             [InlineKeyboardButton("🗺 Посмотреть все функции" if lang == "ru" else "🗺 Барлық функцияларды көру", callback_data="menu_help")],
         ]), parse_mode=ParseMode.MARKDOWN)
 
@@ -514,6 +522,25 @@ class OnboardingHandler:
         elif update:
             await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
             await mm._send_main_menu(update.message.chat_id, context, user_id, lang)
+
+        site_msg = (
+            "🌐 Также вы можете войти в *личный кабинет* на сайте:\n"
+            "• История ваших документов\n• Реферальная программа\n• Управление подпиской\n\n"
+            f"{SITE_URL}"
+        ) if lang == "ru" else (
+            "🌐 Сайтта *жеке кабинетке* кіре аласыз:\n"
+            "• Құжаттар тарихы\n• Реферал бағдарламасы\n• Жазылымды басқару\n\n"
+            f"{SITE_URL}"
+        )
+        kb_site = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📄 Создать первый документ" if lang == "ru" else "📄 Бірінші құжат жасау", callback_data="menu_create")],
+            [InlineKeyboardButton("🌐 Личный кабинет" if lang == "ru" else "🌐 Жеке кабинет", url=SITE_URL)],
+            [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
+        ])
+        if query:
+            await context.bot.send_message(query.message.chat_id, site_msg, reply_markup=kb_site, parse_mode=ParseMode.MARKDOWN)
+        elif update:
+            await update.message.reply_text(site_msg, reply_markup=kb_site, parse_mode=ParseMode.MARKDOWN)
 
     async def _finish_minimal(self, query, context, user_id, lang, update=None):
         """Завершает короткий онбординг, не требуя ФИО и организации."""
