@@ -5,7 +5,7 @@ from telegram.constants import ParseMode
 from handlers.texts import t
 from database import Database
 
-SITE_URL = os.getenv("SITE_URL", "https://docurakz.vercel.com/")
+SITE_URL = os.getenv("SITE_URL", "https://docurakz.vercel.app/")
 
 MENU_BTN   = lambda lang: InlineKeyboardButton("🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"), callback_data="menu_main")
 CANCEL_BTN = lambda lang: InlineKeyboardButton("❌ " + ("Отмена" if lang == "ru" else "Болдырмау"), callback_data="menu_main")
