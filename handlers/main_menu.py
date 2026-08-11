@@ -5,7 +5,7 @@ from telegram.constants import ParseMode
 from handlers.texts import t
 from database import Database, free_limit_for
 
-SITE_URL = os.getenv("SITE_URL", "https://docura.kz")
+SITE_URL = os.getenv("SITE_URL", "https://docurakz.vercel.com/")
 
 class MainMenuHandler:
     def __init__(self, db: Database):
@@ -48,7 +48,6 @@ class MainMenuHandler:
         """Короткое главное меню: редкие настройки вынесены на второй экран."""
         return [
             [InlineKeyboardButton(t(lang, "btn_create"), callback_data="menu_create")],
-            [InlineKeyboardButton("🌐 Личный кабинет" if lang == "ru" else "🌐 Жеке кабинет", url=SITE_URL)],
             [InlineKeyboardButton("⚙️ Настройки" if lang == "ru" else "⚙️ Баптаулар", callback_data="menu_settings")],
             [InlineKeyboardButton(t(lang, "btn_help"), callback_data="menu_help")],
         ]
