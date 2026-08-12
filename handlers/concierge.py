@@ -376,13 +376,17 @@ class ConciergeHandler:
         if doc_type == "kindergarten_cycle_schedule":
             answers.update({"organization": user.get("school", ""), "group": user.get("age_group", ""),
                             "period": _week_period(), "events": "нет" if lang == "ru" else "жоқ"})
-            field, prompt = "week_topic", f"Делаю циклограмму на эту неделю ({_week_period()}). Тема недели?"
+            field = "week_topic"
+            prompt = (f"Делаю циклограмму на эту неделю ({_week_period()}). Тема недели?" if lang == "ru"
+                      else f"Осы аптаға циклограмма жасаймын ({_week_period()}). Аптаның тақырыбы қандай?")
         elif doc_type == "lesson_plan":
             if first_lesson:
                 answers.update({"subject_class": " ".join(filter(None, [first_lesson.get("subject"), first_lesson.get("class")])),
-                                "topic": "по расписанию", "duration": "45 минут"})
+                                "topic": "по расписанию" if lang == "ru" else "кесте бойынша",
+                                "duration": "45 минут" if lang == "ru" else "45 минут"})
             else:
-                field, prompt = "subject_class", "Предмет и класс? Тема урока?"
+                field = "subject_class"
+                prompt = "Предмет и класс? Тема урока?" if lang == "ru" else "Пән және сынып? Сабақ тақырыбы?"
         elif doc_type in {"characteristic", "kg_child_characteristic"}:
             field, prompt = "student_name", "Имя ученика?" if lang == "ru" else "Оқушының аты-жөні?"
         elif doc_type in {"monthly_report", "kg_monthly_report"}:

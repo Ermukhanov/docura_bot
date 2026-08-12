@@ -877,6 +877,9 @@ class DocumentHandler:
             if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
                 await self._start_cycle_schedule(query, context, user, lang)
                 return
+            if doc_type == DEVELOPMENT_MONITORING:
+                await self._start_development_monitoring(query, context, user, lang)
+                return
             qs = REGISTRY_QUESTIONS.get(doc_lang, {}).get(doc_type) or DOC_QUESTIONS.get(doc_lang, DOC_QUESTIONS["ru"]).get(doc_type, [])
             context.user_data["questions"] = qs or [{"key": "description", "q": "✍️ Опишите, что нужно создать:"}]
             context.user_data["step"] = "waiting_answer"
@@ -1020,53 +1023,40 @@ class DocumentHandler:
         # язык из профиля и не оставляем его от предыдущей генерации.
         context.user_data.pop("doc_lang", None)
         context.user_data["doc_type"] = doc_type
-        doc_name = DOC_NAMES.get(lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
-        await query.edit_message_text(
-            (f"📄 *{doc_name}*\n{DIVIDER}\n🌐 На каком языке создать документ?" if lang == "ru"
-             else f"📄 *{doc_name}*\n{DIVIDER}\n🌐 Құжатты қандай тілде жасау керек?"),
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🇷🇺 Русский", callback_data="doc_lang_ru"), InlineKeyboardButton("🇰🇿 Қазақша", callback_data="doc_lang_kz")],
-                [InlineKeyboardButton("🇬🇧 English", callback_data="doc_lang_en")],
-                [InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")],
-            ]),
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
 
-        # Циклограмма использует язык и подтверждённые данные профиля сразу,
-        # поэтому не спрашивает их повторно и не проходит общий опросник.
-        if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
-            await self._start_cycle_schedule(query, context, user, lang)
-            return
-        if doc_type == DEVELOPMENT_MONITORING:
-            await self._start_development_monitoring(query, context, user, lang)
-            return
-
-        # Для документов по ученику/ребёнку — предложить выбрать из базы
+        # Для документов по ученику/ребёнку — ВСЕГДА показываем экран выбора:
+        # если в базе есть ученики/воспитанники — список + кнопка "Ввести вручную";
+        # если базы нет — тот же экран, но только с кнопкой "Ввести вручную".
+        # Язык документа спрашивается уже после этого шага в _use_student_data.
         if doc_type in STUDENT_LINKED_DOC_TYPES:
             students = await self.db.get_students(user_id)
-            if students:
-                keyboard = []
-                for s in students[:8]:
-                    keyboard.append([InlineKeyboardButton(
-                        f"👤 {s['name']} ({s['class_name']})",
-                        callback_data=f"gen_student_{s['id']}"
-                    )])
+            keyboard = []
+            for s in students[:8]:
                 keyboard.append([InlineKeyboardButton(
-                    "✍️ Ввести вручную" if lang == "ru" else "✍️ Қолмен енгізу",
-                    callback_data="gen_student_0"
+                    f"👤 {s['name']} ({s['class_name']})",
+                    callback_data=f"gen_student_{s['id']}"
                 )])
-                context.user_data["doc_type"] = doc_type
-                is_kg = user.get("role") == "kindergarten"
+            keyboard.append([InlineKeyboardButton(
+                "✍️ Ввести вручную" if lang == "ru" else "✍️ Қолмен енгізу",
+                callback_data="gen_student_0"
+            )])
+            is_kg = user.get("role") == "kindergarten"
+            if students:
                 title = ("👥 *Выберите воспитанника из базы:*" if is_kg else "👥 *Выберите ученика из базы:*") if lang == "ru" \
                     else ("👥 *Базадан баланы таңдаңыз:*" if is_kg else "👥 *Базадан оқушыны таңдаңыз:*")
-                await query.edit_message_text(title, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
-                return
+            else:
+                title = ("В базе пока нет воспитанников." if is_kg else "В базе пока нет учеников.") if lang == "ru" \
+                    else ("Базада тәрбиеленушілер жоқ." if is_kg else "Базада оқушылар жоқ.")
+                title += "\n\n" + ("Введите данные вручную:" if lang == "ru" else "Деректерді қолмен енгізіңіз:")
+            await query.edit_message_text(title, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+            return
 
-        context.user_data["doc_type"]    = doc_type
         context.user_data["doc_answers"] = {}
         context.user_data["q_index"]     = 0
 
+        # Циклограмма и мониторинг развития собирают данные профиля сразу и
+        # не проходят общий опросник — но язык документа всё равно спрашиваем
+        # явно для каждого нового документа (см. doc_lang_/doc_lang_confirm ниже).
         saved_doc_lang = user.get("document_lang") or user.get("doc_language")
         if saved_doc_lang in {"ru", "kz", "en"}:
             context.user_data["doc_lang"] = saved_doc_lang
@@ -1131,6 +1121,10 @@ class DocumentHandler:
         await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=doc_name)
 
     async def _start_development_monitoring(self, query, context, user, lang):
+        # ВАЖНО: используем уже выбранный пользователем язык документа (doc_lang),
+        # а не интерфейсный lang — иначе выбор "Қазақша" тихо перезаписывался бы
+        # обратно на язык интерфейса.
+        lang = context.user_data.get("doc_lang", lang)
         questions = [
             {"key": "period", "q": "За какой период нужен мониторинг?" if lang == "ru" else "Мониторинг қай кезеңге керек?"},
             {"key": "age_group", "q": "Для какой возрастной группы он нужен?" if lang == "ru" else "Ол қай жас тобына арналған?"},
@@ -1179,6 +1173,7 @@ class DocumentHandler:
             [InlineKeyboardButton("🇷🇺 Русский", callback_data="doc_lang_ru"),
              InlineKeyboardButton("🇰🇿 Қазақша", callback_data="doc_lang_kz")],
             [InlineKeyboardButton("🇬🇧 English",  callback_data="doc_lang_en")],
+            [InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")],
         ]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 

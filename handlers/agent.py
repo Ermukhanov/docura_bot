@@ -514,7 +514,11 @@ class AgentHandler:
         text = (f"Создаю *{doc_name}:*\n"
                 f"• Группа/Класс: {group or '—'}\n"
                 f"• Период: {period}\n"
-                f"• Тема: {topic}")
+                f"• Тема: {topic}") if lang == "ru" else (
+                f"Жасаймын: *{doc_name}*\n"
+                f"• Топ/Сынып: {group or '—'}\n"
+                f"• Кезең: {period}\n"
+                f"• Тақырып: {topic}")
         await message.reply_text(text, reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("✅ Да, создать" if lang == "ru" else "✅ Иә, жасау", callback_data="agent_direct_confirm")],
             [InlineKeyboardButton("✏️ Изменить" if lang == "ru" else "✏️ Өзгерту", callback_data="agent_direct_edit")],
