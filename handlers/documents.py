@@ -623,11 +623,17 @@ CYCLE_REQUIRED_FIELDS = {
     "period": "неделя или даты",
     "week_topic": "тема недели",
 }
+CYCLE_REQUIRED_FIELDS_KZ = {
+    "group": "топ",
+    "period": "апта немесе күндер",
+    "week_topic": "апта тақырыбы",
+}
 
 
-def validate_cycle_schedule_answers(answers: dict) -> list[str]:
+def validate_cycle_schedule_answers(answers: dict, lang: str = "ru") -> list[str]:
     """Возвращает названия обязательных незаполненных полей циклограммы."""
-    return [label for key, label in CYCLE_REQUIRED_FIELDS.items() if not str(answers.get(key, "")).strip()]
+    labels = CYCLE_REQUIRED_FIELDS_KZ if lang == "kz" else CYCLE_REQUIRED_FIELDS
+    return [label for key, label in labels.items() if not str(answers.get(key, "")).strip()]
 
 # Красивые разделители для дизайна
 DIVIDER = "─" * 20
@@ -1112,7 +1118,12 @@ class DocumentHandler:
         ])
 
         context.user_data["doc_type"] = KINDERGARTEN_CYCLE_SCHEDULE
-        context.user_data["doc_lang"] = user.get("document_lang") or user.get("doc_language") or lang
+        # ВАЖНО: раньше здесь стояло user.get("document_lang") or user.get("doc_language") or lang —
+        # это тихо перезаписывало только что выбранный пользователем язык документа
+        # (например "kz") устаревшим сохранённым в профиле значением (например "ru").
+        # В итоге вопросы задавались на одном языке, а сам документ генерировался на другом.
+        # Язык документа выбирается заново для каждого документа — используем именно его.
+        context.user_data["doc_lang"] = lang
         context.user_data["doc_answers"] = answers
         context.user_data["questions"] = questions
         context.user_data["q_index"] = 0
@@ -1246,8 +1257,11 @@ class DocumentHandler:
                     context.user_data.get("doc_type") == KINDERGARTEN_CYCLE_SCHEDULE):
                 qs = context.user_data.get("questions", [])
                 idx = context.user_data.get("q_index", 0)
+                doc_lang = context.user_data.get("doc_lang", lang)
                 if idx < len(qs) and qs[idx]["key"] in CYCLE_REQUIRED_FIELDS:
-                    await update.message.reply_text(f"Заполните поле: {CYCLE_REQUIRED_FIELDS[qs[idx]['key']]}.")
+                    field_label = (CYCLE_REQUIRED_FIELDS_KZ if doc_lang == "kz" else CYCLE_REQUIRED_FIELDS)[qs[idx]["key"]]
+                    msg = f"Заполните поле: {field_label}." if doc_lang != "kz" else f"Мына өрісті толтырыңыз: {field_label}."
+                    await update.message.reply_text(msg)
                     return
             await update.message.reply_text(t(lang, "val_too_short"))
             return
@@ -1362,6 +1376,14 @@ class DocumentHandler:
             )
 
     async def _generate_monitoring(self, message, context, lang):
+        # ВАЖНО: раньше во всех местах вызова этого метода передавался интерфейсный
+        # lang, а не выбранный пользователем язык документа (doc_lang) — из-за этого
+        # мониторинг развития всегда генерировался на языке интерфейса, даже если
+        # пользователь явно выбрал другой язык документа. Здесь разделяем два языка:
+        # doc_lang — язык самого документа/файла, interface_lang — язык кнопок и
+        # сообщений в чате после генерации (не должен зависеть от языка документа).
+        interface_lang = lang
+        lang = context.user_data.get("doc_lang", lang)
         from handlers.word_generator import generate_word
         answers = context.user_data.get("doc_answers", {})
         raw_children = answers.get("children", "").strip().lower()
@@ -1377,7 +1399,7 @@ class DocumentHandler:
         if user and not user.get("subscribed"):
             await self.db.increment_free(message.chat_id)
         context.user_data.clear()
-        await self._send_post_document_actions(message, context, lang, user, DEVELOPMENT_MONITORING, document_id)
+        await self._send_post_document_actions(message, context, interface_lang, user, DEVELOPMENT_MONITORING, document_id)
 
     async def _send_post_document_actions(self, message, context, lang, user, doc_type, document_id):
         """Единый следующий шаг после любого Word-файла."""
@@ -1456,9 +1478,11 @@ class DocumentHandler:
         doc_name = DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
 
         if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
-            missing = validate_cycle_schedule_answers(answers)
+            missing = validate_cycle_schedule_answers(answers, doc_lang)
             if missing:
-                await message.reply_text("Не могу создать циклограмму. Заполните поле: " + ", ".join(missing) + ".")
+                msg = ("Не могу создать циклограмму. Заполните поле: " + ", ".join(missing) + ".") if doc_lang != "kz" \
+                    else ("Циклограмманы жасай алмаймын. Мына өрісті толтырыңыз: " + ", ".join(missing) + ".")
+                await message.reply_text(msg)
                 return
 
         if doc_type == DEVELOPMENT_MONITORING:

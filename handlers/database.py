@@ -1,8 +1,16 @@
 import aiosqlite
 import json
+import os
 from datetime import datetime
 
-DB_PATH = "docura.db"
+# ВАЖНО (Railway/деплой): по умолчанию база лежит рядом с кодом — это НЕ переживёт
+# редеплой на Railway без volume. Если используешь Railway volume, задай переменную
+# окружения DB_PATH равной пути ВНУТРИ смонтированного volume, например:
+#   DB_PATH=/data/docura.db
+# (где /data — это тот самый "Mount Path", который ты указал при создании volume
+# в настройках сервиса на Railway). Без этого volume просто не используется ботом,
+# даже если он подключён к сервису.
+DB_PATH = os.getenv("DB_PATH", "docura.db")
 
 class Database:
     def __init__(self):
@@ -51,6 +59,7 @@ class Database:
                     doc_name TEXT NOT NULL,
                     content TEXT NOT NULL,
                     score INTEGER DEFAULT 0,
+                    feedback TEXT,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (teacher_id) REFERENCES users(tg_id)
                 );
@@ -94,12 +103,65 @@ class Database:
                     is_active INTEGER DEFAULT 1,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
+
+                CREATE TABLE IF NOT EXISTS user_templates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tg_id INTEGER NOT NULL,
+                    doc_type TEXT NOT NULL,
+                    file_path TEXT NOT NULL,
+                    original_name TEXT NOT NULL,
+                    lang TEXT DEFAULT 'ru',
+                    scope TEXT NOT NULL DEFAULT 'personal',
+                    metadata TEXT DEFAULT '{}',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(tg_id, doc_type, scope)
+                );
+
+                CREATE TABLE IF NOT EXISTS funnel_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tg_id INTEGER NOT NULL,
+                    event TEXT NOT NULL,
+                    doc_type TEXT DEFAULT '',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
             """)
             await db.commit()
 
             # ── Миграция для баз созданных до появления новых колонок ──
             await self._ensure_column(db, "users", "tier", "TEXT")
             await self._ensure_column(db, "users", "age_group", "TEXT")
+            await self._ensure_column(db, "users", "ref_code", "TEXT")
+            await self._ensure_column(db, "users", "referred_by", "INTEGER")
+            await self._ensure_column(db, "users", "ref_rewarded", "INTEGER DEFAULT 0")
+            await self._ensure_column(db, "users", "bonus_docs", "INTEGER DEFAULT 0")
+            await self._ensure_column(db, "users", "promo_used", "INTEGER DEFAULT 0")
+            await self._ensure_column(db, "users", "reset_pending", "INTEGER DEFAULT 0")
+            await self._ensure_column(db, "users", "document_lang", "TEXT")
+            await self._ensure_column(db, "users", "lang_selected", "INTEGER DEFAULT 0")
+            # Память агента и настройки персональных напоминаний.
+            # Добавляются отдельно, чтобы не ломать уже созданные базы SQLite.
+            await self._ensure_column(db, "users", "last_doc_type", "TEXT")
+            await self._ensure_column(db, "users", "last_doc_date", "TEXT")
+            await self._ensure_column(db, "users", "auto_generate", "INTEGER DEFAULT 0")
+            await self._ensure_column(db, "users", "reminder_days", "INTEGER DEFAULT 7")
+            await self._ensure_column(db, "students", "parents", "TEXT")
+            await self._ensure_column(db, "students", "parent_phone", "TEXT")
+            await self._ensure_column(db, "students", "address", "TEXT")
+            await self._ensure_column(db, "students", "birth_date", "TEXT")
+            await self._ensure_column(db, "students", "health_group", "TEXT")
+            await self._ensure_column(db, "students", "notes_extended", "TEXT")
+            await self._ensure_column(db, "analytics", "rating", "INTEGER")
+            # Оценка пользователя хранится у конкретного созданного документа.
+            await self._ensure_column(db, "documents", "feedback", "TEXT")
+            await self._ensure_column(db, "users", "funnel_step", "TEXT")
+            await self._ensure_column(db, "users", "seen_sections", "TEXT DEFAULT '{}'")
+            await db.commit()
+
+            # Уникальный индекс на ref_code — создаём отдельно от ALTER TABLE,
+            # т.к. SQLite не позволяет добавлять UNIQUE через ADD COLUMN
+            await db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_ref_code ON users(ref_code) WHERE ref_code IS NOT NULL"
+            )
             await db.commit()
 
             # Бэкфилл: пользователи, у которых subscribed=1 но tier ещё не проставлен
@@ -117,6 +179,17 @@ class Database:
         if column not in cols:
             await db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
 
+    async def log_funnel(self, tg_id: int, step: str):
+        """Сохраняет последний достигнутый шаг воронки пользователя."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE users SET funnel_step=? WHERE tg_id=?", (step, tg_id))
+            await db.commit()
+
+    async def log_funnel_event(self, tg_id: int, event: str, doc_type: str = ""):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("INSERT INTO funnel_events (tg_id, event, doc_type) VALUES (?,?,?)", (tg_id, event, doc_type))
+            await db.commit()
+
     # ===== USERS =====
     async def get_user(self, tg_id: int):
         async with aiosqlite.connect(self.db_path) as db:
@@ -124,6 +197,26 @@ class Database:
             async with db.execute("SELECT * FROM users WHERE tg_id=?", (tg_id,)) as cur:
                 row = await cur.fetchone()
                 return dict(row) if row else None
+
+    async def has_seen_section(self, tg_id: int, section: str) -> bool:
+        user = await self.get_user(tg_id)
+        if not user:
+            return False
+        try:
+            return json.loads(user.get("seen_sections") or "{}").get(section, False)
+        except (TypeError, json.JSONDecodeError):
+            return False
+
+    async def mark_section_seen(self, tg_id: int, section: str):
+        user = await self.get_user(tg_id)
+        if not user:
+            return
+        try:
+            seen = json.loads(user.get("seen_sections") or "{}")
+        except (TypeError, json.JSONDecodeError):
+            seen = {}
+        seen[section] = True
+        await self.upsert_user(tg_id, {"seen_sections": json.dumps(seen)})
 
     async def upsert_user(self, tg_id: int, data: dict):
         user = await self.get_user(tg_id)
@@ -159,6 +252,52 @@ class Database:
                 "UPDATE users SET subscribed=0, tier=NULL WHERE tg_id=?", (tg_id,)
             )
             await db.commit()
+
+    # ===== ЛИЧНЫЕ WORD-ОБРАЗЦЫ =====
+    async def save_user_template(self, tg_id: int, doc_type: str, file_path: str,
+                                 original_name: str, lang: str, metadata: dict | None = None):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """INSERT INTO user_templates (tg_id, doc_type, file_path, original_name, lang, scope, metadata)
+                   VALUES (?, ?, ?, ?, ?, 'personal', ?)
+                   ON CONFLICT(tg_id, doc_type, scope) DO UPDATE SET
+                     file_path=excluded.file_path, original_name=excluded.original_name,
+                     lang=excluded.lang, metadata=excluded.metadata, created_at=CURRENT_TIMESTAMP""",
+                (tg_id, doc_type, file_path, original_name, lang, json.dumps(metadata or {}, ensure_ascii=False))
+            )
+            await db.commit()
+
+    async def get_user_template(self, tg_id: int, doc_type: str):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM user_templates WHERE tg_id=? AND doc_type=? AND scope='personal'", (tg_id, doc_type)
+            ) as cur:
+                row = await cur.fetchone()
+                return dict(row) if row else None
+
+    async def delete_user_template(self, tg_id: int, doc_type: str) -> str | None:
+        template = await self.get_user_template(tg_id, doc_type)
+        if not template:
+            return None
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("DELETE FROM user_templates WHERE id=?", (template["id"],))
+            await db.commit()
+        return template["file_path"]
+
+    async def reset_user_account(self, tg_id: int) -> bool:
+        """Очищает только профиль и незавершённый онбординг, сохраняя доступы и историю."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                """UPDATE users SET
+                    lang=NULL, name=NULL, school=NULL, position=NULL, subject=NULL,
+                    classes=NULL, age_group=NULL, is_class_teacher=0, director=NULL,
+                    role=NULL, notified_at=NULL, reset_pending=1
+                   WHERE tg_id=?""",
+                (tg_id,)
+            )
+            await db.commit()
+            return cursor.rowcount > 0
 
     # ===== STUDENTS =====
     async def get_students(self, teacher_id: int, class_name: str = None):
@@ -217,11 +356,25 @@ class Database:
     # ===== DOCUMENTS =====
     async def save_document(self, teacher_id: int, doc_type: str, doc_name: str, content: str, score: int):
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
+            cursor = await db.execute(
                 "INSERT INTO documents (teacher_id, doc_type, doc_name, content, score) VALUES (?,?,?,?,?)",
                 (teacher_id, doc_type, doc_name, content, score)
             )
             await db.commit()
+            return cursor.lastrowid
+
+    async def update_document_feedback(self, document_id: int, feedback: str):
+        """Сохраняет оценку, не меняя историю и содержимое документа."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE documents SET feedback=? WHERE id=?", (feedback, document_id))
+            await db.commit()
+
+    async def get_document(self, document_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM documents WHERE id=?", (document_id,)) as cur:
+                row = await cur.fetchone()
+                return dict(row) if row else None
 
     async def get_history(self, teacher_id: int, limit: int = 20):
         async with aiosqlite.connect(self.db_path) as db:
@@ -252,7 +405,10 @@ class Database:
             await db.commit()
 
     async def get_admin_stats(self):
-        TIER_PRICE = {"basic": 2490, "pro": 3990}
+        # ВАЖНО: в системе только один платный тариф — PRO. "pro_promo" (2490 тг) — это
+        # тот же tier="pro" в БД, просто скидка на первый месяц; для расчёта текущего/
+        # регулярного дохода используем полную цену подписки (см. profile.py TIER_PRICES).
+        PRO_PRICE = 4990
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute("SELECT COUNT(*) as c FROM users") as cur:
@@ -267,12 +423,8 @@ class Database:
                 week_users = (await cur.fetchone())["c"]
             async with db.execute("SELECT doc_type, COUNT(*) as cnt FROM documents GROUP BY doc_type ORDER BY cnt DESC LIMIT 5") as cur:
                 top_docs = await cur.fetchall()
-            async with db.execute("SELECT tier, COUNT(*) as c FROM users WHERE subscribed=1 GROUP BY tier") as cur:
-                tier_rows = await cur.fetchall()
 
-        revenue = 0
-        for row in tier_rows:
-            revenue += TIER_PRICE.get(row["tier"] or "pro", 3990) * row["c"]
+        revenue = subscribed * PRO_PRICE
 
         return {
             "total_users": total_users,
@@ -407,3 +559,63 @@ class Database:
                 new_val = 0 if row[0] else 1
                 await db.execute("UPDATE samples SET is_active=? WHERE id=?", (new_val, sample_id))
                 await db.commit()
+
+    # ===== REFERRALS (реферальная программа) =====
+    async def get_user_by_ref_code(self, ref_code: str):
+        if not ref_code:
+            return None
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM users WHERE ref_code=?", (ref_code,)) as cur:
+                row = await cur.fetchone()
+                return dict(row) if row else None
+
+    async def generate_unique_ref_code(self) -> str:
+        """Генерирует уникальный короткий код (буквы+цифры), проверяя коллизии в БД."""
+        import random, string
+        alphabet = string.ascii_uppercase + string.digits
+        for _ in range(20):
+            code = "".join(random.choices(alphabet, k=6))
+            existing = await self.get_user_by_ref_code(code)
+            if not existing:
+                return code
+        # Крайний случай — увеличиваем длину, если 20 попыток не хватило
+        return "".join(random.choices(alphabet, k=10))
+
+    async def count_referrals(self, tg_id: int) -> int:
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(
+                "SELECT COUNT(*) FROM users WHERE referred_by=? AND ref_rewarded=1", (tg_id,)
+            ) as cur:
+                row = await cur.fetchone()
+                return row[0] if row else 0
+
+    async def add_bonus_docs(self, tg_id: int, amount: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "UPDATE users SET bonus_docs = COALESCE(bonus_docs, 0) + ? WHERE tg_id=?",
+                (amount, tg_id)
+            )
+            await db.commit()
+
+    async def mark_ref_rewarded(self, tg_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE users SET ref_rewarded=1 WHERE tg_id=?", (tg_id,))
+            await db.commit()
+
+    # ===== ПРОМО-ПОДПИСКА (первый месяц PRO по акции) =====
+    async def mark_promo_used(self, tg_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE users SET promo_used=1 WHERE tg_id=?", (tg_id,))
+            await db.commit()
+
+
+# ===== Общие константы/хелперы для лимита бесплатных документов =====
+FREE_BASE_LIMIT = 3
+
+def free_limit_for(user: dict) -> int:
+    """Сколько всего бесплатных документов доступно пользователю
+    (база + бонусы за приглашённых друзей)."""
+    if not user:
+        return FREE_BASE_LIMIT
+    return FREE_BASE_LIMIT + (user.get("bonus_docs") or 0)
