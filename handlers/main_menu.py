@@ -53,16 +53,12 @@ class MainMenuHandler:
         ]
 
     def _settings_keyboard(self, lang, is_kg):
-        students = "👥 Мои воспитанники" if is_kg and lang == "ru" else "👥 Мои ученики" if lang == "ru" else "👥 Менің тәрбиеленушілерім"
-        schedule = "📅 Расписание / режим дня" if lang == "ru" else "📅 Кесте / күн тәртібі"
         return [
             [InlineKeyboardButton("👤 Мой профиль" if lang == "ru" else "👤 Менің профилім", callback_data="menu_profile")],
-            [InlineKeyboardButton(students, callback_data="prof_students")],
-            [InlineKeyboardButton(schedule, callback_data="agent_schedule")],
             [InlineKeyboardButton("🔔 Напоминания" if lang == "ru" else "🔔 Еске салғыштар", callback_data="agent_reminders")],
             [InlineKeyboardButton("⭐ Тариф и подписка" if lang == "ru" else "⭐ Тариф және жазылым", callback_data="prof_sub")],
-            [InlineKeyboardButton("💬 Написать разработчику" if lang == "ru" else "💬 Әзірлеушіге жазу", callback_data="menu_feedback")],
             [InlineKeyboardButton("🌐 Сменить язык" if lang == "ru" else "🌐 Тілді өзгерту", callback_data="prof_lang")],
+            [InlineKeyboardButton("💬 Написать разработчику" if lang == "ru" else "💬 Әзірлеушіге жазу", callback_data="menu_feedback")],
             [InlineKeyboardButton("← Назад" if lang == "ru" else "← Артқа", callback_data="menu_main")],
         ]
 

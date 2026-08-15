@@ -137,10 +137,7 @@ class ProfileHandler:
             [InlineKeyboardButton("✏️ " + t(lang, "btn_edit_profile"), callback_data="prof_edit")],
             [InlineKeyboardButton("👥 " + students_btn_text,           callback_data="prof_students")],
             [InlineKeyboardButton("📅 " + ("Моё расписание" if not is_kg and lang == "ru" else "Мой режим дня" if is_kg and lang == "ru" else "Менің кестем"), callback_data="agent_schedule")],
-            [InlineKeyboardButton("🔔 " + ("Напоминания" if lang == "ru" else "Еске салғыштар"), callback_data="agent_reminders")],
-            [InlineKeyboardButton("⭐ " + t(lang, "btn_subscription"),  callback_data="prof_sub")],
-            [InlineKeyboardButton("🌐 " + t(lang, "btn_change_lang"),   callback_data="prof_lang")],
-            [InlineKeyboardButton("✉️ " + ("Жалоба или отзыв" if lang == "ru" else "Шағым немесе пікір"), callback_data="prof_complaint")],
+            [InlineKeyboardButton("⚙️ " + ("Настройки" if lang == "ru" else "Баптаулар"), callback_data="menu_settings")],
             [MENU_BTN(lang)],
         ]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
