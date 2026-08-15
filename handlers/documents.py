@@ -558,6 +558,7 @@ DOC_NAMES = {
         "kg_activity_summary": "Activity Technological Map",
         "kg_individual_development_card": "Child Individual Development Card",
         "kindergarten_cycle_schedule": "Weekly Cyclogram",
+        "development_monitoring": "Development Monitoring",
         "kg_perspective_plan": "Monthly Perspective Plan",
         "kg_matinee_script": "Matinee Script",
         "kg_monthly_report": "Kindergarten Teacher Report",
@@ -1389,7 +1390,7 @@ class DocumentHandler:
         raw_children = answers.get("children", "").strip().lower()
         children = (["—"] * 15 if raw_children in {"пустой", "бос"} else [x.strip() for x in answers.get("children", "").replace("\n", ",").split(",") if x.strip()])
         rows = answers.get("rows", [])
-        filename = generate_word("", DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], teacher_name=answers.get("educator_name", ""), director_name=answers.get("director_name", ""), monitoring_data={**answers, "children": children, "rows": rows, "lang": lang})
+        filename = generate_word("", DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], teacher_name=answers.get("educator_name", ""), director_name=answers.get("director_name", ""), monitoring_data={**answers, "children": children, "rows": rows, "lang": lang}, lang=lang)
         with open(filename, "rb") as f:
             await message.reply_document(document=f, filename=f"monitoring_{datetime.now().strftime('%d%m%Y')}.docx", caption="📄 Мониторинг развития" if lang == "ru" else "📄 Даму мониторингі")
         os.remove(filename)
@@ -1624,6 +1625,7 @@ class DocumentHandler:
                 cycle_data=answers if doc_type == KINDERGARTEN_CYCLE_SCHEDULE else None,
                 monitoring_data=answers if doc_type == "kg_individual_development_card" else None,
                 registry_doc_type=doc_type,
+                lang=doc_lang,
             )
             with open(filename, "rb") as f:
                 caption = {

@@ -95,8 +95,15 @@ class MainMenuHandler:
             await self._show_invite(query, context, user_id, user, lang)
 
         elif data == "menu_feedback":
-            context.user_data["step"] = "feedback_waiting"
-            await query.edit_message_text("Напишите ваш вопрос или отзыв." if lang == "ru" else "Сұрағыңызды жазыңыз.")
+            # Переиспользуем уже рабочий обработчик жалоб/отзывов из ProfileHandler
+            # (step "prof_complaint" маршрутизируется в bot.py по префиксу "prof_").
+            # Раньше здесь стоял несуществующий шаг "feedback_waiting", который
+            # никто нигде не обрабатывал — кнопка "Написать разработчику" молча
+            # ничего не делала, сообщение пользователя просто терялось.
+            context.user_data["step"] = "prof_complaint"
+            await query.edit_message_text(
+                "Напишите ваш вопрос или отзыв." if lang == "ru" else "Сұрағыңызды жазыңыз."
+            )
 
         elif data == "menu_help":
             help_key = "help_text_kg" if user.get("role") == "kindergarten" else "help_text"
