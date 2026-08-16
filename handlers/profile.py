@@ -15,7 +15,11 @@ MENU_BTN   = lambda lang: InlineKeyboardButton("🏠 " + ("Главное мен
 BACK_BTN   = lambda lang, cb: InlineKeyboardButton("◀️ " + ("Назад" if lang == "ru" else "Артқа"), callback_data=cb)
 CANCEL_BTN = lambda lang: InlineKeyboardButton("❌ " + ("Отмена" if lang == "ru" else "Болдырмау"), callback_data="menu_main")
 
-KASPI_NUMBER = "+7 771 451 4717"
+PAYMENT_CARDS = {
+    "kaspi":   "4400 4303 2751 9754",
+    "freedom": "4002 8900 4710 6772",
+}
+BANK_NAMES = {"kaspi": "Kaspi Gold", "freedom": "Freedom Bank"}
 
 # Только один платный тариф — Docura PRO.
 # pro_promo — та же самая подписка PRO, просто первый месяц дешевле (одноразово на аккаунт).
@@ -202,8 +206,29 @@ class ProfileHandler:
                 return
 
             context.user_data["chosen_tier"] = tier
-            context.user_data["step"] = "waiting_payment_receipt"
             price = TIER_PRICES[tier]
+
+            text = (
+                f"💳 *Docura PRO — {price} тг/мес*\n\nВыберите карту, на которую удобнее перевести оплату:"
+            ) if lang == "ru" else (
+                f"💳 *Docura PRO — {price} тг/ай*\n\nТөлемді аудару үшін ыңғайлы картаны таңдаңыз:"
+            )
+            kb = [
+                [InlineKeyboardButton("💳 Kaspi Gold", callback_data="prof_pay_kaspi")],
+                [InlineKeyboardButton("💳 Freedom Bank", callback_data="prof_pay_freedom")],
+                [BACK_BTN(lang, "prof_sub")],
+            ]
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+
+        elif data in ("prof_pay_kaspi", "prof_pay_freedom"):
+            bank = data.rsplit("_", 1)[1]  # "kaspi" или "freedom"
+            tier = context.user_data.get("chosen_tier", "pro")
+            price = TIER_PRICES[tier]
+            card = PAYMENT_CARDS[bank]
+            bank_name = BANK_NAMES[bank]
+
+            context.user_data["chosen_bank"] = bank
+            context.user_data["step"] = "waiting_payment_receipt"
 
             promo_line_ru = f"\n🔥 Обычная цена {TIER_PRICES['pro']} тг — для вас первый месяц дешевле!\n" if tier == "pro_promo" else ""
             promo_line_kz = f"\n🔥 Әдеттегі баға {TIER_PRICES['pro']} тг — сізге бірінші ай арзанырақ!\n" if tier == "pro_promo" else ""
@@ -211,16 +236,16 @@ class ProfileHandler:
             text = (
                 f"💳 *Docura PRO — {price} тг/мес*\n"
                 f"{promo_line_ru}\n"
-                f"Переведите *{price} тг* на Kaspi:\n"
-                f"`{KASPI_NUMBER}`\n"
+                f"Переведите *{price} тг* на карту {bank_name}:\n"
+                f"`{card}`\n"
                 f"_(нажмите чтобы скопировать)_\n\n"
                 f"Затем пришлите *скриншот или файл чека* — подписка активируется автоматически ✅\n\n"
                 f"_Бот сам проверит сумму и получателя_"
             ) if lang == "ru" else (
                 f"💳 *Docura PRO — {price} тг/ай*\n"
                 f"{promo_line_kz}\n"
-                f"*{price} тг* осы нөмірге аударыңыз:\n"
-                f"`{KASPI_NUMBER}`\n\n"
+                f"*{price} тг* {bank_name} картасына аударыңыз:\n"
+                f"`{card}`\n\n"
                 f"Чек скриншотын немесе файлын жіберіңіз — жазылым автоматты белсендіріледі ✅"
             )
             kb = [[BACK_BTN(lang, "prof_sub")]]
@@ -508,6 +533,10 @@ class ProfileHandler:
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
         tier    = context.user_data.get("chosen_tier", "pro")
+        bank    = context.user_data.get("chosen_bank", "kaspi")
+        card    = PAYMENT_CARDS.get(bank, PAYMENT_CARDS["kaspi"])
+        card_last4 = card[-4:]
+        bank_name = BANK_NAMES.get(bank, "Kaspi Gold")
         expected_amount = TIER_PRICES.get(tier, 3990)
 
         wait_msg = await update.message.reply_text(
@@ -550,8 +579,8 @@ class ProfileHandler:
             # ВАЖНО: сверяем с суммой ИМЕННО того тарифа, который выбрал пользователь
             # (а не с любой из возможных сумм) — иначе акцию 2490 легко перепутать
             # с обычным Базовым тарифом, у которого та же цена.
-            prompt = f"""Это чек оплаты Kaspi. Проверь следующее:
-1. Получатель содержит номер телефона: {KASPI_NUMBER} (может быть записан без пробелов, с дефисами или скобками — это нормально)
+            prompt = f"""Это чек об оплате переводом на банковскую карту в Казахстане. Проверь следующее:
+1. Получатель — карта, номер которой заканчивается на {card_last4} (на чеке номер карты обычно замаскирован, например **** {card_last4} или последние 4 цифры видны отдельно). Банк-получатель: {bank_name}.
 2. Сумма равна {expected_amount} тенге (ровно эта сумма, не другая)
 3. Дата операции — сегодня ({today}) или вчера (допустимо)
 
@@ -559,7 +588,8 @@ class ProfileHandler:
 {{"valid": true/false, "amount": число_или_null, "reason": "причина если false"}}
 
 Если чек нечёткий или текст плохо читается — valid: false, reason: "нечёткий чек".
-Если сумма не совпадает — valid: false, reason: "неверная сумма"."""
+Если сумма не совпадает — valid: false, reason: "неверная сумма".
+Если последние 4 цифры карты получателя не совпадают с {card_last4} — valid: false, reason: "другой получатель"."""
 
             response = client.messages.create(
                 model="claude-sonnet-4-6",
@@ -597,13 +627,13 @@ class ProfileHandler:
                 "ru": {
                     "нечёткий чек": "Чек нечёткий — сделайте более чёткий скриншот.",
                     "неверная сумма": f"Неверная сумма. Нужно ровно {expected_amount} тг.",
-                    "другой получатель": f"Получатель не совпадает. Переводите на {KASPI_NUMBER}.",
+                    "другой получатель": f"Получатель не совпадает. Переводите на карту {bank_name}: {card}.",
                     "старый чек": "Чек устарел. Нужна оплата сегодняшним числом.",
                 },
                 "kz": {
                     "нечёткий чек": "Чек анық емес — нақтырақ скриншот жіберіңіз.",
                     "неверная сумма": f"Сумма дұрыс емес. Дәл {expected_amount} тг керек.",
-                    "другой получатель": f"Алушы сәйкес емес. {KASPI_NUMBER} нөміріне аударыңыз.",
+                    "другой получатель": f"Алушы сәйкес емес. {bank_name} картасына аударыңыз: {card}.",
                     "старый чек": "Чек ескірген. Бүгінгі күнмен төлем керек.",
                 }
             }
@@ -626,6 +656,7 @@ class ProfileHandler:
             await self.db.mark_promo_used(user_id)
 
         context.user_data.pop("chosen_tier", None)
+        context.user_data.pop("chosen_bank", None)
         context.user_data.pop("step", None)
 
         kb = [[MENU_BTN(lang)]]
