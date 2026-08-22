@@ -1,7 +1,7 @@
 import aiosqlite
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ВАЖНО (Railway/деплой): по умолчанию база лежит рядом с кодом — это НЕ переживёт
 # редеплой на Railway без volume. Если используешь Railway volume, задай переменную
@@ -144,6 +144,12 @@ class Database:
             await self._ensure_column(db, "users", "last_doc_date", "TEXT")
             await self._ensure_column(db, "users", "auto_generate", "INTEGER DEFAULT 0")
             await self._ensure_column(db, "users", "reminder_days", "INTEGER DEFAULT 7")
+            # Дата окончания подписки. NULL означает "без автоматического срока" —
+            # так помечены и уже существующие подписчики на момент этой миграции
+            # (никого не отключает задним числом), и любые подписки, активированные
+            # вручную через админку (B2B-партнёры) — за них отвечает администратор,
+            # а не автоматика.
+            await self._ensure_column(db, "users", "sub_expires", "TEXT")
             await self._ensure_column(db, "students", "parents", "TEXT")
             await self._ensure_column(db, "students", "parent_phone", "TEXT")
             await self._ensure_column(db, "students", "address", "TEXT")
@@ -239,19 +245,42 @@ class Database:
             await db.execute("UPDATE users SET free_used=free_used+1 WHERE tg_id=?", (tg_id,))
             await db.commit()
 
-    async def activate_subscription(self, tg_id: int, tier: str = "pro"):
+    async def activate_subscription(self, tg_id: int, tier: str = "pro", expires_in_days: int | None = None):
+        """
+        expires_in_days — на сколько дней активировать подписку с автопродлением/
+        напоминанием об оплате. Передавать ТОЛЬКО для самостоятельной оплаты
+        пользователем через чек (см. profile.py _process_receipt).
+        Если не передано (по умолчанию) — подписка бессрочная, пока её не снимут
+        вручную. Так активируются B2B-партнёры (школы/садики) через админку —
+        ими управляет администратор, а не автоматика, чтобы бот случайно не
+        отключил партнёрское учреждение через 30 дней без ведома администратора.
+        """
+        expires = (datetime.now() + timedelta(days=expires_in_days)).isoformat() if expires_in_days else None
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                "UPDATE users SET subscribed=1, tier=? WHERE tg_id=?", (tier, tg_id)
+                "UPDATE users SET subscribed=1, tier=?, sub_expires=? WHERE tg_id=?", (tier, expires, tg_id)
             )
             await db.commit()
 
     async def deactivate_subscription(self, tg_id: int):
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                "UPDATE users SET subscribed=0, tier=NULL WHERE tg_id=?", (tg_id,)
+                "UPDATE users SET subscribed=0, tier=NULL, sub_expires=NULL WHERE tg_id=?", (tg_id,)
             )
             await db.commit()
+
+    async def get_expired_subscriptions(self):
+        """Пользователи с автопродлением (expires_in_days при активации), у которых
+        истёк срок оплаты. Подписки без установленного срока (B2B/админ-активация)
+        сюда никогда не попадают — ими управляет администратор вручную."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM users WHERE subscribed=1 AND sub_expires IS NOT NULL AND sub_expires < ?",
+                (datetime.now().isoformat(),)
+            ) as cur:
+                rows = await cur.fetchall()
+                return [dict(r) for r in rows]
 
     # ===== ЛИЧНЫЕ WORD-ОБРАЗЦЫ =====
     async def save_user_template(self, tg_id: int, doc_type: str, file_path: str,
@@ -405,7 +434,10 @@ class Database:
             await db.commit()
 
     async def get_admin_stats(self):
-        TIER_PRICE = {"basic": 2490, "pro": 3990}
+        # ВАЖНО: в системе только один платный тариф — PRO. "pro_promo" (2490 тг) — это
+        # тот же tier="pro" в БД, просто скидка на первый месяц; для расчёта текущего/
+        # регулярного дохода используем полную цену подписки (см. profile.py TIER_PRICES).
+        PRO_PRICE = 4990
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute("SELECT COUNT(*) as c FROM users") as cur:
@@ -420,12 +452,8 @@ class Database:
                 week_users = (await cur.fetchone())["c"]
             async with db.execute("SELECT doc_type, COUNT(*) as cnt FROM documents GROUP BY doc_type ORDER BY cnt DESC LIMIT 5") as cur:
                 top_docs = await cur.fetchall()
-            async with db.execute("SELECT tier, COUNT(*) as c FROM users WHERE subscribed=1 GROUP BY tier") as cur:
-                tier_rows = await cur.fetchall()
 
-        revenue = 0
-        for row in tier_rows:
-            revenue += TIER_PRICE.get(row["tier"] or "pro", 3990) * row["c"]
+        revenue = subscribed * PRO_PRICE
 
         return {
             "total_users": total_users,

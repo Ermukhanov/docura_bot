@@ -28,8 +28,6 @@ VOICE_UNDERSTAND_PROMPT_TEACHER = """Учитель отправил голос�
 2. Какие данные уже есть в запросе
 3. Каких данных не хватает (задай только НЕОБХОДИМЫЕ вопросы, максимум 3)
 
-ВАЖНО: поле "missing_questions" пиши строго на языке {question_lang_name} — это язык интерфейса пользователя, независимо от языка голосового сообщения.
-
 Ответь в формате JSON:
 {{
   "doc_type": "тип документа",
@@ -47,8 +45,6 @@ VOICE_UNDERSTAND_PROMPT_KG = """Воспитатель детского сада
 1. Какой документ нужно создать (один из: kg_thematic_plan, kg_activity_summary, kg_monthly_report, kg_child_characteristic, kg_parent_letter, kg_absence_cert, kg_vacation_request, kg_explanation, kg_announcement)
 2. Какие данные уже есть в запросе
 3. Каких данных не хватает (задай только НЕОБХОДИМЫЕ вопросы, максимум 3)
-
-ВАЖНО: поле "missing_questions" пиши строго на языке {question_lang_name} — это язык интерфейса пользователя, независимо от языка голосового сообщения.
 
 Ответь в формате JSON:
 {{
@@ -103,7 +99,7 @@ class VoiceHandler:
                 tmp_path = tmp.name
 
             voice_text = await asyncio.get_event_loop().run_in_executor(
-                None, self._transcribe_best, tmp_path, lang
+                None, self._transcribe_best, tmp_path
             )
 
             try:
@@ -158,25 +154,27 @@ class VoiceHandler:
             if quick_doc_type:
                 from handlers.concierge import ConciergeHandler
                 concierge = ConciergeHandler(self.db, self.anthropic_key)
-                await concierge._start_direct_document(update, context, user, lang, quick_doc_type, voice_text)
+                # Раньше сюда передавался сырой voice_text как request_text — это поле
+                # нигде не использовалось вопросами документов (ни в DOC_QUESTIONS, ни в
+                # REGISTRY_QUESTIONS нет ключа "request"), так что структурированных данных
+                # тут не теряем. Новая сигнатура ждёт known_data: dict|None — передаём None,
+                # _start_doc сам проведёт пользователя по полному опроснику.
+                await concierge._start_direct_document(update, context, user, lang, quick_doc_type, known_data=None)
                 return
 
             client = anthropic.Anthropic(api_key=self.anthropic_key)
 
-            question_lang_name = "казахском" if lang == "kz" else "русском"
             if is_kg:
                 prompt = VOICE_UNDERSTAND_PROMPT_KG.format(
                     voice_text=voice_text,
                     classes=user.get("age_group", ""),
-                    question_lang_name=question_lang_name,
                 )
             else:
                 prompt = VOICE_UNDERSTAND_PROMPT_TEACHER.format(
                     voice_text=voice_text,
                     subject=user.get("subject", ""),
                     classes=user.get("classes", ""),
-                    is_ct="да" if user.get("is_class_teacher") else "нет",
-                    question_lang_name=question_lang_name,
+                    is_ct="да" if user.get("is_class_teacher") else "нет"
                 )
 
             msg = client.messages.create(
@@ -262,30 +260,20 @@ class VoiceHandler:
                 reply_markup=InlineKeyboardMarkup(kb)
             )
 
-    def _transcribe_best(self, file_path: str, lang: str = "ru") -> str:
+    def _transcribe_best(self, file_path: str) -> str:
         """
         Пробует несколько методов транскрипции по порядку.
         1. faster-whisper (если установлен)
         2. SpeechRecognition (если установлен)
         3. Возвращает пустую строку
-
-        ВАЖНО: язык распознавания должен соответствовать языку интерфейса
-        пользователя — раньше здесь было жёстко зашито "ru", из-за чего
-        казахская речь распознавалась через русскую модель и превращалась
-        в мусор (или пустой результат).
         """
-        # faster-whisper понимает казахский под кодом "kk"
-        whisper_lang = "kk" if lang == "kz" else "ru"
-        # Google Speech Recognition — региональный код языка
-        google_lang = "kk-KZ" if lang == "kz" else "ru-RU"
-
         try:
             from faster_whisper import WhisperModel
-            print(f"Используем faster-whisper (язык: {whisper_lang})...")
+            print("Используем faster-whisper...")
             model = WhisperModel("tiny", device="cpu", compute_type="int8")
             segments, info = model.transcribe(
                 file_path,
-                language=whisper_lang,
+                language="ru",
                 beam_size=3,
                 vad_filter=True,
             )
@@ -313,7 +301,7 @@ class VoiceHandler:
                 with sr.AudioFile(wav_path) as source:
                     audio = recognizer.record(source)
                 try:
-                    text = recognizer.recognize_google(audio, language=google_lang)
+                    text = recognizer.recognize_google(audio, language="ru-RU")
                     os.unlink(wav_path)
                     print(f"SpeechRecognition: '{text}'")
                     return text

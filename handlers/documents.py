@@ -558,7 +558,6 @@ DOC_NAMES = {
         "kg_activity_summary": "Activity Technological Map",
         "kg_individual_development_card": "Child Individual Development Card",
         "kindergarten_cycle_schedule": "Weekly Cyclogram",
-        "development_monitoring": "Development Monitoring",
         "kg_perspective_plan": "Monthly Perspective Plan",
         "kg_matinee_script": "Matinee Script",
         "kg_monthly_report": "Kindergarten Teacher Report",
@@ -613,6 +612,10 @@ STUDENT_LINKED_DOC_TYPES = [
     "characteristic", "absence_cert", "discipline_act", "gratitude_letter", "parent_letter",
     "kg_child_characteristic", "kg_parent_letter", "kg_absence_cert",
     "individual_work_plan", "housing_survey_act",
+    # Индивидуальная карта развития — тоже про одного конкретного ребёнка (не про
+    # всю группу, в отличие от development_monitoring), поэтому тоже должна давать
+    # выбор из базы воспитанников.
+    "kg_individual_development_card",
 ]
 
 # Отдельный, минимальный сценарий для циклограммы сада. Остальные документы
@@ -624,17 +627,11 @@ CYCLE_REQUIRED_FIELDS = {
     "period": "неделя или даты",
     "week_topic": "тема недели",
 }
-CYCLE_REQUIRED_FIELDS_KZ = {
-    "group": "топ",
-    "period": "апта немесе күндер",
-    "week_topic": "апта тақырыбы",
-}
 
 
-def validate_cycle_schedule_answers(answers: dict, lang: str = "ru") -> list[str]:
+def validate_cycle_schedule_answers(answers: dict) -> list[str]:
     """Возвращает названия обязательных незаполненных полей циклограммы."""
-    labels = CYCLE_REQUIRED_FIELDS_KZ if lang == "kz" else CYCLE_REQUIRED_FIELDS
-    return [label for key, label in labels.items() if not str(answers.get(key, "")).strip()]
+    return [label for key, label in CYCLE_REQUIRED_FIELDS.items() if not str(answers.get(key, "")).strip()]
 
 # Красивые разделители для дизайна
 DIVIDER = "─" * 20
@@ -672,6 +669,21 @@ def _progress_bar(current, total):
 
 def _doc_lang_name(doc_lang):
     return {"ru": "🇷🇺 Русский", "kz": "🇰🇿 Қазақша", "en": "🇬🇧 English"}.get(doc_lang, doc_lang)
+
+
+def _pop_concierge_prefill(context, allowed_keys=None) -> dict:
+    """Забирает данные, которые ИИ-агент concierge извлёк из свободного сообщения
+    пользователя (например «КСП по математике для 7 класса» → subject_class).
+    Единая точка входа: используется во всех местах, где обычно подставляются
+    данные профиля, и всегда применяется ПОСЛЕ них — конкретное сообщение важнее
+    общих данных профиля. `allowed_keys`, если задан, отфильтровывает мусор —
+    подставляются только ключи, реально относящиеся к текущему типу документа.
+    Всегда `pop`-ается (а не читается), чтобы не просочиться в следующий, не
+    связанный с этим сообщением документ."""
+    prefill = context.user_data.pop("concierge_prefill", None) or {}
+    if not allowed_keys:
+        return dict(prefill)
+    return {k: v for k, v in prefill.items() if k in allowed_keys and v}
 
 
 class DocumentHandler:
@@ -872,6 +884,11 @@ class DocumentHandler:
             for key, value in profile_values.items():
                 if value and key in {q["key"] for q in qs}:
                     answers[key] = value
+            # Данные из свободного сообщения агенту («сделай КСП по математике для 7 класса»)
+            # важнее общих данных профиля — накладываем их поверх, только для полей
+            # этого конкретного документа.
+            q_keys = {q["key"] for q in qs}
+            answers.update(_pop_concierge_prefill(context, allowed_keys=q_keys))
             context.user_data["questions"] = qs
             context.user_data["step"]      = "waiting_answer"
             doc_name = DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
@@ -883,9 +900,6 @@ class DocumentHandler:
             doc_type = context.user_data.get("doc_type", "")
             if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
                 await self._start_cycle_schedule(query, context, user, lang)
-                return
-            if doc_type == DEVELOPMENT_MONITORING:
-                await self._start_development_monitoring(query, context, user, lang)
                 return
             qs = REGISTRY_QUESTIONS.get(doc_lang, {}).get(doc_type) or DOC_QUESTIONS.get(doc_lang, DOC_QUESTIONS["ru"]).get(doc_type, [])
             context.user_data["questions"] = qs or [{"key": "description", "q": "✍️ Опишите, что нужно создать:"}]
@@ -1027,78 +1041,60 @@ class DocumentHandler:
             return
 
         # Выбор языка всегда относится только к текущему документу. Не используем
-        # язык из профиля и не оставляем его от предыдущей генерации.
+        # язык из профиля и не оставляем его от предыдущей генерации — язык
+        # попадает в context.user_data["doc_lang"] только явным выбором пользователя
+        # на экране ниже (или на экране выбора языка после выбора ученика).
         context.user_data.pop("doc_lang", None)
         context.user_data["doc_type"] = doc_type
 
-        # Для документов по ученику/ребёнку — ВСЕГДА показываем экран выбора:
-        # если в базе есть ученики/воспитанники — список + кнопка "Ввести вручную";
-        # если базы нет — тот же экран, но только с кнопкой "Ввести вручную".
-        # Язык документа спрашивается уже после этого шага в _use_student_data.
+        # Для документов по ученику/ребёнку — СНАЧАЛА предложить выбрать из базы,
+        # и только потом (внутри _use_student_data, после выбора) спросить язык.
+        # Порядок важен: раньше это было мёртвым кодом ниже недостижимого return —
+        # экран выбора из базы никогда не показывался, ни из меню, ни из агента.
         if doc_type in STUDENT_LINKED_DOC_TYPES:
             students = await self.db.get_students(user_id)
-            keyboard = []
-            for s in students[:8]:
-                keyboard.append([InlineKeyboardButton(
-                    f"👤 {s['name']} ({s['class_name']})",
-                    callback_data=f"gen_student_{s['id']}"
-                )])
-            keyboard.append([InlineKeyboardButton(
-                "✍️ Ввести вручную" if lang == "ru" else "✍️ Қолмен енгізу",
-                callback_data="gen_student_0"
-            )])
-            is_kg = user.get("role") == "kindergarten"
             if students:
+                keyboard = []
+                for s in students[:8]:
+                    keyboard.append([InlineKeyboardButton(
+                        f"👤 {s['name']} ({s['class_name']})",
+                        callback_data=f"gen_student_{s['id']}"
+                    )])
+                keyboard.append([InlineKeyboardButton(
+                    "✍️ Ввести вручную" if lang == "ru" else "✍️ Қолмен енгізу",
+                    callback_data="gen_student_0"
+                )])
+                is_kg = user.get("role") == "kindergarten"
                 title = ("👥 *Выберите воспитанника из базы:*" if is_kg else "👥 *Выберите ученика из базы:*") if lang == "ru" \
                     else ("👥 *Базадан баланы таңдаңыз:*" if is_kg else "👥 *Базадан оқушыны таңдаңыз:*")
-            else:
-                title = ("В базе пока нет воспитанников." if is_kg else "В базе пока нет учеников.") if lang == "ru" \
-                    else ("Базада тәрбиеленушілер жоқ." if is_kg else "Базада оқушылар жоқ.")
-                title += "\n\n" + ("Введите данные вручную:" if lang == "ru" else "Деректерді қолмен енгізіңіз:")
-            await query.edit_message_text(title, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+                await query.edit_message_text(title, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+                return
+            # База пуста — сразу переходим к "Ввести вручную", как и предполагает
+            # экран выбора из базы, когда учеников/воспитанников ещё нет.
+            await self._use_student_data(query, context, user_id, user, lang, 0)
             return
 
-        context.user_data["doc_answers"] = {}
-        context.user_data["q_index"]     = 0
-
-        # Циклограмма и мониторинг развития собирают данные профиля сразу и
-        # не проходят общий опросник — но язык документа всё равно спрашиваем
-        # явно для каждого нового документа (см. doc_lang_/doc_lang_confirm ниже).
-        saved_doc_lang = user.get("document_lang") or user.get("doc_language")
-        if saved_doc_lang in {"ru", "kz", "en"}:
-            context.user_data["doc_lang"] = saved_doc_lang
-            language_label = _doc_lang_name(saved_doc_lang)
-            await query.edit_message_text(
-                (f"Язык документа: {language_label}" if saved_doc_lang == "ru" else f"Құжат тілі: {language_label}" if saved_doc_lang == "kz" else f"Document language: {language_label}"),
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Создать" if saved_doc_lang == "ru" else "Жасау" if saved_doc_lang == "kz" else "Create", callback_data="doc_lang_confirm")],
-                    [InlineKeyboardButton("Изменить язык" if saved_doc_lang == "ru" else "Тілді өзгерту" if saved_doc_lang == "kz" else "Change language", callback_data="doc_lang_change")],
-                ])
-            )
-            return
-
-        # ── Спросить язык документа ──
+        # Циклограмма и мониторинг развития НЕ спрашиваются здесь напрямую — язык
+        # выбирается на общем экране ниже, а дальнейшую диспетчеризацию на их
+        # специфичные сценарии делает обработчик doc_lang_* в callback() (там уже
+        # корректно вызывает _start_cycle_schedule / _start_development_monitoring
+        # после того как context.user_data["doc_lang"] явно установлен).
         doc_name = DOC_NAMES.get(lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
-        text = (
-            f"📄 *{doc_name}*\n"
-            f"{DIVIDER}\n"
-            f"🌐 На каком языке создать документ?"
-        ) if lang == "ru" else (
-            f"📄 *{doc_name}*\n"
-            f"{DIVIDER}\n"
-            f"🌐 Құжатты қандай тілде жасау керек?"
+        await query.edit_message_text(
+            (f"📄 *{doc_name}*\n{DIVIDER}\n🌐 На каком языке создать документ?" if lang == "ru"
+             else f"📄 *{doc_name}*\n{DIVIDER}\n🌐 Құжатты қандай тілде жасау керек?"),
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🇷🇺 Русский", callback_data="doc_lang_ru"), InlineKeyboardButton("🇰🇿 Қазақша", callback_data="doc_lang_kz")],
+                [InlineKeyboardButton("🇬🇧 English", callback_data="doc_lang_en")],
+                [InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")],
+            ]),
+            parse_mode=ParseMode.MARKDOWN,
         )
-        keyboard = [
-            [
-                InlineKeyboardButton("🇷🇺 Русский", callback_data="doc_lang_ru"),
-                InlineKeyboardButton("🇰🇿 Қазақша", callback_data="doc_lang_kz"),
-            ],
-            [InlineKeyboardButton("🇬🇧 English",    callback_data="doc_lang_en")],
-            [InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")],
-        ]
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
     async def _start_cycle_schedule(self, query, context, user, lang):
+        # ВАЖНО: язык документа берём строго из doc_lang, выбранного пользователем
+        # для ЭТОГО документа — не из языка интерфейса и не из сохранённого старого
+        # профильного языка. Эта строка уже однажды чинила похожую ошибку — не откатывать.
         lang = context.user_data.get("doc_lang", lang)
         answers = {
             "organization": user.get("school", ""),
@@ -1108,6 +1104,11 @@ class DocumentHandler:
         # age_group в существующем профиле сада содержит название группы/возраст.
         if user.get("age_group"):
             answers["group"] = user["age_group"]
+
+        # Данные, которые ИИ-агент извлёк из свободного сообщения ("сделай циклограмму
+        # на тему Транспорт") — применяем только релевантные этому документу ключи,
+        # поверх данных профиля (сообщение пользователя важнее общих настроек профиля).
+        answers.update(_pop_concierge_prefill(context, allowed_keys={"week_topic", "period", "events", "group"}))
 
         questions = []
         if not answers.get("group"):
@@ -1119,12 +1120,7 @@ class DocumentHandler:
         ])
 
         context.user_data["doc_type"] = KINDERGARTEN_CYCLE_SCHEDULE
-        # ВАЖНО: раньше здесь стояло user.get("document_lang") or user.get("doc_language") or lang —
-        # это тихо перезаписывало только что выбранный пользователем язык документа
-        # (например "kz") устаревшим сохранённым в профиле значением (например "ru").
-        # В итоге вопросы задавались на одном языке, а сам документ генерировался на другом.
-        # Язык документа выбирается заново для каждого документа — используем именно его.
-        context.user_data["doc_lang"] = lang
+        context.user_data["doc_lang"] = user.get("document_lang") or user.get("doc_language") or lang
         context.user_data["doc_answers"] = answers
         context.user_data["questions"] = questions
         context.user_data["q_index"] = 0
@@ -1133,9 +1129,9 @@ class DocumentHandler:
         await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=doc_name)
 
     async def _start_development_monitoring(self, query, context, user, lang):
-        # ВАЖНО: используем уже выбранный пользователем язык документа (doc_lang),
-        # а не интерфейсный lang — иначе выбор "Қазақша" тихо перезаписывался бы
-        # обратно на язык интерфейса.
+        # Мониторинг развития — групповой документ (сразу на всех детей), логику
+        # привязки к одному ребёнку сюда добавлять не нужно (см. постановку задачи) —
+        # правим только язык документа и подмешивание concierge_prefill.
         lang = context.user_data.get("doc_lang", lang)
         questions = [
             {"key": "period", "q": "За какой период нужен мониторинг?" if lang == "ru" else "Мониторинг қай кезеңге керек?"},
@@ -1143,7 +1139,9 @@ class DocumentHandler:
             {"key": "children", "q": "Пришлите список детей в любом формате: нумерованным списком или через запятую. Для пустого бланка напишите «пустой»." if lang == "ru" else "Балалар тізімін кез келген форматта жіберіңіз: нөмірленген тізіммен немесе үтір арқылы. Бос бланк үшін «бос» деп жазыңыз."},
         ]
         saved_group = user.get("age_group", "")
-        context.user_data.update({"doc_type": DEVELOPMENT_MONITORING, "doc_lang": lang, "doc_answers": {"organization": user.get("school", ""), "educator_name": user.get("name", ""), "group": saved_group, "age_group": saved_group, "director_name": user.get("director", "")}, "questions": questions, "q_index": 0, "step": "waiting_answer"})
+        answers = {"organization": user.get("school", ""), "educator_name": user.get("name", ""), "group": saved_group, "age_group": saved_group, "director_name": user.get("director", "")}
+        answers.update(_pop_concierge_prefill(context, allowed_keys={"period", "age_group"}))
+        context.user_data.update({"doc_type": DEVELOPMENT_MONITORING, "doc_lang": lang, "doc_answers": answers, "questions": questions, "q_index": 0, "step": "waiting_answer"})
         await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING])
 
     async def _use_student_data(self, query, context, user_id, user, lang, student_id):
@@ -1168,6 +1166,23 @@ class DocumentHandler:
                 context.user_data["doc_answers"]["absences"]     = student.get("absences", 0)
                 context.user_data["doc_answers"]["address"]      = student.get("address", "")
                 context.user_data["doc_answers"]["health_group"] = student.get("health_group", "")
+                # kg_individual_development_card использует другие ключи вопросов
+                # (child_name/group — см. REGISTRY_QUESTIONS), а не student_name —
+                # заполняем их дополнительно, не трогая маппинг выше.
+                if doc_type == "kg_individual_development_card":
+                    context.user_data["doc_answers"]["child_name"] = student["name"]
+                    context.user_data["doc_answers"]["group"]      = student["class_name"]
+
+        # Данные из свободного сообщения агенту важнее выбранного из базы ученика
+        # только для полей, которые пользователь явно назвал в этом сообщении —
+        # применяем поверх, ограничившись вопросами этого типа документа.
+        q_keys = {
+            q["key"] for q in (
+                REGISTRY_QUESTIONS.get("ru", {}).get(doc_type)
+                or DOC_QUESTIONS.get("ru", {}).get(doc_type, [])
+            )
+        }
+        context.user_data["doc_answers"].update(_pop_concierge_prefill(context, allowed_keys=q_keys))
 
         saved_doc_lang = user.get("document_lang") or user.get("doc_language")
         if saved_doc_lang in {"ru", "kz", "en"}:
@@ -1185,7 +1200,6 @@ class DocumentHandler:
             [InlineKeyboardButton("🇷🇺 Русский", callback_data="doc_lang_ru"),
              InlineKeyboardButton("🇰🇿 Қазақша", callback_data="doc_lang_kz")],
             [InlineKeyboardButton("🇬🇧 English",  callback_data="doc_lang_en")],
-            [InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")],
         ]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
@@ -1258,11 +1272,8 @@ class DocumentHandler:
                     context.user_data.get("doc_type") == KINDERGARTEN_CYCLE_SCHEDULE):
                 qs = context.user_data.get("questions", [])
                 idx = context.user_data.get("q_index", 0)
-                doc_lang = context.user_data.get("doc_lang", lang)
                 if idx < len(qs) and qs[idx]["key"] in CYCLE_REQUIRED_FIELDS:
-                    field_label = (CYCLE_REQUIRED_FIELDS_KZ if doc_lang == "kz" else CYCLE_REQUIRED_FIELDS)[qs[idx]["key"]]
-                    msg = f"Заполните поле: {field_label}." if doc_lang != "kz" else f"Мына өрісті толтырыңыз: {field_label}."
-                    await update.message.reply_text(msg)
+                    await update.message.reply_text(f"Заполните поле: {CYCLE_REQUIRED_FIELDS[qs[idx]['key']]}.")
                     return
             await update.message.reply_text(t(lang, "val_too_short"))
             return
@@ -1377,20 +1388,12 @@ class DocumentHandler:
             )
 
     async def _generate_monitoring(self, message, context, lang):
-        # ВАЖНО: раньше во всех местах вызова этого метода передавался интерфейсный
-        # lang, а не выбранный пользователем язык документа (doc_lang) — из-за этого
-        # мониторинг развития всегда генерировался на языке интерфейса, даже если
-        # пользователь явно выбрал другой язык документа. Здесь разделяем два языка:
-        # doc_lang — язык самого документа/файла, interface_lang — язык кнопок и
-        # сообщений в чате после генерации (не должен зависеть от языка документа).
-        interface_lang = lang
-        lang = context.user_data.get("doc_lang", lang)
         from handlers.word_generator import generate_word
         answers = context.user_data.get("doc_answers", {})
         raw_children = answers.get("children", "").strip().lower()
         children = (["—"] * 15 if raw_children in {"пустой", "бос"} else [x.strip() for x in answers.get("children", "").replace("\n", ",").split(",") if x.strip()])
         rows = answers.get("rows", [])
-        filename = generate_word("", DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], teacher_name=answers.get("educator_name", ""), director_name=answers.get("director_name", ""), monitoring_data={**answers, "children": children, "rows": rows, "lang": lang}, lang=lang)
+        filename = generate_word("", DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], teacher_name=answers.get("educator_name", ""), director_name=answers.get("director_name", ""), monitoring_data={**answers, "children": children, "rows": rows, "lang": lang})
         with open(filename, "rb") as f:
             await message.reply_document(document=f, filename=f"monitoring_{datetime.now().strftime('%d%m%Y')}.docx", caption="📄 Мониторинг развития" if lang == "ru" else "📄 Даму мониторингі")
         os.remove(filename)
@@ -1400,7 +1403,7 @@ class DocumentHandler:
         if user and not user.get("subscribed"):
             await self.db.increment_free(message.chat_id)
         context.user_data.clear()
-        await self._send_post_document_actions(message, context, interface_lang, user, DEVELOPMENT_MONITORING, document_id)
+        await self._send_post_document_actions(message, context, lang, user, DEVELOPMENT_MONITORING, document_id)
 
     async def _send_post_document_actions(self, message, context, lang, user, doc_type, document_id):
         """Единый следующий шаг после любого Word-файла."""
@@ -1479,11 +1482,9 @@ class DocumentHandler:
         doc_name = DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
 
         if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
-            missing = validate_cycle_schedule_answers(answers, doc_lang)
+            missing = validate_cycle_schedule_answers(answers)
             if missing:
-                msg = ("Не могу создать циклограмму. Заполните поле: " + ", ".join(missing) + ".") if doc_lang != "kz" \
-                    else ("Циклограмманы жасай алмаймын. Мына өрісті толтырыңыз: " + ", ".join(missing) + ".")
-                await message.reply_text(msg)
+                await message.reply_text("Не могу создать циклограмму. Заполните поле: " + ", ".join(missing) + ".")
                 return
 
         if doc_type == DEVELOPMENT_MONITORING:
@@ -1625,7 +1626,6 @@ class DocumentHandler:
                 cycle_data=answers if doc_type == KINDERGARTEN_CYCLE_SCHEDULE else None,
                 monitoring_data=answers if doc_type == "kg_individual_development_card" else None,
                 registry_doc_type=doc_type,
-                lang=doc_lang,
             )
             with open(filename, "rb") as f:
                 caption = {

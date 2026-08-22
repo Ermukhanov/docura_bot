@@ -57,29 +57,23 @@ DAY_MAP_RU = {
     4: "Пятница", 5: "Суббота", 6: "Воскресенье",
 }
 
-# Прямые формулировки пользователя не должны зависеть от расписания.
-DIRECT_DOCUMENT_INTENTS = [
-    (("циклограмма", "cyclogram"), "kindergarten_cycle_schedule"),
-    (("ксп", "краткосрочный план", "қысқамерзімді"), "lesson_plan"),
-    (("ктп", "календарный план"), "calendar_plan"),
-    (("характеристика", "мінездеме"), "characteristic"),
-    (("тематический план", "тақырыптық жоспар"), "kg_thematic_plan"),
-    (("отчёт", "отчет", "есеп"), "monthly_report"),
-    (("конспект",), "lesson_summary"),
-    (("заявление на отпуск",), "vacation_request"),
-    (("объяснительная",), "explanation"),
-]
+# Дешёвый предохранитель ДО вызова ИИ-классификатора (Шаг 2.3 задачи): не гоняем
+# Claude Haiku на каждое "привет"/"как дела" — только когда сообщение похоже на
+# запрос действия. Список не обязан быть исчерпывающим — это не финальная
+# классификация (её делает _classify_document_intent), а просто фильтр расходов.
+ACTION_TRIGGER_WORDS = (
+    "сделай", "сделать", "создай", "создать", "нужен", "нужна", "нужно",
+    "хочу", "составь", "составить", "подготовь", "подготовить", "сгенерируй",
+    "сгенерировать", "напиши", "написать", "оформи", "оформить", "заполни",
+    # казахский
+    "жаса", "жасап", "керек", "құра", "құрастыр", "дайында", "дайындап", "жаз",
+    "толтыр",
+)
 
 
-def _direct_document_type(text: str, role: str) -> str | None:
+def _looks_like_action_request(text: str) -> bool:
     lowered = text.lower()
-    for keywords, doc_type in DIRECT_DOCUMENT_INTENTS:
-        if any(word in lowered for word in keywords):
-            if role == "kindergarten":
-                return {"characteristic": "kg_child_characteristic", "monthly_report": "kg_monthly_report",
-                        "vacation_request": "kg_vacation_request", "explanation": "kg_explanation"}.get(doc_type, doc_type)
-            return doc_type
-    return None
+    return any(word in lowered for word in ACTION_TRIGGER_WORDS)
 
 
 def _week_period() -> str:
@@ -197,6 +191,87 @@ class ConciergeHandler:
             return {"reply": None, "action": "none", "doc_type": None}
 
     # ══════════════════════════════════════════════════════
+    # КЛАССИФИКАЦИЯ ТИПА ДОКУМЕНТА ИЗ СВОБОДНОГО СООБЩЕНИЯ
+    # (заменяет старый хардкодный DIRECT_DOCUMENT_INTENTS — теперь работает
+    # для ВСЕХ ~30 типов документов, а не только для 9 популярных)
+    # ══════════════════════════════════════════════════════
+
+    def _allowed_doc_types_for_role(self, role: str) -> dict:
+        """Строит {doc_type: название} для роли пользователя, используя уже
+        существующие реестры категорий/названий из documents.py — список НЕ
+        хардкодится заново, чтобы не расходиться с реальным набором документов
+        при добавлении новых типов."""
+        from handlers.documents import CAT_DOCS, CAT_DOCS_KG, CAT_DOCS_COMMON, DOC_NAMES
+
+        role_cats = CAT_DOCS_KG if role == "kindergarten" else CAT_DOCS
+        doc_types = []
+        for cat_docs in role_cats.values():
+            doc_types.extend(cat_docs)
+        for cat_docs in CAT_DOCS_COMMON.values():
+            doc_types.extend(cat_docs)
+        # development_monitoring — групповой документ без своего пункта в DOC_QUESTIONS
+        # опросника вне спец-сценария, но он существует и должен быть распознаваем.
+        names = DOC_NAMES.get("ru", {})
+        return {dt: names.get(dt, dt) for dt in dict.fromkeys(doc_types)}
+
+    def _classify_document_intent_sync(self, text: str, allowed: dict) -> dict:
+        """Синхронный вызов Claude Haiku для определения типа документа —
+        по тому же паттерну, что и голосовая классификация в handlers/voice.py
+        (JSON-промпт, разбор через re.sub для снятия markdown-обёртки, json.loads)."""
+        import anthropic
+        doc_list = "\n".join(f"- {key}: {name}" for key, name in allowed.items())
+        prompt = f"""Пользователь написал в чат Telegram-боту Docura.kz сообщение:
+"{text}"
+
+Определи, является ли это запросом на создание одного из следующих официальных документов:
+{doc_list}
+
+Если сообщение — это запрос на создание одного из документов выше, верни его ключ (doc_type).
+Если сообщение — это обычный разговор, вопрос не по теме документов, или запрос на
+документ, которого нет в списке — верни doc_type: null.
+
+known_data — только то, что ЯВНО указано в самом сообщении (например тема, класс/группа,
+предмет, имя ученика). Не выдумывай ничего, чего нет в тексте. Ключи known_data должны
+быть осмысленными короткими английскими именами полей (например: subject_class, topic,
+student_name, week_topic, period).
+
+Ответь ТОЛЬКО в формате JSON без markdown-разметки:
+{{"doc_type": "ключ_или_null", "known_data": {{"ключ": "значение"}}}}"""
+
+        client = anthropic.Anthropic(api_key=self.anthropic_api_key)
+        msg = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=400,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = msg.content[0].text.strip()
+        raw = re.sub(r"```[a-z]*", "", raw).strip("` \n")
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        json_candidate = match.group(0) if match else raw
+        try:
+            parsed = json.loads(json_candidate)
+        except json.JSONDecodeError:
+            return {"doc_type": None, "known_data": {}}
+        doc_type = parsed.get("doc_type")
+        if doc_type not in allowed:
+            doc_type = None
+        known_data = parsed.get("known_data") or {}
+        if not isinstance(known_data, dict):
+            known_data = {}
+        return {"doc_type": doc_type, "known_data": known_data}
+
+    async def _classify_document_intent(self, text: str, role: str) -> dict:
+        """Асинхронная обёртка вокруг классификатора — не блокирует event loop."""
+        allowed = self._allowed_doc_types_for_role(role)
+        try:
+            return await asyncio.get_event_loop().run_in_executor(
+                None, self._classify_document_intent_sync, text, allowed
+            )
+        except Exception as e:
+            print(f"Concierge classify error ({type(e).__name__}): {e}")
+            return {"doc_type": None, "known_data": {}}
+
+    # ══════════════════════════════════════════════════════
     # СИСТЕМНЫЙ ПРОМПТ
     # ══════════════════════════════════════════════════════
 
@@ -291,10 +366,16 @@ class ConciergeHandler:
             )
             return
 
-        doc_type = _direct_document_type(text, user.get("role", "teacher"))
-        if doc_type:
-            await self._start_direct_document(update, context, user, lang, doc_type, text)
-            return
+        if _looks_like_action_request(text):
+            classified = await self._classify_document_intent(text, user.get("role", "teacher"))
+            doc_type = classified.get("doc_type")
+            if doc_type:
+                await self._start_direct_document(
+                    update, context, user, lang, doc_type, classified.get("known_data")
+                )
+                return
+            # doc_type: null — это не запрос на документ (обычный разговор/вопрос),
+            # проваливаемся в обычный разговорный AI-путь ниже без изменений.
 
         state = await self._load_state(user_id)
         schedule_json = await self.db.get_schedule(user_id)
@@ -359,46 +440,30 @@ class ConciergeHandler:
         adapter = MessageQueryAdapter(update.message)
         await docs._start_doc(adapter, context, user_id, user, lang, doc_type)
 
-    async def _start_direct_document(self, update, context, user, lang, doc_type, request_text):
-        """Передаёт сбор минимальных полей агенту; Claude вызывается только генератором."""
-        user_id = update.effective_user.id
-        schedule_json = await self.db.get_schedule(user_id)
-        try:
-            schedule = json.loads(schedule_json) if schedule_json else {}
-        except json.JSONDecodeError:
-            schedule = {}
-        tomorrow = DAY_MAP_RU[(datetime.now().weekday() + 1) % 7]
-        lessons = schedule.get(tomorrow, []) if isinstance(schedule, dict) else []
-        first_lesson = next((item for item in lessons if isinstance(item, dict)), {})
-        answers = {"request": request_text}
-        field = None
-        prompt = None
-        if doc_type == "kindergarten_cycle_schedule":
-            answers.update({"organization": user.get("school", ""), "group": user.get("age_group", ""),
-                            "period": _week_period(), "events": "нет" if lang == "ru" else "жоқ"})
-            field = "week_topic"
-            prompt = (f"Делаю циклограмму на эту неделю ({_week_period()}). Тема недели?" if lang == "ru"
-                      else f"Осы аптаға циклограмма жасаймын ({_week_period()}). Аптаның тақырыбы қандай?")
-        elif doc_type == "lesson_plan":
-            if first_lesson:
-                answers.update({"subject_class": " ".join(filter(None, [first_lesson.get("subject"), first_lesson.get("class")])),
-                                "topic": "по расписанию" if lang == "ru" else "кесте бойынша",
-                                "duration": "45 минут" if lang == "ru" else "45 минут"})
-            else:
-                field = "subject_class"
-                prompt = "Предмет и класс? Тема урока?" if lang == "ru" else "Пән және сынып? Сабақ тақырыбы?"
-        elif doc_type in {"characteristic", "kg_child_characteristic"}:
-            field, prompt = "student_name", "Имя ученика?" if lang == "ru" else "Оқушының аты-жөні?"
-        elif doc_type in {"monthly_report", "kg_monthly_report"}:
-            field, prompt = "period", "За какой период? (или напишите «этот месяц»)" if lang == "ru" else "Қай кезеңге? («осы ай» деп жаза аласыз)"
+    async def _start_direct_document(self, update, context, user, lang, doc_type, known_data: dict | None = None):
+        """Запускает генерацию документа, определённого агентом из свободного сообщения
+        (или голосового — см. handlers/voice.py), переиспользуя уже отлаженный
+        DocumentHandler._start_doc(): это автоматически даёт проверку лимита,
+        показ выбора ученика/воспитанника из базы (или кнопки "вручную"), выбор
+        языка документа и полный опросник с пропуском уже известных полей —
+        ничего из этого не дублируется вручную."""
+        from handlers.documents import DocumentHandler
 
-        context.user_data["direct_doc"] = {"doc_type": doc_type, "answers": answers, "field": field}
-        context.user_data["step"] = "agent_direct_doc"
-        if prompt:
-            await update.message.reply_text(prompt)
-        else:
-            from handlers.agent import AgentHandler
-            await AgentHandler(self.db, self.anthropic_api_key).show_direct_confirmation(update.message, context, user, lang)
+        user_id = update.effective_user.id
+        prefill = dict(known_data or {})
+
+        # Для циклограммы сохраняем "умное" поведение: бот сам понимает текущую
+        # неделю без лишнего вопроса, если период не был явно указан в сообщении.
+        if doc_type == "kindergarten_cycle_schedule" and "period" not in prefill:
+            prefill["period"] = _week_period()
+
+        if prefill:
+            context.user_data["concierge_prefill"] = prefill
+
+        adapter = MessageQueryAdapter(update.message)
+        await DocumentHandler(self.db, self.anthropic_api_key)._start_doc(
+            adapter, context, user_id, user, lang, doc_type
+        )
 
     # ══════════════════════════════════════════════════════
     # ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ (используется notifications.py)

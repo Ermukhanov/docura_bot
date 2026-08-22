@@ -651,7 +651,7 @@ class ProfileHandler:
         amount = result.get("amount", expected_amount)
 
         await self.db.save_receipt_hash(receipt_hash, user_id, "pro", amount)
-        await self.db.activate_subscription(user_id, tier="pro")
+        await self.db.activate_subscription(user_id, tier="pro", expires_in_days=30)
         if tier == "pro_promo":
             await self.db.mark_promo_used(user_id)
 

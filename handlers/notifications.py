@@ -145,3 +145,52 @@ async def send_reminders(app: Application, db: Database, concierge=None):
 
         # Проверять раз в сутки
         await asyncio.sleep(86400)
+
+
+async def check_subscription_expirations(app: Application, db: Database):
+    """
+    Отдельный фоновый цикл: снимает подписку PRO у тех, кто оплачивал сам через
+    бота (чек в profile.py), когда истёк срок 30 дней с последней оплаты, и просит
+    оплатить заново по полной цене (акция уже использована — см. promo_used).
+
+    ВАЖНО: НЕ трогает подписки без установленного срока (sub_expires IS NULL) —
+    это B2B-партнёры (школы/садики), активированные вручную через админку.
+    См. database.py get_expired_subscriptions() — она сама фильтрует только
+    подписки с явным сроком.
+    """
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+    while True:
+        try:
+            expired_users = await db.get_expired_subscriptions()
+            for user in expired_users:
+                try:
+                    tg_id = user["tg_id"]
+                    lang  = user.get("lang", "ru")
+
+                    await db.deactivate_subscription(tg_id)
+
+                    price = 4990  # полная цена — акция первого месяца одноразовая
+                    text = (
+                        f"⏳ Срок подписки Docura PRO истёк.\n\n"
+                        f"Чтобы продолжить безлимитную генерацию документов, оформите "
+                        f"подписку заново — {price} тг/мес."
+                    ) if lang == "ru" else (
+                        f"⏳ Docura PRO жазылымының мерзімі аяқталды.\n\n"
+                        f"Шексіз құжат жасауды жалғастыру үшін жазылымды қайта рәсімдеңіз "
+                        f"— {price} тг/ай."
+                    )
+                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(
+                        "⭐ Продлить подписку" if lang == "ru" else "⭐ Жазылымды жалғастыру",
+                        callback_data="prof_sub"
+                    )]])
+                    await app.bot.send_message(chat_id=tg_id, text=text, reply_markup=kb)
+                    await asyncio.sleep(0.5)
+                except Exception as e:
+                    logger.warning(f"Subscription expiration error for {user['tg_id']}: {e}")
+        except Exception as e:
+            logger.error(f"Subscription expiration scheduler error: {e}")
+
+        # Проверяем раз в час — срок истекает по дате, но не хотим держать людей
+        # без доступа сутками, если истечение случилось рано утром
+        await asyncio.sleep(3600)
