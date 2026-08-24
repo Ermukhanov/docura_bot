@@ -1120,7 +1120,12 @@ class DocumentHandler:
         ])
 
         context.user_data["doc_type"] = KINDERGARTEN_CYCLE_SCHEDULE
-        context.user_data["doc_lang"] = user.get("document_lang") or user.get("doc_language") or lang
+        # ВАЖНО: здесь НЕ должно быть user.get("document_lang")/user.get("doc_language") —
+        # это перезаписывало бы только что правильно выбранный пользователем язык
+        # старым сохранённым значением из профиля (тот самый баг, который эта функция
+        # уже один раз исправляла строкой выше). `lang` здесь уже корректно равен
+        # context.user_data["doc_lang"], установленному явным выбором пользователя.
+        context.user_data["doc_lang"] = lang
         context.user_data["doc_answers"] = answers
         context.user_data["questions"] = questions
         context.user_data["q_index"] = 0
@@ -1184,16 +1189,11 @@ class DocumentHandler:
         }
         context.user_data["doc_answers"].update(_pop_concierge_prefill(context, allowed_keys=q_keys))
 
-        saved_doc_lang = user.get("document_lang") or user.get("doc_language")
-        if saved_doc_lang in {"ru", "kz", "en"}:
-            context.user_data["doc_lang"] = saved_doc_lang
-            q_lang = saved_doc_lang if saved_doc_lang in DOC_QUESTIONS else "ru"
-            context.user_data["questions"] = REGISTRY_QUESTIONS.get(saved_doc_lang, {}).get(doc_type) or DOC_QUESTIONS.get(q_lang, DOC_QUESTIONS["ru"]).get(doc_type, [])
-            context.user_data["step"] = "waiting_answer"
-            await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=DOC_NAMES.get(saved_doc_lang, DOC_NAMES["ru"]).get(doc_type, doc_type))
-            return
-
-        # Спросить язык документа
+        # Язык документа всегда спрашивается явно у пользователя для КАЖДОГО
+        # документа — не подставляется молча из старого сохранённого профильного
+        # document_lang/doc_language. Раньше здесь был шорткат, который тихо брал
+        # сохранённый язык и сразу начинал вопросы БЕЗ единого подтверждения —
+        # именно тот класс бага с языком, который уже чинили в циклограмме.
         doc_name = DOC_NAMES.get(lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
         text = f"📄 *{doc_name}*\n{DIVIDER}\n🌐 На каком языке создать документ?" if lang == "ru" else f"📄 *{doc_name}*\n{DIVIDER}\n🌐 Құжатты қандай тілде жасау керек?"
         keyboard = [
@@ -1388,12 +1388,17 @@ class DocumentHandler:
             )
 
     async def _generate_monitoring(self, message, context, lang):
+        # ВАЖНО: во всех 4 местах, откуда вызывается эта функция, ей передавали
+        # интерфейсный lang, а не выбранный пользователем язык документа — из-за
+        # этого "Мониторинг развития" всегда генерировался на языке интерфейса.
+        # Разрешаем правильный язык здесь же, одним местом, а не правя все вызовы.
+        lang = context.user_data.get("doc_lang", lang)
         from handlers.word_generator import generate_word
         answers = context.user_data.get("doc_answers", {})
         raw_children = answers.get("children", "").strip().lower()
         children = (["—"] * 15 if raw_children in {"пустой", "бос"} else [x.strip() for x in answers.get("children", "").replace("\n", ",").split(",") if x.strip()])
         rows = answers.get("rows", [])
-        filename = generate_word("", DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], teacher_name=answers.get("educator_name", ""), director_name=answers.get("director_name", ""), monitoring_data={**answers, "children": children, "rows": rows, "lang": lang})
+        filename = generate_word("", DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], teacher_name=answers.get("educator_name", ""), director_name=answers.get("director_name", ""), monitoring_data={**answers, "children": children, "rows": rows, "lang": lang}, lang=lang)
         with open(filename, "rb") as f:
             await message.reply_document(document=f, filename=f"monitoring_{datetime.now().strftime('%d%m%Y')}.docx", caption="📄 Мониторинг развития" if lang == "ru" else "📄 Даму мониторингі")
         os.remove(filename)
@@ -1618,14 +1623,20 @@ class DocumentHandler:
 
         try:
             from handlers.word_generator import generate_word
+            # word_generator читает язык таблицы из словаря cycle_data/monitoring_data
+            # по ключу "lang" — раньше он проставлялся только для циклограммы; для
+            # kg_individual_development_card ключа не было вообще, и таблица всегда
+            # получала русские подписи независимо от выбранного языка документа.
+            word_data = {**answers, "lang": doc_lang}
             filename = generate_word(
                 result,
                 doc_name,
                 user.get("name", ""),
                 director_name=user.get("director", ""),
-                cycle_data=answers if doc_type == KINDERGARTEN_CYCLE_SCHEDULE else None,
-                monitoring_data=answers if doc_type == "kg_individual_development_card" else None,
+                cycle_data=word_data if doc_type == KINDERGARTEN_CYCLE_SCHEDULE else None,
+                monitoring_data=word_data if doc_type == "kg_individual_development_card" else None,
                 registry_doc_type=doc_type,
+                lang=doc_lang,
             )
             with open(filename, "rb") as f:
                 caption = {
