@@ -84,7 +84,6 @@ MON_RK_RULES = """
 - Дата и подпись
 """
 
-# Нормативная база для дошкольного воспитания и обучения (детский сад)
 MON_RK_RULES_KG = """
 ОБЯЗАТЕЛЬНЫЕ ТРЕБОВАНИЯ ДЛЯ ДОШКОЛЬНОГО ВОСПИТАНИЯ И ОБУЧЕНИЯ (РК):
 
@@ -186,9 +185,6 @@ MON_RK_RULES_KG = """
 - Аналогично трудовому законодательству РК, но адресат — заведующая детским садом, а не директор школы
 """
 
-# Правила для документов, ОБЩИХ для школы и садика (добавляются в обе ветки промпта —
-# см. get_system_prompt). Роль (учитель/воспитатель) и терминология подставляются тем
-# набором правил (MON_RK_RULES / MON_RK_RULES_KG), который уже выбран выше по роли.
 COMMON_DOC_RULES = """
 ДОКУМЕНТЫ, ОБЩИЕ ДЛЯ ШКОЛЫ И ДЕТСКОГО САДА (используй терминологию своей роли из правил выше —
 класс/ученик для учителя, группа/воспитанник для воспитателя):
@@ -525,6 +521,14 @@ def get_system_prompt(user: dict, lang: str) -> str:
     weekday = day_names[lang][__import__('datetime').datetime.now().weekday()]
     role    = user.get("role", "teacher")
 
+    # ── Локализация служебных фраз промпта (не текста документа — тот и так
+    # генерируется по language_instruction в documents.py). Раньше здесь
+    # тернарник учитывал только 'ru' vs 'не ru' и всегда писал "казахский"
+    # для английского выбора — системный промпт буквально противоречил
+    # инструкции писать по-английски. Теперь все три языка учтены явно.
+    lang_word_upper = {"ru": "РУССКИЙ", "kz": "КАЗАХСКИЙ", "en": "АНГЛИЙСКИЙ"}.get(lang, "РУССКИЙ")
+    lang_word_lower = {"ru": "русский", "kz": "казахский", "en": "английский"}.get(lang, "русский")
+
     if role == "kindergarten":
         role_desc = f"персональный AI-ассистент воспитателя {user.get('name', '')} детского сада «{user.get('school', '')}»"
 
@@ -536,7 +540,7 @@ def get_system_prompt(user: dict, lang: str) -> str:
 - Должность: {user.get('position', '')}
 - Заведующая: {user.get('director', '')}
 - Дата: {today}, {weekday}
-- Язык документа: {'РУССКИЙ' if lang == 'ru' else 'КАЗАХСКИЙ'}
+- Язык документа: {lang_word_upper}
 """
 
         rules_block = MON_RK_RULES_KG + "\n" + COMMON_DOC_RULES
@@ -556,7 +560,7 @@ def get_system_prompt(user: dict, lang: str) -> str:
 ЭТАЛОННЫЙ ОБРАЗЕЦ ХАРАКТЕРИСТИКИ ВОСПИТАННИКА:
 {SAMPLE_DOCS_KG.get('kg_child_characteristic', '')}
 """
-        signature_lines = f"""
+        signature_lines = """
 9. Блок подписей в конце Word-документа добавляет генератор. Не добавляй его в текст документа.
 """
     else:
@@ -578,7 +582,7 @@ def get_system_prompt(user: dict, lang: str) -> str:
 - Классный руководитель: {is_ct}
 - Директор: {user.get('director', '')}
 - Дата: {today}, {weekday}
-- Язык документа: {'РУССКИЙ' if lang == 'ru' else 'КАЗАХСКИЙ'}
+- Язык документа: {lang_word_upper}
 """
         rules_block = MON_RK_RULES + "\n" + COMMON_DOC_RULES
         samples_block = f"""
@@ -594,7 +598,7 @@ def get_system_prompt(user: dict, lang: str) -> str:
 ЭТАЛОННЫЙ ОБРАЗЕЦ ХАРАКТЕРИСТИКИ:
 {SAMPLE_DOCS.get('characteristic', '')}
 """
-        signature_lines = f"""
+        signature_lines = """
 9. Блок подписей в конце Word-документа добавляет генератор. Не добавляй его в текст документа.
 """
 
@@ -609,7 +613,7 @@ def get_system_prompt(user: dict, lang: str) -> str:
 
 КРИТИЧЕСКИ ВАЖНЫЕ ПРАВИЛА:
 
-1. ЯЗЫК — строго {'русский' if lang == 'ru' else 'казахский'}. Ни одного слова на другом языке.
+1. ЯЗЫК — строго {lang_word_lower}. Ни одного слова на другом языке.
 
 2. СТРУКТУРА — используй чёткие заголовки разделов ЗАГЛАВНЫМИ БУКВАМИ. Каждый раздел с новой строки.
 

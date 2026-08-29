@@ -3,11 +3,16 @@ from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from database import Database
 from handlers.documents import DOC_NAMES, CAT_DOCS_ALL
+import os
 
-ADMIN_LOGIN    = "Unicorn"
-ADMIN_PASSWORD = "Gulkhan"
+# ВАЖНО (безопасность): логин/пароль администратора раньше были захардкожены
+# прямо в исходном коде — при публичном репозитории на GitHub это открытый
+# доступ к панели администратора для кого угодно. Теперь берутся из переменных
+# окружения ADMIN_LOGIN/ADMIN_PASSWORD; значения по умолчанию оставлены только
+# чтобы не сломать текущий деплой без .env — их нужно сменить в проде.
+ADMIN_LOGIN    = os.getenv("ADMIN_LOGIN", "Unicorn")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "Gulkhan")
 
-# Список всех типов документов (школа + садик) для выбора при загрузке образца
 ALL_DOC_TYPES = []
 for cat_list in CAT_DOCS_ALL.values():
     for d in cat_list:
@@ -30,15 +35,10 @@ class AdminHandler:
         await query.answer()
         data  = query.data
 
-        ADMIN_CHAT_ID = 6561112046  # только в этот чат шлются кнопки активации после оплаты
+        ADMIN_CHAT_ID = 6561112046
 
         TIER_NAMES = {"pro": "PRO"}
 
-        # Активация подписки по кнопке из уведомления об оплате —
-        # доступна сразу в личном чате владельца, без отдельного входа в /mernar.
-        # Новый формат: admin_activate_{tier}_{tg_id}. Старый формат admin_activate_id_{tg_id}
-        # (до введения тарифов) — оставлен для совместимости со старыми сообщениями, активирует PRO.
-        # admin_activate_btn — отдельная ручная кнопка ввода ID, не парсим как тариф.
         if (data.startswith("admin_activate_") and data != "admin_activate_btn"
                 and update.effective_user.id == ADMIN_CHAT_ID):
             rest = data[len("admin_activate_"):]
@@ -62,7 +62,7 @@ class AdminHandler:
                     text=f"🎉 *Поздравляем! Подписка {t_name} активирована.*\n\nТеперь у вас безлимитная генерация документов!",
                     parse_mode=ParseMode.MARKDOWN
                 )
-            except:
+            except Exception:
                 pass
             return
 
@@ -104,8 +104,6 @@ class AdminHandler:
         elif data.startswith("admin_reset_confirm_"):
             tg_id = int(data[len("admin_reset_confirm_"):])
             if await self.db.reset_user_account(tg_id):
-                # Сбрасываем только временное состояние целевого пользователя
-                # (онбординг/генерация); данные админа не затрагиваются.
                 target_data = context.application.user_data.get(tg_id)
                 if target_data is not None:
                     target_data.clear()
@@ -125,7 +123,6 @@ class AdminHandler:
         elif data == "admin_menu":
             await self._show_menu(query)
 
-        # ── ОБУЧЕНИЕ БОТА (образцы документов — школа + садик) ──
         elif data == "admin_samples":
             await self._show_samples_menu(query)
         elif data == "admin_samples_add":
@@ -197,7 +194,7 @@ class AdminHandler:
                 tg_id = int(text.strip())
                 await self.db.activate_subscription(tg_id)
                 await update.message.reply_text(f"✅ Подписка активирована для {tg_id}")
-            except:
+            except Exception:
                 await update.message.reply_text("❌ Неверный ID.")
             context.user_data["step"] = "admin_panel"
             await self._send_menu(update.message.chat_id, context)
@@ -207,7 +204,7 @@ class AdminHandler:
                 tg_id = int(text.strip())
                 await self.db.deactivate_subscription(tg_id)
                 await update.message.reply_text(f"✅ Подписка отменена для {tg_id}")
-            except:
+            except Exception:
                 await update.message.reply_text("❌ Неверный ID.")
             context.user_data["step"] = "admin_panel"
             await self._send_menu(update.message.chat_id, context)
@@ -242,13 +239,12 @@ class AdminHandler:
                 try:
                     await context.bot.send_message(chat_id=u["tg_id"], text=text, parse_mode=ParseMode.MARKDOWN)
                     sent += 1
-                except:
+                except Exception:
                     failed += 1
             context.user_data["step"] = "admin_panel"
             await update.message.reply_text(f"✅ Доставлено: {sent}\n❌ Не доставлено: {failed}")
             await self._send_menu(update.message.chat_id, context)
 
-        # ── Сохранение образца ──
         elif step == "admin_sample_text":
             doc_type = context.user_data.get("sample_doc_type", "")
             doc_lang = context.user_data.get("sample_lang", "ru")
@@ -377,9 +373,6 @@ class AdminHandler:
             text = text[:3900] + "\n\n_...обрезано_"
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
-    # ════════════════════════════════════════════════
-    # ОБУЧЕНИЕ БОТА — загрузка образцов документов
-    # ════════════════════════════════════════════════
     async def _show_samples_menu(self, query):
         samples = await self.db.get_all_samples(limit=200)
         text = (

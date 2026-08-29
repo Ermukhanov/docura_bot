@@ -15,16 +15,8 @@ MENU_BTN   = lambda lang: InlineKeyboardButton("🏠 " + ("Главное мен
 BACK_BTN   = lambda lang, cb: InlineKeyboardButton("◀️ " + ("Назад" if lang == "ru" else "Артқа"), callback_data=cb)
 CANCEL_BTN = lambda lang: InlineKeyboardButton("❌ " + ("Отмена" if lang == "ru" else "Болдырмау"), callback_data="menu_main")
 
-PAYMENT_CARDS = {
-    "kaspi":   "4400 4303 2751 9754",
-    "freedom": "4002 8900 4710 6772",
-}
-BANK_NAMES = {"kaspi": "Kaspi Gold", "freedom": "Freedom Bank"}
+KASPI_NUMBER = "+7 771 451 4717"
 
-# Только один платный тариф — Docura PRO.
-# pro_promo — та же самая подписка PRO, просто первый месяц дешевле (одноразово на аккаунт).
-# ВАЖНО: обе "цены" идут на один и тот же продукт (tier="pro" в БД) — pro/pro_promo
-# различаются только суммой оплаты и тем, что pro_promo можно использовать один раз.
 TIER_PRICES = {"pro": 4990, "pro_promo": 2490}
 TIER_NAMES  = {"pro": "PRO"}
 
@@ -141,7 +133,10 @@ class ProfileHandler:
             [InlineKeyboardButton("✏️ " + t(lang, "btn_edit_profile"), callback_data="prof_edit")],
             [InlineKeyboardButton("👥 " + students_btn_text,           callback_data="prof_students")],
             [InlineKeyboardButton("📅 " + ("Моё расписание" if not is_kg and lang == "ru" else "Мой режим дня" if is_kg and lang == "ru" else "Менің кестем"), callback_data="agent_schedule")],
-            [InlineKeyboardButton("⚙️ " + ("Настройки" if lang == "ru" else "Баптаулар"), callback_data="menu_settings")],
+            [InlineKeyboardButton("🔔 " + ("Напоминания" if lang == "ru" else "Еске салғыштар"), callback_data="agent_reminders")],
+            [InlineKeyboardButton("⭐ " + t(lang, "btn_subscription"),  callback_data="prof_sub")],
+            [InlineKeyboardButton("🌐 " + t(lang, "btn_change_lang"),   callback_data="prof_lang")],
+            [InlineKeyboardButton("✉️ " + ("Жалоба или отзыв" if lang == "ru" else "Шағым немесе пікір"), callback_data="prof_complaint")],
             [MENU_BTN(lang)],
         ]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
@@ -200,35 +195,13 @@ class ProfileHandler:
         elif data in ("prof_choose_pro", "prof_choose_pro_promo"):
             tier = "pro_promo" if data == "prof_choose_pro_promo" else "pro"
 
-            # Акцию можно активировать только один раз за всю историю аккаунта
             if tier == "pro_promo" and user.get("promo_used"):
                 await self._show_subscription(query, user, lang)
                 return
 
             context.user_data["chosen_tier"] = tier
-            price = TIER_PRICES[tier]
-
-            text = (
-                f"💳 *Docura PRO — {price} тг/мес*\n\nВыберите карту, на которую удобнее перевести оплату:"
-            ) if lang == "ru" else (
-                f"💳 *Docura PRO — {price} тг/ай*\n\nТөлемді аудару үшін ыңғайлы картаны таңдаңыз:"
-            )
-            kb = [
-                [InlineKeyboardButton("💳 Kaspi Gold", callback_data="prof_pay_kaspi")],
-                [InlineKeyboardButton("💳 Freedom Bank", callback_data="prof_pay_freedom")],
-                [BACK_BTN(lang, "prof_sub")],
-            ]
-            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
-
-        elif data in ("prof_pay_kaspi", "prof_pay_freedom"):
-            bank = data.rsplit("_", 1)[1]  # "kaspi" или "freedom"
-            tier = context.user_data.get("chosen_tier", "pro")
-            price = TIER_PRICES[tier]
-            card = PAYMENT_CARDS[bank]
-            bank_name = BANK_NAMES[bank]
-
-            context.user_data["chosen_bank"] = bank
             context.user_data["step"] = "waiting_payment_receipt"
+            price = TIER_PRICES[tier]
 
             promo_line_ru = f"\n🔥 Обычная цена {TIER_PRICES['pro']} тг — для вас первый месяц дешевле!\n" if tier == "pro_promo" else ""
             promo_line_kz = f"\n🔥 Әдеттегі баға {TIER_PRICES['pro']} тг — сізге бірінші ай арзанырақ!\n" if tier == "pro_promo" else ""
@@ -236,22 +209,20 @@ class ProfileHandler:
             text = (
                 f"💳 *Docura PRO — {price} тг/мес*\n"
                 f"{promo_line_ru}\n"
-                f"Переведите *{price} тг* на карту {bank_name}:\n"
-                f"`{card}`\n"
+                f"Переведите *{price} тг* на Kaspi:\n"
+                f"`{KASPI_NUMBER}`\n"
                 f"_(нажмите чтобы скопировать)_\n\n"
                 f"Затем пришлите *скриншот или файл чека* — подписка активируется автоматически ✅\n\n"
                 f"_Бот сам проверит сумму и получателя_"
             ) if lang == "ru" else (
                 f"💳 *Docura PRO — {price} тг/ай*\n"
                 f"{promo_line_kz}\n"
-                f"*{price} тг* {bank_name} картасына аударыңыз:\n"
-                f"`{card}`\n\n"
+                f"*{price} тг* осы нөмірге аударыңыз:\n"
+                f"`{KASPI_NUMBER}`\n\n"
                 f"Чек скриншотын немесе файлын жіберіңіз — жазылым автоматты белсендіріледі ✅"
             )
             kb = [[BACK_BTN(lang, "prof_sub")]]
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
-
-
 
         elif data == "prof_lang":
             keyboard = [
@@ -505,20 +476,16 @@ class ProfileHandler:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
     async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Получает скриншот чека Kaspi и проверяет его через Claude Vision"""
         if context.user_data.get("step") == "student_bulk_upload":
             await self._parse_students_from_photo(update, context)
             return
         if context.user_data.get("step") == "template_photo":
-            # Фото образца может первым попасть в общий обработчик профиля.
-            # Передаём его в штатный поток документов, не затрагивая чеки.
             from handlers.documents import DocumentHandler
             await DocumentHandler(self.db, self.api_key).handle_photo(update, context)
             return
         await self._process_receipt(update, context, source="photo")
 
     async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Получает файл чека Kaspi (PDF или изображение) и проверяет через Claude Vision"""
         doc = update.message.document
         if not doc:
             return
@@ -528,15 +495,10 @@ class ProfileHandler:
         await self._process_receipt(update, context, source="document")
 
     async def _process_receipt(self, update: Update, context: ContextTypes.DEFAULT_TYPE, source: str):
-        """Основная логика: скачать чек → проверить через Claude → активировать подписку"""
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
         tier    = context.user_data.get("chosen_tier", "pro")
-        bank    = context.user_data.get("chosen_bank", "kaspi")
-        card    = PAYMENT_CARDS.get(bank, PAYMENT_CARDS["kaspi"])
-        card_last4 = card[-4:]
-        bank_name = BANK_NAMES.get(bank, "Kaspi Gold")
         expected_amount = TIER_PRICES.get(tier, 3990)
 
         wait_msg = await update.message.reply_text(
@@ -576,11 +538,8 @@ class ProfileHandler:
             today = datetime.now().strftime("%d.%m.%Y")
             client = anthropic.Anthropic(api_key=self.api_key)
 
-            # ВАЖНО: сверяем с суммой ИМЕННО того тарифа, который выбрал пользователь
-            # (а не с любой из возможных сумм) — иначе акцию 2490 легко перепутать
-            # с обычным Базовым тарифом, у которого та же цена.
-            prompt = f"""Это чек об оплате переводом на банковскую карту в Казахстане. Проверь следующее:
-1. Получатель — карта, номер которой заканчивается на {card_last4} (на чеке номер карты обычно замаскирован, например **** {card_last4} или последние 4 цифры видны отдельно). Банк-получатель: {bank_name}.
+            prompt = f"""Это чек оплаты Kaspi. Проверь следующее:
+1. Получатель содержит номер телефона: {KASPI_NUMBER} (может быть записан без пробелов, с дефисами или скобками — это нормально)
 2. Сумма равна {expected_amount} тенге (ровно эта сумма, не другая)
 3. Дата операции — сегодня ({today}) или вчера (допустимо)
 
@@ -588,8 +547,7 @@ class ProfileHandler:
 {{"valid": true/false, "amount": число_или_null, "reason": "причина если false"}}
 
 Если чек нечёткий или текст плохо читается — valid: false, reason: "нечёткий чек".
-Если сумма не совпадает — valid: false, reason: "неверная сумма".
-Если последние 4 цифры карты получателя не совпадают с {card_last4} — valid: false, reason: "другой получатель"."""
+Если сумма не совпадает — valid: false, reason: "неверная сумма"."""
 
             response = client.messages.create(
                 model="claude-sonnet-4-6",
@@ -619,7 +577,6 @@ class ProfileHandler:
 
         await wait_msg.delete()
 
-        # Двойная проверка суммы на нашей стороне — не полагаемся только на ответ модели
         amount_ok = result.get("valid") and int(result.get("amount") or 0) == expected_amount
 
         if not amount_ok:
@@ -627,13 +584,13 @@ class ProfileHandler:
                 "ru": {
                     "нечёткий чек": "Чек нечёткий — сделайте более чёткий скриншот.",
                     "неверная сумма": f"Неверная сумма. Нужно ровно {expected_amount} тг.",
-                    "другой получатель": f"Получатель не совпадает. Переводите на карту {bank_name}: {card}.",
+                    "другой получатель": f"Получатель не совпадает. Переводите на {KASPI_NUMBER}.",
                     "старый чек": "Чек устарел. Нужна оплата сегодняшним числом.",
                 },
                 "kz": {
                     "нечёткий чек": "Чек анық емес — нақтырақ скриншот жіберіңіз.",
                     "неверная сумма": f"Сумма дұрыс емес. Дәл {expected_amount} тг керек.",
-                    "другой получатель": f"Алушы сәйкес емес. {bank_name} картасына аударыңыз: {card}.",
+                    "другой получатель": f"Алушы сәйкес емес. {KASPI_NUMBER} нөміріне аударыңыз.",
                     "старый чек": "Чек ескірген. Бүгінгі күнмен төлем керек.",
                 }
             }
@@ -651,12 +608,11 @@ class ProfileHandler:
         amount = result.get("amount", expected_amount)
 
         await self.db.save_receipt_hash(receipt_hash, user_id, "pro", amount)
-        await self.db.activate_subscription(user_id, tier="pro", expires_in_days=30)
+        await self.db.activate_subscription(user_id, tier="pro")
         if tier == "pro_promo":
             await self.db.mark_promo_used(user_id)
 
         context.user_data.pop("chosen_tier", None)
-        context.user_data.pop("chosen_bank", None)
         context.user_data.pop("step", None)
 
         kb = [[MENU_BTN(lang)]]
@@ -692,7 +648,6 @@ class ProfileHandler:
             await self._parse_students_from_text(update, context, text)
             return
 
-        # ── Редактирование профиля: САДИК ──
         kg_prof_steps = {
             "prof_edit_name":     ("name",     "prof_edit_school",    ("🏫 Введите название детского сада:" if lang == "ru" else "🏫 Балабақшаның атауын енгізіңіз:")),
             "prof_edit_school":   ("school",   "prof_edit_age_group", ("👶 Введите возрастную группу:\n\n_Пример: старшая группа (5-6 лет)_" if lang == "ru" else "👶 Жас тобын енгізіңіз:")),
@@ -700,7 +655,6 @@ class ProfileHandler:
             "prof_edit_position": ("position", "prof_edit_director",  ("👔 Введите ФИО заведующей:" if lang == "ru" else "👔 Меңгерушінің аты-жөнін енгізіңіз:")),
         }
 
-        # ── Редактирование профиля: ШКОЛА ──
         teacher_prof_steps = {
             "prof_edit_name":     ("name",     "prof_edit_school",   ("🏫 Введите название школы:" if lang == "ru" else "🏫 Мектептің атауын енгізіңіз:")),
             "prof_edit_school":   ("school",   "prof_edit_subject",  ("📚 Введите ваш предмет:" if lang == "ru" else "📚 Пәніңізді енгізіңіз:")),
@@ -733,7 +687,6 @@ class ProfileHandler:
                 parse_mode=ParseMode.MARKDOWN
             )
 
-        # ── Добавление ученика/воспитанника ──
         elif step == "student_name":
             if len(text) < 3:
                 await update.message.reply_text(
@@ -753,7 +706,6 @@ class ProfileHandler:
         elif step == "student_class":
             context.user_data["new_student"]["class_name"] = text
             if is_kg:
-                # Для сада оценки не нужны — сразу к достижениям
                 context.user_data["new_student"]["grades"] = {}
                 context.user_data["step"] = "student_achievements"
                 await update.message.reply_text(
@@ -786,7 +738,7 @@ class ProfileHandler:
                         subj, grade = part.strip().rsplit("-", 1)
                         try:
                             grades[subj.strip()] = int(grade.strip())
-                        except:
+                        except Exception:
                             pass
             context.user_data["new_student"]["grades"] = grades
             context.user_data["step"] = "student_achievements"
@@ -814,7 +766,7 @@ class ProfileHandler:
         elif step == "student_absences":
             try:
                 absences = int(text)
-            except:
+            except Exception:
                 absences = 0
             context.user_data["new_student"]["absences"] = absences
             context.user_data["step"] = "student_behavior"
@@ -870,8 +822,6 @@ class ProfileHandler:
         if not student_data.get("behavior"):
             student_data["behavior"] = "хорошее" if lang == "ru" else "жақсы"
         await self.db.add_student(user_id, student_data)
-        # Базовый метод БД сохраняет прежние поля; новые добавляем тем же безопасным
-        # интерфейсом обновления, не меняя существующую структуру добавления.
         saved = next((s for s in reversed(await self.db.get_students(user_id)) if s["name"] == student_data.get("name")), None)
         if saved:
             await self.db.update_student(saved["id"], {
@@ -881,7 +831,6 @@ class ProfileHandler:
             })
         context.user_data["step"] = None
         name = student_data.get("name", "")
-        add_btn_text = t(lang, "btn_add_child") if is_kg else t(lang, "btn_add_student")
         list_btn_text = t(lang, "btn_my_children") if is_kg else t(lang, "btn_my_students")
         kb = [
             [InlineKeyboardButton("➕ " + ("Добавить ещё" if lang == "ru" else "Тағы қосу"), callback_data="prof_add_student")],
