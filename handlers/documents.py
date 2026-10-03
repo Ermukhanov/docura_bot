@@ -14,32 +14,6 @@ from database import Database, free_limit_for
 
 # Единый реестр подключаемых документов. Остальные типы продолжают работать
 # через существующие DOC_QUESTIONS и общий генератор.
-DOCUMENT_REGISTRY = {
-    "kindergarten_cycle_schedule": {
-        "document_id": "kindergarten_cycle_schedule", "title_ru": "Циклограмма", "title_kz": "Циклограмма", "title_en": "Weekly Cyclogram",
-        "category": "kindergarten", "required_fields": ["group", "period", "week_topic"], "optional_fields": ["events"],
-        "profile_fields": ["school", "name", "age_group"], "forbidden_facts": ["dates", "events", "children", "results"], "word_structure": "landscape_5x5", "validation_rules": ["required_cycle_fields"], "language_support": ["ru", "kz", "en"]
-    },
-    "kg_activity_summary": {
-        "document_id": "kg_activity_summary", "title_ru": "Технологическая карта ОУД", "title_kz": "ҰОҚ технологиялық картасы", "title_en": "Activity Technological Map",
-        "category": "kindergarten", "required_fields": ["topic", "goals", "age_group"], "optional_fields": ["materials"],
-        "profile_fields": ["school", "name", "age_group"], "forbidden_facts": ["materials", "children", "results", "methodist_requirements"], "word_structure": "header_3_stages", "validation_rules": ["no_unconfirmed_materials"], "language_support": ["ru", "kz", "en"]
-    },
-    "kg_individual_development_card": {
-        "document_id": "kg_individual_development_card", "title_ru": "Индивидуальная карта развития ребенка", "title_kz": "Баланың жеке даму картасы", "title_en": "Child Individual Development Card",
-        "category": "kindergarten", "required_fields": ["child_name", "birth_year_age", "group", "school_year", "observations"], "optional_fields": [],
-        "profile_fields": ["school", "age_group"], "forbidden_facts": ["development_levels", "diagnoses", "results"], "word_structure": "five_competency_columns", "validation_rules": ["empty_results_without_observations"], "language_support": ["ru", "kz", "en"]
-    },
-    "lesson_plan": {
-        "document_id": "lesson_plan", "title_ru": "Краткосрочный план (КСП)", "title_kz": "Қысқамерзімді жоспар (ҚМЖ)", "title_en": "Lesson Plan",
-        "category": "school", "required_fields": ["subject_class", "topic", "duration"], "optional_fields": ["goals", "date"], "profile_fields": ["school", "name", "subject", "classes"], "forbidden_facts": ["official_goals", "date", "textbook", "resources"], "word_structure": "lesson_table", "validation_rules": ["no_unconfirmed_official_facts"], "language_support": ["ru", "kz", "en"]
-    },
-    "calendar_plan": {
-        "document_id": "calendar_plan", "title_ru": "Календарно-тематический план (КТП)", "title_kz": "Күнтізбелік-тақырыптық жоспар (КТЖ)", "title_en": "Calendar-Thematic Plan",
-        "category": "school", "required_fields": ["subject_class", "period", "hours_per_week"], "optional_fields": ["textbook", "dates"], "profile_fields": ["school", "subject", "classes"], "forbidden_facts": ["textbook", "hours", "dates", "official_goals"], "word_structure": "calendar_table", "validation_rules": ["blank_unknown_dates"], "language_support": ["ru", "kz", "en"]
-    },
-}
-
 REGISTRY_QUESTIONS = {
     "ru": {
         "kg_activity_summary": [{"key": "topic", "q": "Тема занятия?"}, {"key": "age_group", "q": "Группа и возраст?"}, {"key": "goals", "q": "Что дети должны понять или уметь?"}, {"key": "materials", "q": "Какие материалы реально есть? Если нет — напишите «нет»."}],
@@ -1354,8 +1328,8 @@ class DocumentHandler:
             with open(path, "rb") as file:
                 image_data = base64.standard_b64encode(file.read()).decode("utf-8")
             os.remove(path)
-            client = anthropic.Anthropic(api_key=self.api_key)
-            response = client.messages.create(
+            client = anthropic.AsyncAnthropic(api_key=self.api_key)
+            response = await client.messages.create(
                 model="claude-haiku-4-5", max_tokens=3000,
                 messages=[{"role": "user", "content": [
                     {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_data}},
@@ -1372,13 +1346,28 @@ class DocumentHandler:
             await wait.delete()
             await update.message.reply_text("Не удалось распознать фото. Попробуйте более чёткое изображение." if lang == "ru" else "Фотоны тану мүмкін болмады. Анығырақ сурет жіберіңіз.")
 
-    async def _send_rating_request(self, message, context, lang, doc_type, document_id=None):
-        context.user_data["rating_doc_type"] = doc_type
-        context.user_data["rating_doc_id"] = document_id
-        await message.reply_text(
-            "Как вам документ?" if lang == "ru" else "Құжат қалай болды?",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⭐ Отлично" if lang == "ru" else "⭐ Өте жақсы", callback_data="rating_good")], [InlineKeyboardButton("👌 Нормально" if lang == "ru" else "👌 Қалыпты", callback_data="rating_ok")], [InlineKeyboardButton("👎 Нужно лучше" if lang == "ru" else "👎 Жақсарту керек", callback_data="rating_bad")]])
-        )
+    async def _reward_referrer_if_needed(self, context, user_id: int):
+        """Реферальный бонус: когда приглашённый создал ПЕРВЫЙ документ, пригласившему
+        начисляется +5 документов (раньше обещалось в тексте, но add_bonus_docs /
+        mark_ref_rewarded нигде не вызывались — бонус не начислялся никогда)."""
+        try:
+            invited = await self.db.get_user(user_id)
+            referrer_id = (invited or {}).get("referred_by")
+            if not referrer_id or (invited.get("ref_rewarded") or 0):
+                return
+            if int(referrer_id) == int(user_id):
+                return
+            await self.db.mark_ref_rewarded(user_id)
+            await self.db.add_bonus_docs(int(referrer_id), 5)
+            referrer = await self.db.get_user(int(referrer_id))
+            lang = (referrer or {}).get("lang") or "ru"
+            text = ("🎉 Ваш коллега создал первый документ — вам начислено *+5 бесплатных документов*!"
+                    if lang == "ru" else
+                    "🎉 Әріптесіңіз алғашқы құжатын жасады — сізге *+5 тегін құжат* қосылды!")
+            await context.bot.send_message(chat_id=int(referrer_id), text=text, parse_mode=ParseMode.MARKDOWN)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("referral reward failed")
 
     async def _show_referral_after_first_rating(self, query, user, lang):
         if user and not user.get("subscribed") and user.get("free_used") == 1:
@@ -1459,14 +1448,14 @@ class DocumentHandler:
             context_line = f"Предмет: {user.get('subject')}, классы: {user.get('classes')}."
             asker = "Учитель"
 
-        client = anthropic.Anthropic(api_key=self.api_key)
+        client = anthropic.AsyncAnthropic(api_key=self.api_key)
         prompt = (
             f"{asker} просит помочь составить текст для поля «{field}» документа «{doc_name}».\n"
             f"{context_line}\n"
             f"Что хочет сказать: {user_input}\n\n"
             f"Предложи 2 коротких варианта официального текста для вставки в документ."
         )
-        msg = client.messages.create(
+        msg = await client.messages.create(
             model="claude-haiku-4-5",
             max_tokens=400,
             messages=[{"role": "user", "content": prompt}]
@@ -1577,7 +1566,7 @@ class DocumentHandler:
                 " пользователь указал их явно."
             )
 
-        client  = anthropic.Anthropic(api_key=self.api_key)
+        client  = anthropic.AsyncAnthropic(api_key=self.api_key)
         result  = ""
         score   = 0
         attempts = 0
@@ -1592,7 +1581,7 @@ class DocumentHandler:
                 }
                 await message.reply_text(improve_msg.get(lang, improve_msg["ru"]), parse_mode=ParseMode.MARKDOWN)
 
-            msg = client.messages.create(
+            msg = await client.messages.create(
                 model="claude-sonnet-4-6",
                 max_tokens=3000,
                 system=system_prompt,
@@ -1600,7 +1589,7 @@ class DocumentHandler:
             )
             result = msg.content[0].text
 
-            eval_msg = client.messages.create(
+            eval_msg = await client.messages.create(
                 model="claude-haiku-4-5",
                 max_tokens=10,
                 messages=[{"role": "user", "content": SELF_EVAL_PROMPT.format(document=result[:3000])}]
@@ -1664,6 +1653,7 @@ class DocumentHandler:
 
         # Сохранить в БД
         document_id = await self.db.save_document(user_id, doc_type, doc_name, result, score)
+        await self._reward_referrer_if_needed(context, user_id)
         await self.db.upsert_user(user_id, {
             "last_doc_type": doc_type,
             "last_doc_date": datetime.now().isoformat(),

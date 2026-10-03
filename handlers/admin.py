@@ -1,17 +1,64 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
+import asyncio
+import logging
 from database import Database
 from handlers.documents import DOC_NAMES, CAT_DOCS_ALL
 import os
 
-# ВАЖНО (безопасность): логин/пароль администратора раньше были захардкожены
-# прямо в исходном коде — при публичном репозитории на GitHub это открытый
-# доступ к панели администратора для кого угодно. Теперь берутся из переменных
-# окружения ADMIN_LOGIN/ADMIN_PASSWORD; значения по умолчанию оставлены только
-# чтобы не сломать текущий деплой без .env — их нужно сменить в проде.
-ADMIN_LOGIN    = os.getenv("ADMIN_LOGIN", "Unicorn")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "Gulkhan")
+logger = logging.getLogger(__name__)
+
+# Доступ к админке — по Telegram ID (переменная окружения ADMIN_IDS, через запятую).
+# Раньше вход был по логину/паролю, а флаг admin_auth хранился в user_data —
+# он стирался при любом context.user_data.clear() (создание документа, /cancel,
+# /new, онбординг) и при каждом перезапуске бота, после чего ВСЕ кнопки админки
+# отвечали «Нет доступа». Telegram ID подделать нельзя, а хранить его не надо.
+def _parse_admin_ids():
+    raw = os.getenv("ADMIN_IDS", "6561112046")
+    ids = set()
+    for part in raw.replace(";", ",").split(","):
+        part = part.strip()
+        if part.lstrip("-").isdigit():
+            ids.add(int(part))
+    return ids
+
+ADMIN_IDS = _parse_admin_ids()
+
+
+def is_admin(user_id) -> bool:
+    return user_id in ADMIN_IDS
+
+
+def _esc(text) -> str:
+    """Экранирование для Telegram Markdown (v1): имена, школы и названия
+    документов с символами _ * ` [ ломали разбор и кнопка «молча» не работала."""
+    text = "" if text is None else str(text)
+    for ch in ("\\", "_", "*", "`", "["):
+        text = text.replace(ch, "\\" + ch)
+    return text
+
+
+async def _safe_edit(query, text, **kwargs):
+    """edit_message_text, который не падает на типичных ошибках Telegram:
+    «message is not modified» (повторное нажатие) и ошибке разбора Markdown."""
+    try:
+        return await query.edit_message_text(text, **kwargs)
+    except BadRequest as e:
+        msg = str(e).lower()
+        if "message is not modified" in msg:
+            return None
+        if "parse entities" in msg or "find end of the entity" in msg:
+            kwargs.pop("parse_mode", None)
+            try:
+                return await query.edit_message_text(text, **kwargs)
+            except BadRequest as e2:
+                if "message is not modified" in str(e2).lower():
+                    return None
+                raise
+        raise
+
 
 ALL_DOC_TYPES = []
 for cat_list in CAT_DOCS_ALL.values():
@@ -25,37 +72,48 @@ class AdminHandler:
         self.db = db
 
     async def login(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        context.user_data["step"]         = "admin_login"
-        context.user_data["admin_auth"]   = False
-        context.user_data["admin_stage"]  = "login"
-        await update.message.reply_text("🔐 Введите логин:")
+        """/mernar — открывает админ-меню, если ID в ADMIN_IDS."""
+        if not is_admin(update.effective_user.id):
+            await update.message.reply_text("⛔ Нет доступа.")
+            return
+        context.user_data["step"] = "admin_panel"
+        await self._send_menu(update.message.chat_id, context)
 
     async def callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
         data  = query.data
 
-        ADMIN_CHAT_ID = 6561112046
-
         TIER_NAMES = {"pro": "PRO"}
 
-        if (data.startswith("admin_activate_") and data != "admin_activate_btn"
-                and update.effective_user.id == ADMIN_CHAT_ID):
+        if not is_admin(update.effective_user.id):
+            await query.answer("⛔ Нет доступа", show_alert=True)
+            return
+
+        if data.startswith("admin_activate_") and data != "admin_activate_btn":
             rest = data[len("admin_activate_"):]
-            if rest.startswith("id_"):
-                tier = "pro"
-                tg_id = int(rest[3:])
-            else:
-                tier_part, _, tg_id_part = rest.partition("_")
-                tier = tier_part if tier_part in TIER_NAMES else "pro"
-                tg_id = int(tg_id_part) if tg_id_part else int(rest)
+            try:
+                if rest.startswith("id_"):
+                    tier = "pro"
+                    tg_id = int(rest[3:])
+                else:
+                    tier_part, _, tg_id_part = rest.partition("_")
+                    tier = tier_part if tier_part in TIER_NAMES else "pro"
+                    tg_id = int(tg_id_part) if tg_id_part else int(rest)
+            except ValueError:
+                await query.answer("❌ Некорректный ID", show_alert=True)
+                return
 
             await self.db.activate_subscription(tg_id, tier=tier)
             t_name = TIER_NAMES.get(tier, "PRO")
-            await query.edit_message_caption(
-                caption=query.message.caption + f"\n\n✅ *{t_name.upper()} АКТИВИРОВАН*",
-                parse_mode=ParseMode.MARKDOWN
-            )
+            note = f"\n\n✅ {t_name.upper()} АКТИВИРОВАН"
+            try:
+                if query.message.caption is not None:
+                    await query.edit_message_caption(caption=query.message.caption + note)
+                else:
+                    await _safe_edit(query, (query.message.text or "") + note)
+            except BadRequest as e:
+                logger.warning("admin activate: cannot annotate message: %s", e)
             try:
                 await context.bot.send_message(
                     chat_id=tg_id,
@@ -64,10 +122,6 @@ class AdminHandler:
                 )
             except Exception:
                 pass
-            return
-
-        if not context.user_data.get("admin_auth"):
-            await query.edit_message_text("❌ Нет доступа.")
             return
 
         if data == "admin_stats":
@@ -85,19 +139,19 @@ class AdminHandler:
         elif data == "admin_broadcast":
             context.user_data["step"] = "admin_broadcast"
             kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
-            await query.edit_message_text("📢 Введите текст рассылки:", reply_markup=InlineKeyboardMarkup(kb))
+            await _safe_edit(query, "📢 Введите текст рассылки:", reply_markup=InlineKeyboardMarkup(kb))
         elif data == "admin_activate_btn":
             context.user_data["step"] = "admin_activate"
             kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
-            await query.edit_message_text("💳 Введите Telegram ID для активации PRO:", reply_markup=InlineKeyboardMarkup(kb))
+            await _safe_edit(query, "💳 Введите Telegram ID для активации PRO:", reply_markup=InlineKeyboardMarkup(kb))
         elif data == "admin_deactivate_btn":
             context.user_data["step"] = "admin_deactivate"
             kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
-            await query.edit_message_text("🔓 Введите Telegram ID для отмены PRO:", reply_markup=InlineKeyboardMarkup(kb))
+            await _safe_edit(query, "🔓 Введите Telegram ID для отмены PRO:", reply_markup=InlineKeyboardMarkup(kb))
         elif data == "admin_reset_btn":
             context.user_data["step"] = "admin_reset"
             kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
-            await query.edit_message_text(
+            await _safe_edit(query, 
                 "♻️ Введите Telegram ID пользователя для сброса аккаунта:",
                 reply_markup=InlineKeyboardMarkup(kb)
             )
@@ -108,12 +162,12 @@ class AdminHandler:
                 if target_data is not None:
                     target_data.clear()
                 context.user_data["step"] = "admin_panel"
-                await query.edit_message_text(
+                await _safe_edit(query, 
                     "✅ Аккаунт пользователя сброшен. Пользователь не удален и не заблокирован",
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Главное меню", callback_data="admin_menu")]])
                 )
             else:
-                await query.edit_message_text(
+                await _safe_edit(query, 
                     "❌ Пользователь с таким Telegram ID не найден.",
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Главное меню", callback_data="admin_menu")]])
                 )
@@ -140,7 +194,7 @@ class AdminHandler:
                 [InlineKeyboardButton("← Назад", callback_data="admin_samples_add")],
             ]
             name = DOC_NAMES.get("ru", {}).get(doc_type, doc_type)
-            await query.edit_message_text(
+            await _safe_edit(query, 
                 f"📄 Тип документа: *{name}*\n\nНа каком языке образец?",
                 reply_markup=InlineKeyboardMarkup(kb),
                 parse_mode=ParseMode.MARKDOWN
@@ -150,7 +204,7 @@ class AdminHandler:
             context.user_data["sample_lang"] = doc_lang
             context.user_data["step"] = "admin_sample_text"
             kb = [[InlineKeyboardButton("← Назад", callback_data="admin_samples_add")]]
-            await query.edit_message_text(
+            await _safe_edit(query, 
                 "✍️ Отправьте текст образца документа.\n\n"
                 "Скопируйте готовый, реальный, качественный документ — бот будет ориентироваться "
                 "на его структуру и стиль при генерации этого типа документов.",
@@ -172,22 +226,13 @@ class AdminHandler:
         step  = context.user_data.get("step", "")
         text  = update.message.text.strip()
 
-        if step == "admin_login":
-            context.user_data["admin_input_login"] = text
-            context.user_data["step"] = "admin_password"
-            await update.message.reply_text("🔑 Введите пароль:")
+        if not is_admin(update.effective_user.id):
+            context.user_data["step"] = None
+            await update.message.reply_text("⛔ Нет доступа.")
+            return
 
-        elif step == "admin_password":
-            login    = context.user_data.get("admin_input_login", "")
-            password = text
-            if login == ADMIN_LOGIN and password == ADMIN_PASSWORD:
-                context.user_data["admin_auth"] = True
-                context.user_data["step"] = "admin_panel"
-                await update.message.reply_text("✅ Добро пожаловать, администратор!")
-                await self._send_menu(update.message.chat_id, context)
-            else:
-                context.user_data["step"] = None
-                await update.message.reply_text("❌ Неверный логин или пароль.")
+        if step == "admin_panel":
+            await self._send_menu(update.message.chat_id, context)
 
         elif step == "admin_activate":
             try:
@@ -233,14 +278,21 @@ class AdminHandler:
             )
 
         elif step == "admin_broadcast":
-            users = await self.db.get_all_users(limit=10000)
+            users = await self.db.get_all_users(limit=100000)
             sent, failed = 0, 0
             for u in users:
                 try:
-                    await context.bot.send_message(chat_id=u["tg_id"], text=text, parse_mode=ParseMode.MARKDOWN)
+                    try:
+                        await context.bot.send_message(chat_id=u["tg_id"], text=text, parse_mode=ParseMode.MARKDOWN)
+                    except BadRequest as e:
+                        if "parse entities" in str(e).lower():
+                            await context.bot.send_message(chat_id=u["tg_id"], text=text)
+                        else:
+                            raise
                     sent += 1
                 except Exception:
                     failed += 1
+                await asyncio.sleep(0.05)  # лимит Telegram ~30 сообщений/сек
             context.user_data["step"] = "admin_panel"
             await update.message.reply_text(f"✅ Доставлено: {sent}\n❌ Не доставлено: {failed}")
             await self._send_menu(update.message.chat_id, context)
@@ -279,7 +331,7 @@ class AdminHandler:
         )
 
     async def _show_menu(self, query):
-        await query.edit_message_text(
+        await _safe_edit(query, 
             "🛠 *Админ-панель Docura.kz*",
             reply_markup=InlineKeyboardMarkup(self._main_keyboard()),
             parse_mode=ParseMode.MARKDOWN
@@ -314,9 +366,9 @@ class AdminHandler:
             f"🏆 *Топ документов:*\n"
         )
         for row in stats["top_docs"]:
-            text += f"  • {row[0]}: {row[1]} шт.\n"
+            text += f"  • {_esc(DOC_NAMES.get('ru', {}).get(row[0], row[0]))}: {row[1]} шт.\n"
         kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+        await _safe_edit(query, text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
     async def _show_users(self, query, filt="all"):
         users = await self.db.get_all_users(limit=500)
@@ -341,8 +393,8 @@ class AdminHandler:
                 sub = "⭐" if u.get("subscribed") else "🆓"
                 role_emoji = "🧸" if u.get("role") == "kindergarten" else "🏫"
                 lines.append(
-                    f"{sub}{role_emoji} `{u['tg_id']}` — {u.get('name') or 'без имени'}\n"
-                    f"   {u.get('school') or '—'} | докум: {u.get('free_used', 0)}"
+                    f"{sub}{role_emoji} `{u['tg_id']}` — {_esc(u.get('name') or 'без имени')}\n"
+                    f"   {_esc(u.get('school') or '—')} | докум: {u.get('free_used', 0)}"
                 )
 
         kb = [
@@ -356,7 +408,7 @@ class AdminHandler:
         text = "\n".join(lines)
         if len(text) > 4000:
             text = text[:3900] + "\n\n_...обрезано_"
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+        await _safe_edit(query, text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
     async def _show_recent_docs(self, query):
         docs = await self.db.get_recent_documents(limit=15)
@@ -365,13 +417,13 @@ class AdminHandler:
         else:
             lines = ["📄 *Последние документы:*\n"]
             for d in docs:
-                date = d["created_at"][:16] if d.get("created_at") else "—"
-                lines.append(f"📄 {d['doc_name']}\n   👤 `{d['teacher_id']}` | ⭐{d['score']}/100 | {date}")
+                date = str(d["created_at"])[:16] if d.get("created_at") else "—"
+                lines.append(f"📄 {_esc(d.get('doc_name'))}\n   👤 `{d.get('teacher_id')}` | ⭐{d.get('score', 0)}/100 | {date}")
         kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
         text = "\n".join(lines)
         if len(text) > 4000:
             text = text[:3900] + "\n\n_...обрезано_"
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+        await _safe_edit(query, text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
     async def _show_samples_menu(self, query):
         samples = await self.db.get_all_samples(limit=200)
@@ -387,7 +439,7 @@ class AdminHandler:
             [InlineKeyboardButton("📚 Список образцов", callback_data="admin_samples_list")],
             [InlineKeyboardButton("← Назад", callback_data="admin_menu")],
         ]
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+        await _safe_edit(query, text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
     async def _show_doc_type_picker(self, query, page=0):
         per_page = 8
@@ -406,7 +458,7 @@ class AdminHandler:
             kb.append(nav)
         kb.append([InlineKeyboardButton("← Назад", callback_data="admin_samples")])
 
-        await query.edit_message_text(
+        await _safe_edit(query, 
             "📄 Выберите тип документа для образца (школа + садик):",
             reply_markup=InlineKeyboardMarkup(kb)
         )
@@ -418,7 +470,7 @@ class AdminHandler:
                 [InlineKeyboardButton("➕ Загрузить образец", callback_data="admin_samples_add")],
                 [InlineKeyboardButton("← Назад", callback_data="admin_samples")],
             ]
-            await query.edit_message_text("📚 Образцов пока нет.", reply_markup=InlineKeyboardMarkup(kb))
+            await _safe_edit(query, "📚 Образцов пока нет.", reply_markup=InlineKeyboardMarkup(kb))
             return
 
         lines = ["📚 *Загруженные образцы:*\n"]
@@ -427,7 +479,7 @@ class AdminHandler:
         for s in samples:
             status = "✅" if s.get("is_active") else "⏸"
             doc_name = names.get(s["doc_type"], s["doc_type"])
-            lines.append(f"{status} #{s['id']} {doc_name} ({s['lang']}) — {s['created_at'][:10]}")
+            lines.append(f"{status} #{s['id']} {_esc(doc_name)} ({s['lang']}) — {str(s['created_at'])[:10]}")
             kb.append([
                 InlineKeyboardButton(f"#{s['id']} {'Выкл' if s.get('is_active') else 'Вкл'}", callback_data=f"admin_sample_toggle_{s['id']}"),
                 InlineKeyboardButton("🗑", callback_data=f"admin_sample_del_{s['id']}"),
@@ -437,4 +489,4 @@ class AdminHandler:
         text = "\n".join(lines)
         if len(text) > 3500:
             text = text[:3400] + "\n\n_...обрезано_"
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+        await _safe_edit(query, text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)

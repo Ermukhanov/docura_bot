@@ -1,11 +1,12 @@
 import asyncio
 import logging
+import time
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 
-from telegram import Update, BotCommand, MenuButtonCommands, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, filters, ContextTypes
@@ -15,7 +16,7 @@ from handlers.onboarding import OnboardingHandler
 from handlers.main_menu import MainMenuHandler
 from handlers.documents import DocumentHandler
 from handlers.profile import ProfileHandler
-from handlers.admin import AdminHandler
+from handlers.admin import AdminHandler, ADMIN_IDS
 from handlers.voice import VoiceHandler
 from handlers.agent import AgentHandler
 from handlers.concierge import ConciergeHandler
@@ -265,11 +266,43 @@ async def _route_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await concierge.handle_text(update, context)
 
 
+_last_admin_alert = 0.0
+
+
+async def on_error(update, context: ContextTypes.DEFAULT_TYPE):
+    """Глобальный обработчик ошибок. Раньше исключения в хендлерах только
+    писались в лог, а пользователь видел «кнопка не реагирует». Теперь:
+    пользователь получает понятное сообщение, админ — краткий алерт (не чаще раза в минуту)."""
+    global _last_admin_alert
+    logger.error("Unhandled exception", exc_info=context.error)
+    try:
+        if isinstance(update, Update):
+            if update.callback_query:
+                await update.callback_query.answer("⚠️ Что-то пошло не так. Попробуйте ещё раз.", show_alert=True)
+            elif update.effective_message:
+                await update.effective_message.reply_text("⚠️ Что-то пошло не так. Попробуйте ещё раз или нажмите /menu.")
+    except Exception:
+        pass
+    now = time.time()
+    if now - _last_admin_alert > 60 and ADMIN_IDS:
+        _last_admin_alert = now
+        who = getattr(getattr(update, "effective_user", None), "id", "?")
+        text = f"⚠️ Ошибка у пользователя {who}: {type(context.error).__name__}: {str(context.error)[:300]}"
+        for admin_id in ADMIN_IDS:
+            try:
+                await context.bot.send_message(admin_id, text)
+            except Exception:
+                pass
+
+
 async def post_init(app: Application):
     db        = app.bot_data["db"]
     concierge = app.bot_data["concierge"]
-    asyncio.create_task(send_reminders(app, db, concierge))
-    asyncio.create_task(check_subscription_expirations(app, db))
+    # Храним ссылки на фоновые задачи: иначе сборщик мусора может прервать их молча.
+    app.bot_data["bg_tasks"] = [
+        asyncio.create_task(send_reminders(app, db, concierge)),
+        asyncio.create_task(check_subscription_expirations(app, db)),
+    ]
 
     # Устанавливаем меню команд в Telegram
     commands_ru = [
@@ -360,6 +393,8 @@ async def run():
 
     # Текст
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _route_text))
+
+    app.add_error_handler(on_error)
 
     logger.info("✅ Docura.kz запущен!")
 

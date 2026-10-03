@@ -1,6 +1,5 @@
 import os
 import json
-import base64
 import tempfile
 import asyncio
 import anthropic
@@ -54,7 +53,7 @@ VOICE_UNDERSTAND_PROMPT_KG = """Воспитатель детского сада
 }}"""
 
 class VoiceHandler:
-    def __init__(self, db: Database, anthropic_key: str, openai_key: str = ""):
+    def __init__(self, db: Database, anthropic_key: str):
         self.db            = db
         self.anthropic_key = anthropic_key
 
@@ -162,7 +161,7 @@ class VoiceHandler:
                 await concierge._start_direct_document(update, context, user, lang, quick_doc_type, known_data=None)
                 return
 
-            client = anthropic.Anthropic(api_key=self.anthropic_key)
+            client = anthropic.AsyncAnthropic(api_key=self.anthropic_key)
 
             if is_kg:
                 prompt = VOICE_UNDERSTAND_PROMPT_KG.format(
@@ -177,7 +176,7 @@ class VoiceHandler:
                     is_ct="да" if user.get("is_class_teacher") else "нет"
                 )
 
-            msg = client.messages.create(
+            msg = await client.messages.create(
                 model="claude-haiku-4-5",
                 max_tokens=500,
                 messages=[{"role": "user", "content": prompt}]

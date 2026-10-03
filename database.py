@@ -18,6 +18,7 @@ class Database:
 
     async def init(self):
         async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
             await db.executescript("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY,
@@ -184,17 +185,6 @@ class Database:
             cols = [row[1] for row in await cur.fetchall()]
         if column not in cols:
             await db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
-
-    async def log_funnel(self, tg_id: int, step: str):
-        """Сохраняет последний достигнутый шаг воронки пользователя."""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("UPDATE users SET funnel_step=? WHERE tg_id=?", (step, tg_id))
-            await db.commit()
-
-    async def log_funnel_event(self, tg_id: int, event: str, doc_type: str = ""):
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("INSERT INTO funnel_events (tg_id, event, doc_type) VALUES (?,?,?)", (tg_id, event, doc_type))
-            await db.commit()
 
     # ===== USERS =====
     async def get_user(self, tg_id: int):

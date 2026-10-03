@@ -7,7 +7,7 @@ import re
 import tempfile
 from datetime import datetime
 from docx import Document
-from docx.shared import Pt, Cm, RGBColor, Inches
+from docx.shared import Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_ALIGN_VERTICAL
 from docx.enum.section import WD_ORIENT

@@ -302,7 +302,7 @@ class AgentHandler:
                 img_data = base64.standard_b64encode(f.read()).decode("utf-8")
             os.unlink(tmp_path)
 
-            client = anthropic.Anthropic(api_key=self.api_key)
+            client = anthropic.AsyncAnthropic(api_key=self.api_key)
             if is_kg:
                 prompt = """Это фото режима дня / расписания занятий группы детского сада. Распознай и верни ТОЛЬКО JSON без markdown:
 {
@@ -320,7 +320,7 @@ class AgentHandler:
 }
 Если не можешь распознать — верни {"error": "не удалось распознать"}"""
 
-            response = client.messages.create(
+            response = await client.messages.create(
                 model="claude-haiku-4-5",
                 max_tokens=1000,
                 messages=[{
@@ -400,7 +400,7 @@ class AgentHandler:
         )
 
         try:
-            client = anthropic.Anthropic(api_key=self.api_key)
+            client = anthropic.AsyncAnthropic(api_key=self.api_key)
             entity = "режим дня / занятия группы детского сада" if is_kg else "расписание"
             prompt = f"""Пользователь прислал своё {entity} в свободном формате. Преобразуй в JSON:
 {{
@@ -413,7 +413,7 @@ class AgentHandler:
 ДАННЫЕ:
 {text}"""
 
-            response = client.messages.create(
+            response = await client.messages.create(
                 model="claude-haiku-4-5",
                 max_tokens=1000,
                 messages=[{"role": "user", "content": prompt}]
@@ -518,17 +518,3 @@ class AgentHandler:
             return "\n".join(lines) if len(lines) > 1 else ""
         except Exception:
             return ""
-
-    async def suggest_after_generation(self, user_id: int, doc_type: str, lang: str) -> dict | None:
-        """После генерации документа предлагает следующий нужный документ"""
-        suggestions = {
-            "lesson_plan": ("monthly_report", "Сгенерировать отчёт учителя за месяц?" if lang == "ru" else "Айлық есеп жасайын ба?"),
-            "characteristic": ("parent_letter", "Написать письмо родителям этого ученика?" if lang == "ru" else "Ата-анаға хат жазайын ба?"),
-            "discipline_act": ("parent_letter", "Написать письмо родителям о нарушении?" if lang == "ru" else "Ата-анаға хат жазайын ба?"),
-            "kg_thematic_plan": ("kg_monthly_report", "Сгенерировать отчёт воспитателя за месяц?" if lang == "ru" else "Айлық есеп жасайын ба?"),
-            "kg_child_characteristic": ("kg_parent_letter", "Написать письмо родителям этого ребёнка?" if lang == "ru" else "Ата-анаға хат жазайын ба?"),
-        }
-        if doc_type in suggestions:
-            next_type, question = suggestions[doc_type]
-            return {"doc_type": next_type, "question": question}
-        return None

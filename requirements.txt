@@ -8,5 +8,4 @@ flask==3.0.0
 werkzeug==3.0.1
 pypdf==4.0.0
 python-dotenv==1.0.0
-reportlab==4.2.0
 SpeechRecognition==3.10.0

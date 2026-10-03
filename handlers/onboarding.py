@@ -73,7 +73,8 @@ class OnboardingHandler:
         # работает → анкета по полям → подтверждение профиля → финиш).
         if data in {"lang_ru", "lang_kz"}:
             lang = data.rsplit("_", 1)[1]
-            await self.db.upsert_user(user_id, {"lang": lang, "lang_selected": 1})
+            # Само поле lang является признаком выбранного языка интерфейса.
+            await self.db.upsert_user(user_id, {"lang": lang})
             context.user_data["onboard_step"] = 1
             await self._show_role_step(query, lang)
             return
@@ -215,11 +216,9 @@ class OnboardingHandler:
         name = (user.get("name") or "").split()[0]
         context.user_data.clear()
         text = (f"🎉 *Добро пожаловать, {name}!*\n\nЯ — ваш AI-ассистент. Давайте прямо сейчас создадим ваш первый документ!\n\nПросто напишите мне, например:\n• «Сделай КСП по математике для 7 класса»\n• «Нужна характеристика на ученика»\n• «Создай циклограмму на эту неделю»\n\nИли выберите из меню 👇" if lang == "ru" else f"🎉 *Қош келдіңіз, {name}!*\n\nМен сіздің AI-көмекшіңізмін. Бірінші құжатты қазір жасайық!\n\nМаған жай жазыңыз, мысалы:\n• «7 сынып математикасына ҚМЖ жаса»\n• «Оқушыға мінездеме керек»\n• «Осы аптаға циклограмма жаса»\n\nНемесе мәзірден таңдаңыз 👇")
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("📄 Создать первый документ" if lang == "ru" else "📄 Бірінші құжатты жасау", callback_data="menu_create")],
-            [InlineKeyboardButton("🌐 Наш сайт" if lang == "ru" else "🌐 Біздің сайт", url=SITE_URL)],
-            [InlineKeyboardButton("🗺 Посмотреть все функции" if lang == "ru" else "🗺 Барлық функцияларды көру", callback_data="menu_help")],
-        ]), parse_mode=ParseMode.MARKDOWN)
+        await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN)
+        from handlers.main_menu import MainMenuHandler
+        await MainMenuHandler(self.db)._send_main_menu(query.message.chat_id, context, user_id, lang)
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id

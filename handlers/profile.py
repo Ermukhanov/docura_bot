@@ -20,13 +20,6 @@ KASPI_NUMBER = "+7 771 451 4717"
 TIER_PRICES = {"pro": 4990, "pro_promo": 2490}
 TIER_NAMES  = {"pro": "PRO"}
 
-def _esc(text):
-    if text is None: return "—"
-    text = str(text)
-    for ch in ["_", "*", "[", "]", "`"]:
-        text = text.replace(ch, "\\" + ch)
-    return text
-
 class ProfileHandler:
     def __init__(self, db: Database, api_key: str = ""):
         self.db      = db
@@ -149,6 +142,26 @@ class ProfileHandler:
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
         is_kg   = (user or {}).get("role") == "kindergarten"
+
+        if data.startswith("student_beh_"):
+            # Кнопки выбора поведения (раньше _beh_*: callback не подходил ни под один
+            # зарегистрированный паттерн, и нажатие не делало ничего).
+            if context.user_data.get("step") != "student_behavior":
+                return
+            behavior_map = {
+                "1": "отличное" if lang == "ru" else "өте жақсы",
+                "2": "хорошее" if lang == "ru" else "жақсы",
+                "3": "удовлетворительное" if lang == "ru" else "қанағаттанарлық",
+            }
+            behavior = behavior_map.get(data.rsplit("_", 1)[1], "хорошее" if lang == "ru" else "жақсы")
+            context.user_data.setdefault("new_student", {})["behavior"] = behavior
+            context.user_data["step"] = "student_parents"
+            await query.edit_message_text(("✅ Поведение: " if lang == "ru" else "✅ Мінез-құлқы: ") + behavior)
+            await query.message.reply_text(
+                "👪 ФИО родителей (или «пропустить»):" if lang == "ru" else "👪 Ата-анасының аты-жөні (немесе «өткізу»):",
+                reply_markup=InlineKeyboardMarkup([[CANCEL_BTN(lang)]])
+            )
+            return
 
         if data in ("prof_students", "prof_add_student", "prof_upload_students") and (not user or not user.get("subscribed")):
             await query.edit_message_text(
@@ -536,7 +549,7 @@ class ProfileHandler:
                 return
 
             today = datetime.now().strftime("%d.%m.%Y")
-            client = anthropic.Anthropic(api_key=self.api_key)
+            client = anthropic.AsyncAnthropic(api_key=self.api_key)
 
             prompt = f"""Это чек оплаты Kaspi. Проверь следующее:
 1. Получатель содержит номер телефона: {KASPI_NUMBER} (может быть записан без пробелов, с дефисами или скобками — это нормально)
@@ -549,7 +562,7 @@ class ProfileHandler:
 Если чек нечёткий или текст плохо читается — valid: false, reason: "нечёткий чек".
 Если сумма не совпадает — valid: false, reason: "неверная сумма"."""
 
-            response = client.messages.create(
+            response = await client.messages.create(
                 model="claude-sonnet-4-6",
                 max_tokens=150,
                 messages=[{
@@ -771,9 +784,9 @@ class ProfileHandler:
             context.user_data["new_student"]["absences"] = absences
             context.user_data["step"] = "student_behavior"
             kb = [
-                [InlineKeyboardButton("😊 " + ("Отличное" if lang == "ru" else "Өте жақсы"), callback_data="_beh_1"),
-                 InlineKeyboardButton("🙂 " + ("Хорошее" if lang == "ru" else "Жақсы"),      callback_data="_beh_2")],
-                [InlineKeyboardButton("😐 " + ("Удовл." if lang == "ru" else "Қанағат."),    callback_data="_beh_3")],
+                [InlineKeyboardButton("😊 " + ("Отличное" if lang == "ru" else "Өте жақсы"), callback_data="student_beh_1"),
+                 InlineKeyboardButton("🙂 " + ("Хорошее" if lang == "ru" else "Жақсы"),      callback_data="student_beh_2")],
+                [InlineKeyboardButton("😐 " + ("Удовл." if lang == "ru" else "Қанағат."),    callback_data="student_beh_3")],
                 [CANCEL_BTN(lang)],
             ]
             beh_q = (
@@ -873,8 +886,8 @@ class ProfileHandler:
                   "[{\"name\":\"\", \"birth_date\":\"\", \"parent_name\":\"\", \"phone\":\"\"}]. "
                   "Если данных нет — оставь поле пустым. Не придумывай данные.")
         try:
-            client = anthropic.Anthropic(api_key=self.api_key)
-            response = client.messages.create(model="claude-haiku-4-5", max_tokens=1200,
+            client = anthropic.AsyncAnthropic(api_key=self.api_key)
+            response = await client.messages.create(model="claude-haiku-4-5", max_tokens=1200,
                                               messages=[{"role": "user", "content": content + [{"type": "text", "text": prompt}]}])
             raw = re.sub(r"```[a-z]*", "", response.content[0].text.strip()).strip("` \n")
             match = re.search(r"\[.*\]", raw, re.DOTALL)
