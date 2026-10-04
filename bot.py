@@ -21,7 +21,7 @@ from handlers.voice import VoiceHandler
 from handlers.agent import AgentHandler
 from handlers.concierge import ConciergeHandler
 from handlers.query_adapter import MessageQueryAdapter
-from handlers.notifications import send_reminders, check_subscription_expirations
+from handlers.notifications import send_reminders, check_subscription_expirations, monitor_schedules
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -303,6 +303,7 @@ async def post_init(app: Application):
     app.bot_data["bg_tasks"] = [
         asyncio.create_task(send_reminders(app, db, concierge)),
         asyncio.create_task(check_subscription_expirations(app, db)),
+        asyncio.create_task(monitor_schedules(app, db, app.bot_data["anthropic_key"])),
     ]
 
     # Устанавливаем меню команд в Telegram
@@ -321,6 +322,7 @@ async def post_init(app: Application):
     logger.info("✅ Меню команд установлено")
     logger.info("🔔 Планировщик уведомлений запущен")
     logger.info("⏳ Проверка истечения подписок запущена")
+    logger.info("📅 Мониторинг расписаний (каждые 6 часов) запущен")
 
 
 async def run():

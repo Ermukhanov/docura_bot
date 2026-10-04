@@ -1,8 +1,10 @@
+import os
 import asyncio
 import logging
 import random
 import json
 from datetime import datetime, timedelta
+import anthropic
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application
 from telegram.constants import ParseMode
@@ -223,3 +225,167 @@ async def check_subscription_expirations(app: Application, db: Database):
         # Проверяем раз в час — срок истекает по дате, но не хотим держать людей
         # без доступа сутками, если истечение случилось рано утром
         await asyncio.sleep(3600)
+
+
+async def monitor_schedules(app: Application, db: Database, anthropic_key: str):
+    """
+    Фоновый цикл мониторинга расписания: выполняется каждые 6 часов.
+    1. Проверяет расписание каждого PRO-пользователя.
+    2. Определяет предстоящие занятия по расписанию (на сегодня или завтра).
+    3. Обязательно проверяет базу учеников / воспитанников перед генерацией.
+    4. Если включена автогенерация (auto_generate == 1) — ИИ-агент САМ формирует
+       документ (КСП / циклограмму) и присылает готовый файл Word пользователю без сообщений от него.
+    5. Если автогенерация выключена — напоминает о предстоящем уроке и предлагает создать документ в 1 клик.
+    """
+    logger.info("📅 Цикл мониторинга расписаний каждые 6 часов запущен")
+    await asyncio.sleep(60)
+
+    while True:
+        try:
+            users_with_sched = await db.get_users_with_schedules()
+            now = now_local()
+            days_ru = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+
+            # Если после 14:00, ориентируемся на завтрашний день, иначе на текущий
+            target_idx = (now.weekday() + 1) % 7 if now.hour >= 14 else now.weekday()
+            target_day = days_ru[target_idx]
+
+            for user in users_with_sched:
+                try:
+                    tg_id = user["tg_id"]
+                    if not user.get("subscribed"):
+                        continue
+
+                    lang = user.get("lang", "ru")
+                    is_kg = user.get("role") == "kindergarten"
+                    schedule_raw = user.get("schedule_data")
+                    if not schedule_raw:
+                        continue
+
+                    schedule = json.loads(schedule_raw) if isinstance(schedule_raw, str) else schedule_raw
+                    lessons = schedule.get(target_day, []) if isinstance(schedule, dict) else []
+
+                    check_day = target_day
+                    if not lessons and target_idx in (5, 6):
+                        check_day = "Понедельник"
+                        lessons = schedule.get("Понедельник", [])
+
+                    if not lessons:
+                        continue
+
+                    first_lesson = next((item for item in lessons if isinstance(item, dict)), {})
+                    subject = first_lesson.get("subject") or user.get("subject", "")
+                    class_name = first_lesson.get("class") or user.get("classes", "") or user.get("age_group", "")
+
+                    dedup_key = f"sched_mon_{check_day}_{now.strftime('%G_W%V')}"
+                    memory = await db.get_agent_context(tg_id)
+                    if memory.get("last_sched_mon_key") == dedup_key:
+                        continue
+
+                    # Проверяем базу учеников или воспитанников
+                    students = await db.get_students(tg_id)
+                    class_students = [s["name"] for s in students if not class_name or s.get("class_name") == class_name]
+                    if not class_students and students:
+                        class_students = [s["name"] for s in students]
+
+                    auto_gen = bool(user.get("auto_generate"))
+
+                    if auto_gen and anthropic_key:
+                        # АВТОГЕНЕРАЦИЯ: ИИ агент формирует документ сам и присылает .docx
+                        doc_type = "kindergarten_cycle_schedule" if is_kg else "lesson_plan"
+                        doc_name = (
+                            ("Циклограмма" if lang == "ru" else "Циклограмма") if is_kg
+                            else ("Краткосрочный план (КСП)" if lang == "ru" else "Қысқамерзімді жоспар (ҚМЖ)")
+                        )
+
+                        client = anthropic.AsyncAnthropic(api_key=anthropic_key)
+                        students_ctx = f"Ученики/воспитанники из базы: {', '.join(class_students[:20])}" if class_students else "Ученики: группа по списку"
+
+                        prompt = (
+                            f"Составь официальный качественный {doc_name} по стандартам РК для {'детского сада' if is_kg else 'школы'}.\n"
+                            f"День недели: {check_day}\n"
+                            f"Предмет/направление: {subject}\n"
+                            f"Класс/группа: {class_name}\n"
+                            f"{students_ctx}\n"
+                            f"Организация: {user.get('school', '')}\n"
+                            f"Педагог: {user.get('name', '')}\n"
+                            f"Язык документа: {lang}\n"
+                            f"Верни готовый полный текст документа структурированно по разделам."
+                        )
+
+                        msg = await client.messages.create(
+                            model="claude-haiku-4-5",
+                            max_tokens=2500,
+                            messages=[{"role": "user", "content": prompt}]
+                        )
+                        content = msg.content[0].text
+
+                        from handlers.word_generator import generate_word
+                        word_path = generate_word(
+                            content=content,
+                            title=doc_name,
+                            teacher_name=user.get("name", ""),
+                            director_name=user.get("director", ""),
+                            lang=lang
+                        )
+
+                        caption = (
+                            f"🤖 *Docura AI — автогенерация по расписанию*\n\n"
+                            f"📅 *{check_day}*: {subject} ({class_name})\n"
+                            f"👥 Учтены ученики из базы: {len(class_students)} чел.\n\n"
+                            f"✅ Ваш документ сформирован и готов к уроку!"
+                        ) if lang == "ru" else (
+                            f"🤖 *Docura AI — кесте бойынша авто-жасау*\n\n"
+                            f"📅 *{check_day}*: {subject} ({class_name})\n"
+                            f"👥 Базадағы оқушылар ескерілді: {len(class_students)} адам\n\n"
+                            f"✅ Құжат сабаққа дайын!"
+                        )
+
+                        with open(word_path, "rb") as f:
+                            await app.bot.send_document(
+                                chat_id=tg_id,
+                                document=f,
+                                filename=f"{doc_name}_{now.strftime('%d%m%Y')}.docx",
+                                caption=caption,
+                                parse_mode=ParseMode.MARKDOWN
+                            )
+                        try:
+                            os.remove(word_path)
+                        except:
+                            pass
+
+                        await db.save_document(tg_id, doc_type, doc_name, content, 90)
+                        await db.update_agent_context(tg_id, {"last_sched_mon_key": dedup_key})
+                        logger.info("Auto-generated %s for %s", doc_type, tg_id)
+
+                    else:
+                        prompt_text = (
+                            f"📅 *По вашему расписанию на {check_day}:*\n"
+                            f"• {subject} ({class_name})\n"
+                            f"👥 Учеников в базе: {len(class_students)}\n\n"
+                            f"Создать документ автоматически?"
+                        ) if lang == "ru" else (
+                            f"📅 *Кестеңіз бойынша ({check_day}):*\n"
+                            f"• {subject} ({class_name})\n"
+                            f"👥 Базадағы оқушылар: {len(class_students)}\n\n"
+                            f"Құжатты автоматты жасау керек пе?"
+                        )
+                        call_key = "agent_auto_generate_cycle" if is_kg else "agent_auto_generate_ksp"
+                        kb = InlineKeyboardMarkup([
+                            [InlineKeyboardButton("Да, создать" if lang == "ru" else "Иә, жасау", callback_data=call_key)],
+                            [InlineKeyboardButton("Нет, спасибо" if lang == "ru" else "Жоқ, рақмет", callback_data="agent_skip")]
+                        ])
+                        await app.bot.send_message(chat_id=tg_id, text=prompt_text, reply_markup=kb, parse_mode=ParseMode.MARKDOWN)
+                        await db.update_agent_context(tg_id, {"last_sched_mon_key": dedup_key})
+
+                    await asyncio.sleep(0.5)
+
+                except Exception as user_err:
+                    logger.warning(f"Error checking schedule for user {user.get('tg_id')}: {user_err}")
+
+        except Exception as e:
+            logger.error(f"Schedule monitor loop error: {e}")
+
+        # Цикл каждые 6 часов
+        await asyncio.sleep(6 * 3600)
+

@@ -82,10 +82,16 @@ class AgentHandler:
         view_btn = ("📋 Мой режим дня" if lang == "ru" else "📋 Менің күн тәртібім") if is_kg \
             else ("📋 Моё расписание" if lang == "ru" else "📋 Менің кестем")
 
+        user = await self.db.get_user(user_id)
+        auto_gen = bool(user.get("auto_generate")) if user else False
+        auto_gen_btn = ("🤖 Автогенерация: " + ("ВКЛ ✅" if auto_gen else "ВЫКЛ ❌")) if lang == "ru" \
+            else ("🤖 Авто-жасау: " + ("ҚОСУЛЫ ✅" if auto_gen else "ӨШІРУЛІ ❌"))
+
         kb = [
             [InlineKeyboardButton(photo_btn, callback_data="agent_schedule_photo")],
             [InlineKeyboardButton("✍️ Ввести текстом" if lang == "ru" else "✍️ Мәтінмен енгізу", callback_data="agent_schedule_text")],
             [InlineKeyboardButton(view_btn, callback_data="agent_schedule_view")],
+            [InlineKeyboardButton(auto_gen_btn, callback_data="agent_autogen_toggle")],
             [MENU_BTN(lang)],
         ]
         if hasattr(update_or_query, 'edit_message_text'):
@@ -188,16 +194,53 @@ class AgentHandler:
 
         elif data == "agent_reminders":
             memory = await self.db.get_agent_context(user_id)
-            enabled = bool(memory.get("reminders_enabled"))
-            title = "🔔 *Напоминания*\n\n" if lang == "ru" else "🔔 *Еске салғыштар*\n\n"
+            enabled = bool(memory.get("reminders_enabled", True))
+            auto_gen = bool(user.get("auto_generate")) if user else False
+            title = "🔔 *Напоминания и автогенерация*\n\n" if lang == "ru" else "🔔 *Еске салғыштар мен авто-жасау*\n\n"
             status = ("включены" if enabled else "выключены") if lang == "ru" else ("қосулы" if enabled else "өшірулі")
-            kb = [[InlineKeyboardButton("🔕 Выключить" if enabled and lang == "ru" else "🔔 Включить" if lang == "ru" else ("🔕 Өшіру" if enabled else "🔔 Қосу"), callback_data="agent_reminders_toggle")], [MENU_BTN(lang)]]
-            await query.edit_message_text(title + (f"Сейчас: *{status}*. Бот не создаёт документы автоматически." if lang == "ru" else f"Қазір: *{status}*. Бот құжаттарды автоматты түрде жасамайды."), reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+            ag_status = ("включена" if auto_gen else "выключена") if lang == "ru" else ("қосулы" if auto_gen else "өшірулі")
+            desc = (
+                f"Напоминания: *{status}*\n"
+                f"Автогенерация по расписанию: *{ag_status}*\n\n"
+                f"_При включённой автогенерации ИИ каждые 6 часов проверяет расписание и базу учеников и готовит документы заблаговременно._"
+            ) if lang == "ru" else (
+                f"Еске салғыштар: *{status}*\n"
+                f"Кесте бойынша авто-жасау: *{ag_status}*\n\n"
+                f"_Авто-жасау қосулы болса, ЖИ әр 6 сағат сайын кесте мен балалар базасын тексеріп, құжаттарды алдын ала дайындайды._"
+            )
+            kb = [
+                [InlineKeyboardButton("🔕 Выключить напоминания" if enabled and lang == "ru" else "🔔 Включить напоминания" if lang == "ru" else ("🔕 Еске салғышты өшіру" if enabled else "🔔 Еске салғышты қосу"), callback_data="agent_reminders_toggle")],
+                [InlineKeyboardButton("🤖 " + ("Выключить автогенерацию" if auto_gen and lang == "ru" else "Включить автогенерацию" if lang == "ru" else ("Авто-жасауды өшіру" if auto_gen else "Авто-жасауды қосу")), callback_data="agent_autogen_toggle")],
+                [MENU_BTN(lang)]
+            ]
+            await query.edit_message_text(title + desc, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
         elif data == "agent_reminders_toggle":
             memory = await self.db.get_agent_context(user_id)
-            await self.db.update_agent_context(user_id, {"reminders_enabled": not bool(memory.get("reminders_enabled"))})
-            await query.edit_message_text("✅ Настройка напоминаний сохранена. Напоминание предложит документ, но не создаст его без подтверждения." if lang == "ru" else "✅ Еске салғыш параметрі сақталды. Құжат растаусыз жасалмайды.", reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]]))
+            await self.db.update_agent_context(user_id, {"reminders_enabled": not bool(memory.get("reminders_enabled", True))})
+            await query.edit_message_text("✅ Настройка напоминаний сохранена." if lang == "ru" else "✅ Еске салғыш параметрі сақталды.", reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]]))
+
+        elif data == "agent_autogen_toggle":
+            if not user or not user.get("subscribed"):
+                await query.edit_message_text(
+                    "Автогенерация доступна только в PRO. Docura будет каждые 6 часов проверять ваше расписание и базу учеников и готовить документы автоматически." if lang == "ru"
+                    else "Автоматты жасау тек PRO тарифінде қолжетімді. Docura әр 6 сағат сайын кестеңіз бен оқушылар базасын тексеріп, құжаттарды автоматты дайындайды.",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("⭐ Посмотреть PRO" if lang == "ru" else "⭐ PRO көру", callback_data="prof_sub")],
+                        [MENU_BTN(lang)],
+                    ])
+                )
+                return
+            new_val = 0 if user.get("auto_generate") else 1
+            await self.db.upsert_user(user_id, {"auto_generate": new_val})
+            msg = (
+                "✅ *Автогенерация включена!*\n\nИИ-агент каждые 6 часов проверяет ваше расписание и базу учеников и готовит документы заблаговременно." if new_val
+                else "❌ *Автогенерация выключена.* Документы будут создаваться только по вашему запросу."
+            ) if lang == "ru" else (
+                "✅ *Авто-жасау қосылды!*\n\nЖИ агент әр 6 сағат сайын кесте мен оқушылар базасын тексеріп, құжаттарды алдын ала дайындайды." if new_val
+                else "❌ *Авто-жасау өшірілді.*"
+            )
+            await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]]), parse_mode=ParseMode.MARKDOWN)
 
         elif data == "agent_reminders_off":
             await self.db.update_agent_context(user_id, {"reminders_enabled": False})
@@ -237,14 +280,20 @@ class AgentHandler:
             monday = schedule.get("Понедельник", []) if isinstance(schedule, dict) else []
             first_lesson = next((item for item in monday if isinstance(item, dict)), {})
 
-            # _generate использует профиль и полный контекст расписания. Для циклограммы
-            # также заполняем обязательные поля минимальными подтверждёнными данными.
+            # Проверяем базу учеников / воспитанников перед генерацией
+            students = await self.db.get_students(user_id)
+
+            # _generate использует профиль и полный контекст расписания и базы учеников.
             answers = {}
             if doc_type == "lesson_plan":
                 subject = first_lesson.get("subject") or user.get("subject", "")
                 class_name = first_lesson.get("class") or user.get("classes", "")
                 if subject or class_name:
                     answers["subject_class"] = " ".join(part for part in [subject, class_name] if part)
+                if class_name and students:
+                    class_students = [s["name"] for s in students if s.get("class_name") == class_name]
+                    if class_students:
+                        answers["students_list"] = ", ".join(class_students[:25])
             else:
                 answers = {
                     "organization": user.get("school", ""),
@@ -253,6 +302,9 @@ class AgentHandler:
                     "week_topic": "[уточнить]",
                     "events": "нет" if lang == "ru" else "жоқ",
                 }
+                if students:
+                    pupil_names = [s["name"] for s in students]
+                    answers["children_list"] = ", ".join(pupil_names[:25])
 
             context.user_data.update({
                 "doc_type": doc_type,
