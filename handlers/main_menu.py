@@ -5,7 +5,7 @@ from telegram.constants import ParseMode
 from handlers.texts import t
 from database import Database, free_limit_for
 
-SITE_URL = os.getenv("SITE_URL", "https://docurakz.vercel.app/")
+SITE_URL = os.getenv("SITE_URL", "https://subjects-behaviour-functional-understood.trycloudflare.com/")
 
 class MainMenuHandler:
     def __init__(self, db: Database):
