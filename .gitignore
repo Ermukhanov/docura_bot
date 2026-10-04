@@ -3,9 +3,12 @@ __pycache__/
 *.pyo
 .env
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 fonts/
 /tmp/
 *.ogg
 *.wav
 *.mp3
+cloudflared.exe
