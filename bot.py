@@ -117,6 +117,16 @@ async def cmd_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await ProfileHandler(db).show(MessageQueryAdapter(update.message), update.effective_user.id, lang)
 
 
+def get_site_url() -> str:
+    railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("RAILWAY_STATIC_URL")
+    if railway_domain:
+        return f"https://{railway_domain.strip('/')}"
+    site_url = os.getenv("SITE_URL")
+    if site_url:
+        return site_url.rstrip("/")
+    return "https://subjects-behaviour-functional-understood.trycloudflare.com"
+
+
 async def cmd_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Быстрый переход в личный веб-кабинет педагога."""
     db   = context.application.bot_data["db"]
@@ -127,7 +137,7 @@ async def cmd_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
     lang = user.get("lang", "ru")
-    site_url = os.getenv("SITE_URL", "https://subjects-behaviour-functional-understood.trycloudflare.com").rstrip("/")
+    site_url = get_site_url()
     cabinet_url = f"{site_url}/?tg_id={user_id}" if "vercel.app" in site_url else f"{site_url}/profile/{user_id}"
 
     text = (
@@ -446,6 +456,22 @@ async def run():
     app.add_error_handler(on_error)
 
     logger.info("✅ Docura.kz запущен!")
+
+    # Фоновый запуск веб-кабинета (Mini App) для Railway и облачных серверов
+    def _run_mini_app():
+        try:
+            from mini_app import app as flask_app
+            port = int(os.environ.get("PORT", 8080))
+            logger.info("🌐 Веб-кабинет Mini App запускается на порту %d", port)
+            flask_app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+        except OSError:
+            # Порт уже занят (например, mini_app.py запущен в отдельном процессе локально)
+            pass
+        except Exception as e:
+            logger.warning("Веб-кабинет: %s", e)
+
+    import threading
+    threading.Thread(target=_run_mini_app, daemon=True).start()
 
     async with app:
         await app.start()

@@ -20,6 +20,15 @@ KASPI_NUMBER = "+7 771 451 4717"
 TIER_PRICES = {"pro": 4990, "pro_promo": 2490, "max": 7490, "b2b": 39900}
 TIER_NAMES  = {"pro": "PRO", "max": "MAX", "b2b": "B2B"}
 
+def get_site_url() -> str:
+    railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("RAILWAY_STATIC_URL")
+    if railway_domain:
+        return f"https://{railway_domain.strip('/')}"
+    site_url = os.getenv("SITE_URL")
+    if site_url:
+        return site_url.rstrip("/")
+    return "https://subjects-behaviour-functional-understood.trycloudflare.com"
+
 class ProfileHandler:
     def __init__(self, db: Database, api_key: str = ""):
         self.db      = db
@@ -120,7 +129,7 @@ class ProfileHandler:
                     f"⏱ Үнемделген уақыт: шамамен *{saved_hours_text} сағ*"
                 )
 
-        site_url = os.getenv("SITE_URL", "https://subjects-behaviour-functional-understood.trycloudflare.com").rstrip("/")
+        site_url = get_site_url()
         cabinet_url = f"{site_url}/?tg_id={user_id}" if "vercel.app" in site_url else f"{site_url}/profile/{user_id}"
         cab_label = "🌐 Личный веб-кабинет (сайт):" if lang == "ru" else "🌐 Жеке веб-кабинет (сайт):"
         text += f"\n\n{cab_label}\n`{cabinet_url}`"
@@ -209,7 +218,7 @@ class ProfileHandler:
             )
 
         elif data == "prof_cabinet":
-            site_url = os.getenv("SITE_URL", "https://subjects-behaviour-functional-understood.trycloudflare.com").rstrip("/")
+            site_url = get_site_url()
             cabinet_url = f"{site_url}/?tg_id={user_id}" if "vercel.app" in site_url else f"{site_url}/profile/{user_id}"
             text = (
                 f"💻 *Ваш персональный веб-кабинет Docura*\n"
