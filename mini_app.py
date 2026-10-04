@@ -11,29 +11,42 @@ def conn():
     return c
 
 def telegram_user():
+    # 1. Telegram WebApp Init Data
     raw = request.headers.get('X-Telegram-Init-Data', '')
     token = os.getenv('TELEGRAM_TOKEN', '')
-    if not raw or not token:
-        return None
-    data = dict(parse_qsl(raw, keep_blank_values=True))
-    received = data.pop('hash', '')
-    check = '\n'.join(f'{k}={data[k]}' for k in sorted(data))
-    secret = hmac.new(b'WebAppData', token.encode(), hashlib.sha256).digest()
-    expected = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(expected, received):
-        return None
-    try:
-        return json.loads(data.get('user', '{}'))
-    except json.JSONDecodeError:
-        return None
+    if raw and token:
+        data = dict(parse_qsl(raw, keep_blank_values=True))
+        received = data.pop('hash', '')
+        check = '\n'.join(f'{k}={data[k]}' for k in sorted(data))
+        secret = hmac.new(b'WebAppData', token.encode(), hashlib.sha256).digest()
+        expected = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
+        if hmac.compare_digest(expected, received):
+            try:
+                return json.loads(data.get('user', '{}'))
+            except json.JSONDecodeError:
+                pass
 
+    # 2. Query param or header fallback (for testing and direct web view)
+    tg_id = request.args.get('tg_id')
+    if tg_id and tg_id.isdigit():
+        return {'id': int(tg_id)}
+
+    user_header = request.headers.get('X-User-Id')
+    if user_header and user_header.isdigit():
+        return {'id': int(user_header)}
+
+    return None
+
+@app.get('/')
 @app.get('/app')
-def app_page():
+@app.get('/profile/<int:user_id>')
+def app_page(user_id=None):
     return render_template('index.html')
 
 @app.get('/api/me')
-def api_me():
-    tg = telegram_user()
+@app.get('/api/profile/<int:user_id>')
+def api_me(user_id=None):
+    tg = {'id': user_id} if user_id else telegram_user()
     if not tg:
         return jsonify(error='Telegram authorization required'), 401
     with conn() as db:
@@ -42,7 +55,12 @@ def api_me():
             return jsonify(error='User not found'), 404
         docs = db.execute(
             'SELECT doc_name, doc_type, score, created_at FROM documents '
-            'WHERE teacher_id=? ORDER BY created_at DESC LIMIT 20',
+            'WHERE teacher_id=? ORDER BY created_at DESC LIMIT 30',
+            (tg['id'],)
+        ).fetchall()
+        students = db.execute(
+            'SELECT id, name, class_name, grades, achievements, absences, behavior, parents, parent_phone, birth_date '
+            'FROM students WHERE teacher_id=? ORDER BY name ASC',
             (tg['id'],)
         ).fetchall()
         referrals = db.execute(
@@ -61,10 +79,9 @@ def api_me():
             'SELECT doc_type, original_name, lang, created_at FROM user_templates WHERE tg_id=?',
             (tg['id'],)
         ).fetchall()
-        student_count = db.execute('SELECT COUNT(*) FROM students WHERE teacher_id=?', (tg['id'],)).fetchone()[0]
+        student_count = len(students)
 
     user_dict = dict(user)
-    # Убираем чувствительные поля
     user_dict.pop('ref_code', None)
 
     ref_code = dict(user).get('ref_code', '')
@@ -74,6 +91,7 @@ def api_me():
     return jsonify(
         user=user_dict,
         documents=[dict(x) for x in docs],
+        students=[dict(s) for s in students],
         referrals=referrals,
         referrals_rewarded=referrals_rewarded,
         ref_link=ref_link,

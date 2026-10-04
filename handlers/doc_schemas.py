@@ -63,6 +63,9 @@ G = {
     "signature":      L("Подпись", "Қолы", "Signature"),
     "director":       L("Директор", "Директор", "Director"),
     "head":           L("Заведующая", "Меңгеруші", "Head of kindergarten"),
+    "presentation":   L("Презентация к уроку", "Сабаққа арналған слайд", "Lesson presentation"),
+    "chat_digest":    L("Сводный доклад для завуча", "Оқу ісі меңгерушісіне баяндама", "Principal chat digest"),
+    "attendance":     L("Посещаемость", "Қатысу", "Attendance"),
     # урок
     "lesson_topic":   L("Тема урока", "Сабақ тақырыбы", "Lesson topic"),
     "objectives":     L("Цели обучения", "Оқу мақсаттары", "Learning objectives"),
@@ -234,6 +237,8 @@ SCHEMAS = {
     "vacation_request": S(headings=["application"], fields=["fio", "date"]),
     "explanation": S(headings=["explanatory"], fields=["fio", "date"]),
     "announcement": S(headings=["announcement"], fields=["date", "time", "place"]),
+    "presentation": S(headings=["objectives", "key_points", "tasks", "reflection", "homework"], fields=_HDR_SCHOOL + ["lesson_topic"]),
+    "chat_digest": S(headings=["deadline", "attendance", "tasks", "conclusions"], fields=["organization", "teacher_fio", "date"]),
     # ───────── САДИК ─────────
     "kg_thematic_plan": S(
         headings=["weeks_theme", "edu_area", "activities", "final_event"],

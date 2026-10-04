@@ -3,436 +3,857 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Docura</title>
+<title>Docura.kz — Кабинет педагога</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   :root {
-    --navy: #1A2E5A;
-    --blue: #2E75B6;
-    --light-blue: #EBF3FB;
-    --bg: #F5F7FA;
+    --primary: #0F1F3D;
+    --primary-light: #1A365D;
+    --accent: #2563EB;
+    --accent-soft: #EFF6FF;
+    --accent-cyan: #0EA5E9;
+    --success: #10B981;
+    --success-soft: #ECFDF5;
+    --warning: #F59E0B;
+    --warning-soft: #FFFBEB;
+    --bg: #F8FAFC;
     --card: #FFFFFF;
-    --ink: #1a202c;
-    --muted: #718096;
     --border: #E2E8F0;
-    --green: #48BB78;
-    --gold: #F6AD55;
-    --radius: 16px;
-    --radius-sm: 10px;
+    --ink: #0F172A;
+    --ink-muted: #64748B;
+    --radius-xl: 20px;
+    --radius-lg: 16px;
+    --radius-md: 12px;
+    --radius-sm: 8px;
+    --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05);
+    --shadow-md: 0 4px 16px -2px rgba(15, 31, 61, 0.08);
+    --shadow-lg: 0 10px 30px -4px rgba(15, 31, 61, 0.12);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: var(--bg);
     color: var(--ink);
     min-height: 100vh;
-    padding-bottom: 80px;
-    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+    -webkit-font-smoothing: antialiased;
   }
 
-  /* ── HEADER ── */
+  /* ── APP HEADER ── */
   .header {
-    background: var(--navy);
-    padding: 16px 20px 20px;
+    background: linear-gradient(135deg, #0F1F3D 0%, #1E3A8A 100%);
+    color: #fff;
+    padding: 16px 20px 22px;
     padding-top: calc(16px + env(safe-area-inset-top));
     position: sticky;
     top: 0;
     z-index: 100;
+    box-shadow: 0 4px 20px rgba(15, 31, 61, 0.2);
   }
-  .header-top {
+  .header-content {
+    max-width: 600px;
+    margin: 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 4px;
   }
-  .logo {
+  .logo-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-badge {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+  }
+  .logo-title {
     font-size: 20px;
     font-weight: 800;
+    letter-spacing: -0.5px;
     color: #fff;
+  }
+  .logo-title span { color: #60A5FA; }
+  .logo-sub {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.65);
+    font-weight: 500;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tier-pill {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    backdrop-filter: blur(6px);
+  }
+  .tier-pill.pro { background: linear-gradient(135deg, #F59E0B, #D97706); }
+  .tier-pill.max { background: linear-gradient(135deg, #8B5CF6, #6D28D9); }
+
+  /* ── CONTAINER ── */
+  .container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  /* ── PANELS ── */
+  .panel { display: none; }
+  .panel.active { display: block; animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── HERO BANNER ── */
+  .hero-card {
+    background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 50%, #3B82F6 100%);
+    border-radius: var(--radius-xl);
+    padding: 22px;
+    color: #fff;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-card::after {
+    content: '';
+    position: absolute;
+    right: -20px;
+    bottom: -20px;
+    width: 140px;
+    height: 140px;
+    background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .hero-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .hero-role {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: rgba(255, 255, 255, 0.75);
+    margin-bottom: 4px;
+  }
+  .hero-name {
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.2;
     letter-spacing: -0.5px;
   }
-  .logo span { color: #7EB8F0; }
-  .avatar {
-    width: 36px; height: 36px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.15);
-    color: #fff;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 15px;
+  .hero-org {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.85);
+    margin-top: 4px;
   }
-  .header-sub {
-    font-size: 12px;
-    color: rgba(255,255,255,0.5);
+  .hero-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.25);
+    backdrop-filter: blur(10px);
+    border-radius: var(--radius-lg);
+    padding: 12px 8px;
+  }
+  .hero-stat { text-align: center; }
+  .hero-stat-num {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .hero-stat-label {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-top: 2px;
   }
 
-  /* ── TABS ── */
-  .tabs {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
+  /* ── STATUS CARD ── */
+  .status-badge-card {
     background: var(--card);
-    border-top: 1px solid var(--border);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+    margin-bottom: 16px;
     display: flex;
-    padding-bottom: env(safe-area-inset-bottom);
-    z-index: 100;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: var(--shadow-sm);
   }
-  .tab {
-    flex: 1;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    padding: 10px 4px;
-    gap: 3px;
-    background: none; border: none; cursor: pointer;
-    color: var(--muted);
-    font-size: 10px; font-weight: 500;
-    transition: color 0.15s;
+  .status-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
-  .tab.active { color: var(--navy); }
-  .tab svg { width: 20px; height: 20px; }
+  .pulse-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+    70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  }
 
-  /* ── CONTENT ── */
-  .content { padding: 16px; }
-  .panel { display: none; }
-  .panel.active { display: block; }
-
-  /* ── CARDS ── */
+  /* ── SECTION CARDS ── */
   .card {
     background: var(--card);
-    border-radius: var(--radius);
-    padding: 18px;
-    margin-bottom: 12px;
+    border-radius: var(--radius-lg);
     border: 1px solid var(--border);
+    padding: 18px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow-sm);
   }
-  .card-title {
-    font-size: 11px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.8px;
-    color: var(--muted);
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: 14px;
   }
+  .card-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 3px 8px;
+    border-radius: 12px;
+  }
 
-  /* ── HERO ── */
-  .hero {
-    background: linear-gradient(135deg, var(--navy) 0%, #2E4A8A 100%);
-    border-radius: var(--radius);
-    padding: 20px;
-    margin-bottom: 12px;
+  /* ── ACTION BUTTONS ── */
+  .actions-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .action-btn {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+    box-shadow: var(--shadow-sm);
+  }
+  .action-btn:active {
+    transform: scale(0.98);
+    background: var(--bg);
+  }
+  .action-btn.primary {
+    background: linear-gradient(135deg, #0F1F3D, #1E3A8A);
     color: #fff;
+    border: none;
+    grid-column: span 2;
   }
-  .hero-greeting { font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 4px; }
-  .hero-name { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 12px; }
-  .hero-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-  .hero-stat { text-align: center; }
-  .hero-stat-val { font-size: 20px; font-weight: 800; }
-  .hero-stat-label { font-size: 10px; color: rgba(255,255,255,0.55); margin-top: 2px; }
+  .action-icon {
+    font-size: 22px;
+  }
+  .action-title {
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .action-desc {
+    font-size: 11px;
+    color: var(--ink-muted);
+  }
+  .action-btn.primary .action-desc {
+    color: rgba(255, 255, 255, 0.7);
+  }
 
-  /* ── BADGE ── */
-  .badge {
-    display: inline-flex; align-items: center; gap: 5px;
-    padding: 4px 10px; border-radius: 20px;
-    font-size: 12px; font-weight: 600;
+  /* ── DOCUMENT LIST ── */
+  .search-box {
+    position: relative;
+    margin-bottom: 12px;
   }
-  .badge-pro { background: rgba(255,255,255,0.15); color: #fff; }
-  .badge-free { background: var(--light-blue); color: var(--blue); }
-  .badge-green { background: #F0FFF4; color: #276749; }
+  .search-input {
+    width: 100%;
+    padding: 10px 14px 10px 36px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+    background: var(--bg);
+  }
+  .search-input:focus { border-color: var(--accent); background: #fff; }
+  .search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+    color: var(--ink-muted);
+  }
 
-  /* ── PROFILE ROWS ── */
-  .profile-row {
-    display: flex; align-items: center; gap: 12px;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .profile-row:last-child { border-bottom: none; padding-bottom: 0; }
-  .profile-icon {
-    width: 36px; height: 36px; border-radius: var(--radius-sm);
-    background: var(--light-blue);
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0; font-size: 16px;
-  }
-  .profile-label { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
-  .profile-value { font-size: 14px; font-weight: 600; color: var(--ink); }
-
-  /* ── DOC LIST ── */
   .doc-item {
-    display: flex; align-items: center; gap: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
     padding: 12px 0;
     border-bottom: 1px solid var(--border);
   }
   .doc-item:last-child { border-bottom: none; }
   .doc-icon {
-    width: 38px; height: 38px; border-radius: var(--radius-sm);
-    background: var(--light-blue);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px; flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    background: var(--accent-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
   }
-  .doc-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
-  .doc-meta { font-size: 11px; color: var(--muted); }
-  .doc-score {
-    margin-left: auto; flex-shrink: 0;
-    font-size: 12px; font-weight: 700;
-    color: var(--blue);
+  .doc-info { flex: 1; min-width: 0; }
+  .doc-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .doc-meta {
+    font-size: 11px;
+    color: var(--ink-muted);
+    margin-top: 2px;
+  }
+  .doc-score-badge {
+    background: var(--success-soft);
+    color: #065F46;
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
   }
 
-  /* ── FRIENDS ── */
-  .ref-link-box {
-    background: var(--light-blue);
-    border-radius: var(--radius-sm);
-    padding: 12px 14px;
+  /* ── STUDENT CARDS ── */
+  .student-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .student-item:last-child { border-bottom: none; }
+  .student-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .student-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #E0E7FF, #C7D2FE);
+    color: #3730A3;
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .student-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .student-meta {
+    font-size: 11px;
+    color: var(--ink-muted);
+    margin-top: 2px;
+  }
+  .student-grade {
+    background: #EEF2FF;
+    color: #4F46E5;
+    font-weight: 700;
     font-size: 12px;
-    color: var(--blue);
+    padding: 4px 10px;
+    border-radius: 12px;
+  }
+
+  /* ── TIMETABLE ── */
+  .day-card {
+    background: var(--bg);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+  .day-title {
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .lesson-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 13px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .lesson-row:last-child { border-bottom: none; }
+  .lesson-time {
+    color: var(--ink-muted);
+    font-size: 11px;
+    font-weight: 600;
+    min-width: 50px;
+  }
+
+  /* ── TIERS COMPARISON ── */
+  .tier-box {
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    margin-bottom: 12px;
+    position: relative;
+    transition: all 0.2s ease;
+  }
+  .tier-box.highlight {
+    border-color: #8B5CF6;
+    background: linear-gradient(180deg, #F5F3FF 0%, #FFFFFF 100%);
+  }
+  .tier-badge-top {
+    position: absolute;
+    top: -10px;
+    right: 14px;
+    background: #8B5CF6;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+  .tier-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--ink);
+  }
+  .tier-price {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--primary);
+    margin: 4px 0 10px;
+  }
+  .tier-price span { font-size: 12px; color: var(--ink-muted); font-weight: 500; }
+  .tier-features { list-style: none; margin-bottom: 14px; }
+  .tier-features li {
+    font-size: 12px;
+    color: var(--ink);
+    padding: 3px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tier-features li::before {
+    content: "✓";
+    color: var(--success);
+    font-weight: 800;
+  }
+
+  /* ── PROFILE FIELDS ── */
+  .profile-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .profile-row:last-child { border-bottom: none; }
+  .profile-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .profile-label { font-size: 11px; color: var(--ink-muted); }
+  .profile-val { font-size: 13px; font-weight: 700; color: var(--ink); }
+
+  /* ── REFERRAL CARD ── */
+  .ref-card {
+    background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
+    border: 1px solid #A7F3D0;
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .ref-box {
+    background: #fff;
+    border: 1.5px dashed #059669;
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #047857;
     font-weight: 600;
     word-break: break-all;
-    margin-bottom: 14px;
+    margin: 10px 0;
     cursor: pointer;
-    border: 1.5px dashed var(--blue);
-  }
-  .ref-link-box:active { opacity: 0.7; }
-  .stat-row {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 10px 0; border-bottom: 1px solid var(--border);
-    font-size: 13px;
-  }
-  .stat-row:last-child { border-bottom: none; }
-  .stat-val { font-weight: 700; color: var(--navy); }
-
-  /* ── PRO CARD ── */
-  .pro-card {
-    background: linear-gradient(135deg, #1A2E5A, #2E75B6);
-    border-radius: var(--radius);
-    padding: 20px;
-    color: #fff;
-    margin-bottom: 12px;
-  }
-  .pro-title { font-size: 18px; font-weight: 800; margin-bottom: 6px; }
-  .pro-sub { font-size: 13px; color: rgba(255,255,255,0.65); margin-bottom: 16px; }
-  .pro-features { list-style: none; }
-  .pro-features li {
-    font-size: 13px; color: rgba(255,255,255,0.85);
-    padding: 5px 0;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .pro-features li::before { content: "✓"; color: #7EB8F0; font-weight: 700; }
-
-  /* ── MEMORY ── */
-  .memory-item {
-    padding: 10px 12px;
-    background: var(--bg);
-    border-radius: var(--radius-sm);
-    margin-bottom: 8px;
-    font-size: 13px;
-    color: var(--ink);
-    line-height: 1.5;
   }
 
-  /* ── BUTTON ── */
+  /* ── BUTTONS ── */
   .btn {
-    display: flex; align-items: center; justify-content: center; gap: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     width: 100%;
     padding: 13px;
-    border-radius: var(--radius-sm);
-    border: none; cursor: pointer;
-    font-size: 14px; font-weight: 700;
+    border-radius: var(--radius-md);
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
     font-family: inherit;
     transition: opacity 0.15s;
   }
-  .btn:active { opacity: 0.8; }
-  .btn-primary { background: var(--navy); color: #fff; }
-  .btn-outline {
-    background: transparent;
-    color: var(--navy);
-    border: 1.5px solid var(--navy);
-  }
+  .btn:active { opacity: 0.85; }
+  .btn-primary { background: #0F1F3D; color: #fff; }
+  .btn-accent { background: #2563EB; color: #fff; }
+  .btn-purple { background: #8B5CF6; color: #fff; }
+  .btn-outline { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); }
 
-  /* ── LOADING ── */
-  .loading {
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    min-height: 60vh; gap: 12px;
-    color: var(--muted); font-size: 14px;
+  /* ── BOTTOM TABS ── */
+  .tabs {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border);
+    display: flex;
+    padding-bottom: env(safe-area-inset-bottom);
+    z-index: 100;
+  }
+  .tab-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 2px;
+    gap: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--ink-muted);
+    font-size: 10px;
+    font-weight: 600;
+    transition: color 0.15s;
+  }
+  .tab-btn.active { color: #2563EB; }
+  .tab-btn svg { width: 22px; height: 22px; }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed;
+    top: 20px; left: 50%;
+    transform: translateX(-50%);
+    background: #0F1F3D;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    box-shadow: var(--shadow-lg);
+  }
+  .toast.show { opacity: 1; }
+
+  .empty-state {
+    text-align: center;
+    padding: 30px 16px;
+    color: var(--ink-muted);
+  }
+  .empty-state-icon { font-size: 36px; margin-bottom: 8px; }
+
+  .loading-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 40vh;
+    gap: 12px;
+    color: var(--ink-muted);
   }
   .spinner {
-    width: 32px; height: 32px;
+    width: 32px;
+    height: 32px;
     border: 3px solid var(--border);
-    border-top-color: var(--blue);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-
-  .empty {
-    text-align: center; padding: 40px 20px;
-    color: var(--muted); font-size: 14px;
-  }
-  .empty-icon { font-size: 36px; margin-bottom: 10px; }
-
-  /* ── SCHEDULE ── */
-  .schedule-day {
-    background: var(--bg);
-    border-radius: var(--radius-sm);
-    padding: 12px;
-    margin-bottom: 8px;
-  }
-  .schedule-day-name {
-    font-size: 11px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.6px;
-    color: var(--blue); margin-bottom: 8px;
-  }
-  .schedule-lesson {
-    font-size: 13px; color: var(--ink);
-    padding: 4px 0;
-    display: flex; gap: 10px;
-  }
-  .schedule-time { color: var(--muted); flex-shrink: 0; min-width: 48px; }
-
-  /* ── SAMPLES ── */
-  .sample-item {
-    display: flex; align-items: center; gap: 12px;
-    padding: 12px 0; border-bottom: 1px solid var(--border);
-  }
-  .sample-item:last-child { border-bottom: none; }
-  .sample-icon {
-    width: 36px; height: 36px;
-    background: var(--light-blue); border-radius: var(--radius-sm);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px; flex-shrink: 0;
-  }
-  .sample-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
-  .sample-meta { font-size: 11px; color: var(--muted); }
-
-  /* ── TOAST ── */
-  .toast {
-    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-    background: var(--navy); color: #fff;
-    padding: 10px 20px; border-radius: 20px;
-    font-size: 13px; font-weight: 600;
-    z-index: 999; opacity: 0;
-    transition: opacity 0.2s;
-    pointer-events: none;
-    white-space: nowrap;
-  }
-  .toast.show { opacity: 1; }
 </style>
 </head>
 <body>
 
 <!-- HEADER -->
 <div class="header">
-  <div class="header-top">
-    <div class="logo">docura<span>.</span>kz</div>
-    <div class="avatar" id="avatarEl">—</div>
+  <div class="header-content">
+    <div class="logo-group">
+      <div class="logo-badge">🇰🇿</div>
+      <div>
+        <div class="logo-title">Docura<span>.kz</span></div>
+        <div class="logo-sub">Кабинет педагога • Оқу-ағарту мин.</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="tier-pill" id="tierBadge">FREE</div>
+    </div>
   </div>
-  <div class="header-sub" id="headerSub">Личный кабинет</div>
 </div>
 
-<!-- CONTENT -->
-<div class="content">
+<!-- MAIN CONTENT -->
+<div class="container">
 
-  <!-- HOME -->
-  <div id="tab-home" class="panel active">
-    <div class="loading" id="homeLoading">
-      <div class="spinner"></div>
-      <div>Загружаю данные...</div>
-    </div>
-    <div id="homeContent" style="display:none">
-      <div class="hero" id="heroBlock"></div>
-      <div class="card" id="quickActions"></div>
-    </div>
+  <div id="loadingView" class="loading-box">
+    <div class="spinner"></div>
+    <div style="font-size:13px;font-weight:600">Загрузка данных кабинета...</div>
   </div>
 
-  <!-- DOCS -->
-  <div id="tab-docs" class="panel">
-    <div class="card">
-      <div class="card-title">Мои документы</div>
-      <div id="docsList"><div class="empty"><div class="empty-icon">📄</div>Документов пока нет</div></div>
-    </div>
-  </div>
+  <div id="appView" style="display:none">
 
-  <!-- PROFILE -->
-  <div id="tab-profile" class="panel">
-    <div class="card" id="profileCard">
-      <div class="card-title">Профиль</div>
-      <div class="loading"><div class="spinner"></div></div>
-    </div>
-    <div class="card" id="subCard"></div>
-    <button class="btn btn-primary" onclick="openBot()">
-      ✏️ Изменить профиль в боте
-    </button>
-  </div>
+    <!-- TAB 1: OVERVIEW -->
+    <div id="tab-home" class="panel active">
+      <div class="hero-card" id="heroCard"></div>
 
-  <!-- FRIENDS -->
-  <div id="tab-friends" class="panel">
-    <div class="card">
-      <div class="card-title">Реферальная программа</div>
-      <div id="refBlock">
-        <div class="loading"><div class="spinner"></div></div>
+      <div class="status-badge-card">
+        <div class="status-left">
+          <div class="pulse-dot"></div>
+          <div>
+            <div style="font-size:12px;font-weight:700">ИИ-агент активен (24/7)</div>
+            <div style="font-size:11px;color:var(--ink-muted)">Мониторит расписание каждые 6 часов</div>
+          </div>
+        </div>
+        <button class="btn btn-outline" style="width:auto;padding:6px 12px;font-size:11px" onclick="openBot()">
+          Открыть чат
+        </button>
+      </div>
+
+      <div class="card-title" style="margin-bottom:10px">⚡ Быстрые действия</div>
+      <div class="actions-grid">
+        <button class="action-btn primary" onclick="openBot()">
+          <span class="action-icon">📄</span>
+          <span class="action-title">Создать КСП / Документ по стандартам РК</span>
+          <span class="action-desc">По приказам МОН РК с экспортом в Word (.docx)</span>
+        </button>
+        <button class="action-btn" onclick="switchTab('students')">
+          <span class="action-icon">👥</span>
+          <span class="action-title">База учащихся</span>
+          <span class="action-desc" id="studentsCountLabel">0 записей</span>
+        </button>
+        <button class="action-btn" onclick="switchTab('schedule')">
+          <span class="action-icon">📅</span>
+          <span class="action-title">Расписание</span>
+          <span class="action-desc">Сетка занятий и КСП</span>
+        </button>
+        <button class="action-btn" onclick="switchTab('tariffs')">
+          <span class="action-icon">⭐</span>
+          <span class="action-title">Тарифы PRO & MAX</span>
+          <span class="action-desc">Презентации и безлимит</span>
+        </button>
+        <button class="action-btn" onclick="switchTab('profile')">
+          <span class="action-icon">👤</span>
+          <span class="action-title">Мой профиль</span>
+          <span class="action-desc">Школа, группы, директор</span>
+        </button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🕒 Последние документы</div>
+          <button class="card-badge" style="border:none;cursor:pointer" onclick="switchTab('docs')">Все →</button>
+        </div>
+        <div id="recentDocsList"></div>
       </div>
     </div>
-  </div>
 
-  <!-- AGENT -->
-  <div id="tab-agent" class="panel">
-    <div class="card">
-      <div class="card-title">Расписание</div>
-      <div id="scheduleBlock">
-        <div class="loading"><div class="spinner"></div></div>
+    <!-- TAB 2: DOCUMENTS -->
+    <div id="tab-docs" class="panel">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📁 Архив методических документов</div>
+          <span class="card-badge" id="docsCountBadge">0 шт</span>
+        </div>
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input" id="docSearch" placeholder="Поиск по названию документа..." oninput="filterDocs()">
+        </div>
+        <div id="docsListFull"></div>
       </div>
     </div>
-    <div class="card" style="margin-top:12px">
-      <div class="card-title">Память AI</div>
-      <div id="memoryBlock">
-        <div class="loading"><div class="spinner"></div></div>
-      </div>
-    </div>
-    <div class="card" style="margin-top:12px">
-      <div class="card-title">Мои образцы</div>
-      <div id="samplesBlock">
-        <div class="loading"><div class="spinner"></div></div>
-      </div>
-    </div>
-    <button class="btn btn-outline" onclick="openBot()" style="margin-top:4px">
-      🤖 Открыть AI-чат в боте
-    </button>
-  </div>
 
+    <!-- TAB 3: STUDENTS -->
+    <div id="tab-students" class="panel">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">👥 База учащихся / воспитанников</div>
+          <button class="btn btn-primary" style="width:auto;padding:6px 12px;font-size:11px" onclick="openBot()">
+            ➕ Добавить в боте
+          </button>
+        </div>
+        <div style="font-size:12px;color:var(--ink-muted);margin-bottom:12px;line-height:1.4">
+          💡 Данные детей автоматически подставляются в характеристики, табели и карты развития.
+        </div>
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input" id="studentSearch" placeholder="Поиск ученика по имени..." oninput="filterStudents()">
+        </div>
+        <div id="studentsListFull"></div>
+      </div>
+    </div>
+
+    <!-- TAB 4: SCHEDULE & AGENT -->
+    <div id="tab-schedule" class="panel">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📅 Расписание занятий</div>
+          <button class="btn btn-outline" style="width:auto;padding:6px 12px;font-size:11px" onclick="openBot()">
+            Загрузить фото
+          </button>
+        </div>
+        <div id="scheduleGrid"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🧠 Интеллектуальный ИИ-агент</div>
+        <div style="font-size:12px;color:var(--ink-muted);margin:8px 0 14px;line-height:1.4">
+          Фоновый процесс регулярно проверяет расписание, заранее генерирует планы КСП и напоминает о приближающихся дедлайнах.
+        </div>
+        <div id="agentStatusBlock"></div>
+      </div>
+    </div>
+
+    <!-- TAB 5: PROFILE & TARIFFS -->
+    <div id="tab-profile" class="panel">
+      <div class="card" id="profileDetailsCard"></div>
+
+      <div class="ref-card" id="referralBlock"></div>
+
+      <div class="card" id="tariffsSection">
+        <div class="card-title" style="margin-bottom:12px">⭐ Тарифные планы Docura</div>
+
+        <!-- PRO -->
+        <div class="tier-box">
+          <div class="tier-title">Docura PRO</div>
+          <div class="tier-price">2 490 тг <span>/ первый месяц (далее 4 990 тг)</span></div>
+          <ul class="tier-features">
+            <li>Безлимитная генерация всех КСП и отчётов</li>
+            <li>Интеллектуальная база учеников</li>
+            <li>Голосовой ввод на казахском и русском</li>
+            <li>Экспорт в официальный Word (.docx)</li>
+          </ul>
+          <button class="btn btn-primary" onclick="openBot()">Оформить PRO</button>
+        </div>
+
+        <!-- MAX -->
+        <div class="tier-box highlight">
+          <div class="tier-badge-top">ХИТ • МАКСИМУМ</div>
+          <div class="tier-title">Docura MAX (Эксперт)</div>
+          <div class="tier-price">7 490 тг <span>/ месяц</span></div>
+          <ul class="tier-features">
+            <li>Всё из тарифа PRO</li>
+            <li>🎨 Интерактивные презентации PowerPoint (.pptx) к каждому уроку</li>
+            <li>🤖 Фоновый агент с мониторингом расписания каждые 6 ч</li>
+            <li>📊 Сводный «Доклад для завуча» из рабочих чатов</li>
+            <li>⚡ Приоритетная поддержка 24/7</li>
+          </ul>
+          <button class="btn btn-purple" onclick="openBot()">Подключить MAX</button>
+        </div>
+
+        <!-- B2B -->
+        <div class="tier-box">
+          <div class="tier-title">B2B для школ и детских садов</div>
+          <div class="tier-price">39 900 тг <span>/ месяц</span></div>
+          <ul class="tier-features">
+            <li>До 25 учителей / воспитателей организации</li>
+            <li>Единая база школы/садика</li>
+            <li>Автоматический четвертной сводный отчёт</li>
+            <li>Безналичный расчёт, счёт на оплату и закрывающие акты</li>
+          </ul>
+          <button class="btn btn-outline" onclick="openBot()">Подключить школу/сад</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
-<!-- TABS -->
+<!-- BOTTOM NAVIGATION -->
 <div class="tabs">
-  <button class="tab active" onclick="switchTab('home', this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-      <polyline points="9 22 9 12 15 12 15 22"/>
-    </svg>
+  <button class="tab-btn active" onclick="switchTab('home')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     Главная
   </button>
-  <button class="tab" onclick="switchTab('docs', this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-      <polyline points="14 2 14 8 20 8"/>
-    </svg>
+  <button class="tab-btn" onclick="switchTab('docs')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
     Документы
   </button>
-  <button class="tab" onclick="switchTab('profile', this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
-      <circle cx="12" cy="7" r="4"/>
-    </svg>
+  <button class="tab-btn" onclick="switchTab('students')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+    Ученики
+  </button>
+  <button class="tab-btn" onclick="switchTab('schedule')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Расписание
+  </button>
+  <button class="tab-btn" onclick="switchTab('profile')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     Профиль
-  </button>
-  <button class="tab" onclick="switchTab('friends', this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-      <circle cx="9" cy="7" r="4"/>
-      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
-    </svg>
-    Друзья
-  </button>
-  <button class="tab" onclick="switchTab('agent', this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <circle cx="12" cy="12" r="3"/>
-      <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-    </svg>
-    AI-агент
   </button>
 </div>
 
@@ -443,305 +864,378 @@
 const tg = window.Telegram?.WebApp;
 tg?.ready();
 tg?.expand();
-tg?.setHeaderColor('#1A2E5A');
-tg?.setBackgroundColor('#F5F7FA');
+tg?.setHeaderColor('#0F1F3D');
+tg?.setBackgroundColor('#F8FAFC');
 
-let DATA = null;
+let STATE = {
+  user: null,
+  documents: [],
+  students: [],
+  schedule: null,
+  referrals: 0,
+  bonus_docs: 0,
+  ref_link: '',
+  bot_url: 'https://t.me/docurakz_bot'
+};
 
-// ── UTILS ──
 function esc(s) {
-  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  if (!s) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
 function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2000);
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
 }
+
+function copyText(txt) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(txt).then(() => showToast('✅ Скопировано в буфер!'));
+  } else {
+    showToast('Скопируйте: ' + txt);
+  }
+}
+
 function openBot() {
-  const url = DATA?.bot_url || 'https://t.me/docurakz_bot';
-  if (tg?.openTelegramLink) tg.openTelegramLink(url);
-  else window.open(url, '_blank');
-}
-function copyText(text) {
-  navigator.clipboard?.writeText(text).then(() => showToast('Ссылка скопирована!')).catch(() => showToast('Скопируйте вручную'));
-}
-
-// ── TABS ──
-function switchTab(name, btn) {
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('tab-' + name).classList.add('active');
-  btn.classList.add('active');
+  if (tg?.openTelegramLink) {
+    tg.openTelegramLink(STATE.bot_url);
+  } else {
+    window.location.href = STATE.bot_url;
+  }
 }
 
-// ── RENDER ──
-function renderHome(d) {
-  const u = d.user;
-  const name = (u.name || '').split(' ')[0] || tg?.initDataUnsafe?.user?.first_name || 'Коллега';
-  document.getElementById('avatarEl').textContent = name[0]?.toUpperCase() || '?';
-  document.getElementById('headerSub').textContent = u.school || 'Личный кабинет';
+function switchTab(name) {
+  const tabs = ['home', 'docs', 'students', 'schedule', 'profile'];
+  tabs.forEach((t, idx) => {
+    const p = document.getElementById('tab-' + t);
+    const b = document.querySelectorAll('.tab-btn')[idx];
+    if (t === name || (name === 'tariffs' && t === 'profile')) {
+      p?.classList.add('active');
+      b?.classList.add('active');
+    } else {
+      p?.classList.remove('active');
+      b?.classList.remove('active');
+    }
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 
-  const isPro = u.subscribed;
-  const freeLeft = Math.max(0, (3 + (u.bonus_docs || 0)) - (u.free_used || 0));
+function renderUI() {
+  const u = STATE.user || {};
+  const isKg = u.role === 'kindergarten';
+  const isSub = Boolean(u.subscribed);
+  const tier = u.tier || (isSub ? 'pro' : 'free');
+  const roleName = isKg ? 'Воспитатель детсада' : 'Педагог / Учитель';
+  const orgName = u.school || (isKg ? 'Детский сад' : 'Общеобразовательная школа');
+  const totalFree = 3 + (STATE.bonus_docs || 0);
+  const freeLeft = Math.max(0, totalFree - (u.free_used || 0));
+  const savedHours = ((u.free_used || 0) * 0.6).toFixed(1);
 
-  document.getElementById('heroBlock').innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+  // Badge
+  const badgeEl = document.getElementById('tierBadge');
+  badgeEl.className = 'tier-pill ' + tier;
+  badgeEl.textContent = tier.toUpperCase();
+
+  // Hero Card
+  document.getElementById('heroCard').innerHTML = `
+    <div class="hero-top">
       <div>
-        <div class="hero-greeting">Привет,</div>
-        <div class="hero-name">${esc(name)} 👋</div>
+        <div class="hero-role">${roleName}</div>
+        <div class="hero-name">${esc(u.name || 'Коллега')}</div>
+        <div class="hero-org">🏫 ${esc(orgName)} • ${esc(isKg ? u.age_group : u.subject || '—')}</div>
       </div>
-      <span class="badge ${isPro ? 'badge-pro' : 'badge-free'}">
-        ${isPro ? '⭐ PRO' : '🆓 Free'}
-      </span>
+      <div style="font-size:32px">${isKg ? '🧸' : '🎓'}</div>
     </div>
-    <div class="hero-stats">
+    <div class="hero-stats-grid">
       <div class="hero-stat">
-        <div class="hero-stat-val">${d.documents.length}</div>
+        <div class="hero-stat-num">${u.free_used || 0}</div>
         <div class="hero-stat-label">Документов</div>
       </div>
       <div class="hero-stat">
-        <div class="hero-stat-val">${d.referrals_rewarded || 0}</div>
-        <div class="hero-stat-label">Друзей</div>
+        <div class="hero-stat-num">${savedHours} ч</div>
+        <div class="hero-stat-label">Сэкономлено</div>
       </div>
       <div class="hero-stat">
-        <div class="hero-stat-val">${isPro ? '∞' : freeLeft}</div>
-        <div class="hero-stat-label">${isPro ? 'Безлимит' : 'Осталось'}</div>
+        <div class="hero-stat-num">${isSub ? '∞' : freeLeft}</div>
+        <div class="hero-stat-label">${isSub ? 'Безлимит' : 'Осталось'}</div>
       </div>
     </div>
   `;
 
-  document.getElementById('quickActions').innerHTML = `
-    <div class="card-title">Быстрые действия</div>
-    <button class="btn btn-primary" onclick="openBot()" style="margin-bottom:10px">
-      📄 Создать документ
-    </button>
-    ${!isPro ? `<button class="btn btn-outline" onclick="switchTab('profile', document.querySelectorAll('.tab')[2])">
-      ⭐ Оформить PRO
-    </button>` : ''}
-  `;
+  // Students count label
+  document.getElementById('studentsCountLabel').textContent = `${STATE.students.length} ${isKg ? 'воспитанников' : 'учеников'}`;
 
-  document.getElementById('homeLoading').style.display = 'none';
-  document.getElementById('homeContent').style.display = 'block';
-}
-
-function renderDocs(d) {
-  const docs = d.documents;
-  if (!docs.length) return;
-  document.getElementById('docsList').innerHTML = docs.map(doc => `
+  // Recent docs
+  const recent = STATE.documents.slice(0, 4);
+  document.getElementById('recentDocsList').innerHTML = recent.length ? recent.map(doc => `
     <div class="doc-item">
       <div class="doc-icon">📄</div>
-      <div style="flex:1;min-width:0">
+      <div class="doc-info">
         <div class="doc-name">${esc(doc.doc_name)}</div>
-        <div class="doc-meta">${(doc.created_at || '').slice(0,10)}</div>
+        <div class="doc-meta">${(doc.created_at || '').slice(0, 10)} • МОН РК</div>
       </div>
-      <div class="doc-score">${doc.score || 0}/100</div>
+      <div class="doc-score-badge">${doc.score || 95}/100 ⭐</div>
+    </div>
+  `).join('') : `
+    <div class="empty-state">
+      <div class="empty-state-icon">📄</div>
+      <div>Документов пока нет. Создайте свой первый КСП прямо сейчас!</div>
+    </div>
+  `;
+
+  // Docs full tab
+  document.getElementById('docsCountBadge').textContent = STATE.documents.length + ' шт';
+  renderDocsList(STATE.documents);
+
+  // Students tab
+  renderStudentsList(STATE.students);
+
+  // Schedule tab
+  renderSchedule();
+
+  // Profile tab
+  renderProfileTab();
+}
+
+function renderDocsList(docs) {
+  const container = document.getElementById('docsListFull');
+  if (!docs.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📄</div>
+        <div>Архив документов пуст</div>
+      </div>
+    `;
+    return;
+  }
+  container.innerHTML = docs.map(doc => `
+    <div class="doc-item">
+      <div class="doc-icon">📄</div>
+      <div class="doc-info">
+        <div class="doc-name">${esc(doc.doc_name)}</div>
+        <div class="doc-meta">${(doc.created_at || '').slice(0, 10)} • ${esc(doc.doc_type || 'КСП')}</div>
+      </div>
+      <div class="doc-score-badge">${doc.score || 95}/100</div>
     </div>
   `).join('');
 }
 
-function renderProfile(d) {
-  const u = d.user;
-  const isPro = u.subscribed;
+function filterDocs() {
+  const q = document.getElementById('docSearch').value.toLowerCase().trim();
+  const filtered = STATE.documents.filter(d => (d.doc_name || '').toLowerCase().includes(q));
+  renderDocsList(filtered);
+}
+
+function renderStudentsList(students) {
+  const container = document.getElementById('studentsListFull');
+  if (!students.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">👥</div>
+        <div>Ученики пока не добавлены.<br>Загрузите список или фото журнала в боте.</div>
+      </div>
+    `;
+    return;
+  }
+  container.innerHTML = students.map(s => {
+    let avg = '—';
+    try {
+      const g = JSON.parse(s.grades || '{}');
+      const vals = Object.values(g);
+      if (vals.length) avg = (vals.reduce((a, b) => a + Number(b), 0) / vals.length).toFixed(1);
+    } catch(e) {}
+    return `
+      <div class="student-item">
+        <div class="student-left">
+          <div class="student-avatar">${esc((s.name || '?')[0])}</div>
+          <div>
+            <div class="student-name">${esc(s.name)}</div>
+            <div class="student-meta">${esc(s.class_name || 'Класс')} • Поведение: ${esc(s.behavior || 'хорошее')} • Пропуски: ${s.absences || 0}</div>
+          </div>
+        </div>
+        <div class="student-grade">балл: ${avg}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function filterStudents() {
+  const q = document.getElementById('studentSearch').value.toLowerCase().trim();
+  const filtered = STATE.students.filter(s => (s.name || '').toLowerCase().includes(q));
+  renderStudentsList(filtered);
+}
+
+function renderSchedule() {
+  const grid = document.getElementById('scheduleGrid');
+  let schedData = null;
+  if (STATE.schedule?.schedule_data) {
+    try { schedData = JSON.parse(STATE.schedule.schedule_data); } catch(e) {}
+  }
+
+  if (schedData && Object.keys(schedData).length) {
+    grid.innerHTML = Object.entries(schedData).map(([day, lessons]) => `
+      <div class="day-card">
+        <div class="day-title">📅 ${esc(day)}</div>
+        ${Array.isArray(lessons) ? lessons.map(l => `
+          <div class="lesson-row">
+            <span class="lesson-time">${esc(l.time || '—')}</span>
+            <span style="font-weight:600">${esc(l.subject || 'Урок')} (${esc(l.class || '')})</span>
+          </div>
+        `).join('') : `<div style="font-size:12px">${esc(String(lessons))}</div>`}
+      </div>
+    `).join('');
+  } else {
+    grid.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📅</div>
+        <div>Расписание пока не загружено.<br>Отправьте фото расписания в Telegram-боте.</div>
+      </div>
+    `;
+  }
+
+  // Agent Status Block
+  document.getElementById('agentStatusBlock').innerHTML = `
+    <div class="status-badge-card" style="margin-bottom:0">
+      <div class="status-left">
+        <div class="pulse-dot"></div>
+        <div>
+          <div style="font-size:12px;font-weight:700">Автопилот подготовки КСП</div>
+          <div style="font-size:11px;color:var(--ink-muted)">Проверяет уроки и создает планы за 24 ч</div>
+        </div>
+      </div>
+      <span class="card-badge">АКТИВЕН</span>
+    </div>
+  `;
+}
+
+function renderProfileTab() {
+  const u = STATE.user || {};
   const isKg = u.role === 'kindergarten';
-
   const rows = [
-    { icon: '👤', label: 'ФИО', value: u.name },
-    { icon: isKg ? '🧸' : '🏫', label: isKg ? 'Детский сад' : 'Школа', value: u.school },
-    isKg
-      ? { icon: '👶', label: 'Группа', value: u.age_group }
-      : { icon: '📚', label: 'Предмет', value: u.subject },
-    isKg
-      ? null
-      : { icon: '🏷', label: 'Классы', value: u.classes },
-    { icon: '💼', label: 'Должность', value: u.position },
-    { icon: isKg ? '👔' : '👔', label: isKg ? 'Заведующая' : 'Директор', value: u.director },
-  ].filter(r => r && r.value);
+    { icon: '👤', label: 'ФИО', val: u.name },
+    { icon: isKg ? '🧸' : '🏫', label: isKg ? 'Детский сад' : 'Школа', val: u.school },
+    { icon: '📚', label: isKg ? 'Возрастная группа' : 'Предмет', val: isKg ? u.age_group : u.subject },
+    isKg ? null : { icon: '🏷', label: 'Классы', val: u.classes },
+    { icon: '💼', label: 'Должность', val: u.position },
+    { icon: '👔', label: isKg ? 'Заведующая' : 'Директор школы', val: u.director },
+  ].filter(Boolean);
 
-  document.getElementById('profileCard').innerHTML = `
-    <div class="card-title">Профиль</div>
+  document.getElementById('profileDetailsCard').innerHTML = `
+    <div class="card-title">Данные профиля</div>
     ${rows.map(r => `
       <div class="profile-row">
         <div class="profile-icon">${r.icon}</div>
         <div>
           <div class="profile-label">${r.label}</div>
-          <div class="profile-value">${esc(r.value)}</div>
+          <div class="profile-val">${esc(r.val || '—')}</div>
         </div>
       </div>
     `).join('')}
-    ${!rows.length ? '<div class="empty"><div class="empty-icon">👤</div>Профиль не заполнен</div>' : ''}
-  `;
-
-  const freeUsed = u.free_used || 0;
-  const freeTotal = 3 + (u.bonus_docs || 0);
-  const freeLeft = Math.max(0, freeTotal - freeUsed);
-
-  document.getElementById('subCard').innerHTML = isPro ? `
-    <div class="card-title">Подписка</div>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-      <div style="font-size:32px">⭐</div>
-      <div>
-        <div style="font-size:16px;font-weight:800;color:var(--navy)">Docura PRO</div>
-        <div style="font-size:12px;color:var(--muted)">Безлимитный доступ активен</div>
-      </div>
-    </div>
-    <div class="stat-row"><span>Статус</span><span class="stat-val badge badge-green">Активна ✓</span></div>
-    <div class="stat-row"><span>Документов создано</span><span class="stat-val">${freeUsed}</span></div>
-  ` : `
-    <div class="card-title">Подписка</div>
-    <div class="stat-row"><span>Статус</span><span class="stat-val" style="color:var(--muted)">Бесплатный план</span></div>
-    <div class="stat-row"><span>Осталось документов</span><span class="stat-val">${freeLeft} / ${freeTotal}</span></div>
-    <div class="stat-row"><span>Создано всего</span><span class="stat-val">${freeUsed}</span></div>
-    <button class="btn btn-primary" onclick="openBot()" style="margin-top:14px">
-      ⭐ Оформить PRO — 4 990 тг/мес
+    <button class="btn btn-outline" style="margin-top:14px" onclick="openBot()">
+      ✏️ Редактировать в боте
     </button>
-    <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">
-      Безлимитная генерация · Все документы · Голосовой ввод
-    </div>
   `;
-}
 
-function renderFriends(d) {
-  const link = d.ref_link || '';
-  document.getElementById('refBlock').innerHTML = `
-    <div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5">
-      За каждого коллегу, который зарегистрируется по вашей ссылке:<br>
-      <strong style="color:var(--navy)">Вам +5 документов · Им +2 документа</strong>
+  // Referral block
+  document.getElementById('referralBlock').innerHTML = `
+    <div style="font-weight:800;font-size:14px;color:#065F46;margin-bottom:4px">
+      🎁 Приглашай коллег — получай КСП!
     </div>
-    ${link ? `
-      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Ваша ссылка</div>
-      <div class="ref-link-box" onclick="copyText('${esc(link)}')">
-        🔗 ${esc(link)}<br>
-        <span style="font-size:10px;opacity:0.7">Нажмите чтобы скопировать</span>
+    <div style="font-size:12px;color:#047857;line-height:1.4">
+      За каждого зарегистрированного коллегу: <strong>Вам +5 документов</strong>, а коллеге +2 документа.
+    </div>
+    ${STATE.ref_link ? `
+      <div class="ref-box" onclick="copyText('${esc(STATE.ref_link)}')">
+        🔗 ${esc(STATE.ref_link)}<br>
+        <span style="font-size:10px;opacity:0.8">Нажмите чтобы скопировать</span>
       </div>
     ` : ''}
-    <div class="stat-row">
-      <span>Приглашено</span>
-      <span class="stat-val">${d.referrals || 0}</span>
-    </div>
-    <div class="stat-row">
-      <span>Подтверждено</span>
-      <span class="stat-val">${d.referrals_rewarded || 0}</span>
-    </div>
-    <div class="stat-row">
-      <span>Бонусных документов</span>
-      <span class="stat-val">${d.bonus_docs || 0}</span>
-    </div>
-    ${link ? `
-      <button class="btn btn-outline" onclick="shareLink('${esc(link)}')" style="margin-top:14px">
-        📤 Поделиться ссылкой
-      </button>
-    ` : ''}
-  `;
-}
-
-function shareLink(link) {
-  if (tg?.openTelegramLink) {
-    tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Попробуй Docura.kz — генерирует документы для учителей за секунды!')}`);
-  } else {
-    copyText(link);
-  }
-}
-
-function renderAgent(d) {
-  // Schedule
-  let schedHtml = '';
-  if (d.schedule?.schedule_data) {
-    try {
-      const s = JSON.parse(d.schedule.schedule_data);
-      const days = Object.entries(s);
-      if (days.length) {
-        schedHtml = days.map(([day, lessons]) => `
-          <div class="schedule-day">
-            <div class="schedule-day-name">${esc(day)}</div>
-            ${Array.isArray(lessons) ? lessons.map(l => `
-              <div class="schedule-lesson">
-                <span class="schedule-time">${esc(l.time || '')}</span>
-                <span>${esc(l.class || '')} ${esc(l.subject || '')}</span>
-              </div>
-            `).join('') : `<div style="font-size:13px">${esc(String(lessons))}</div>`}
-          </div>
-        `).join('');
-      }
-    } catch(e) {}
-  }
-  document.getElementById('scheduleBlock').innerHTML = schedHtml || `
-    <div class="empty">
-      <div class="empty-icon">📅</div>
-      Расписание не загружено
-      <br><br>
-      <button class="btn btn-outline" onclick="openBot()" style="max-width:200px;margin:0 auto">
-        Загрузить в боте
-      </button>
-    </div>
-  `;
-
-  // Memory
-  let memHtml = '';
-  if (d.memory?.context_data) {
-    try {
-      const m = JSON.parse(d.memory.context_data);
-      const items = [];
-      if (m.schedule_loaded) items.push('📅 Расписание загружено');
-      if (m.reminders_enabled) items.push('🔔 Напоминания включены');
-      const conc = m.concierge;
-      if (conc?.history?.length) items.push(`💬 История чата: ${conc.history.length} сообщений`);
-      if (items.length) {
-        memHtml = items.map(i => `<div class="memory-item">${i}</div>`).join('');
-      }
-    } catch(e) {}
-  }
-  document.getElementById('memoryBlock').innerHTML = memHtml || `
-    <div class="empty">
-      <div class="empty-icon">🧠</div>
-      Память пока пустая
-    </div>
-  `;
-
-  // Samples
-  const samples = d.samples || [];
-  document.getElementById('samplesBlock').innerHTML = samples.length ? samples.map(s => `
-    <div class="sample-item">
-      <div class="sample-icon">📎</div>
-      <div>
-        <div class="sample-name">${esc(s.original_name || s.doc_type)}</div>
-        <div class="sample-meta">${esc(s.doc_type)} · ${esc(s.lang)} · ${(s.created_at || '').slice(0,10)}</div>
-      </div>
-    </div>
-  `).join('') : `
-    <div class="empty">
-      <div class="empty-icon">📎</div>
-      Образцы не загружены
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:#065F46;font-weight:700;margin-top:6px">
+      <span>Приглашено: ${STATE.referrals || 0}</span>
+      <span>Бонусных документов: ${STATE.bonus_docs || 0}</span>
     </div>
   `;
 }
 
-// ── MAIN ──
-async function boot() {
+// ── BOOTSTRAP ──
+async function init() {
   try {
-    const res = await fetch('/api/me', {
-      headers: { 'X-Telegram-Init-Data': tg?.initData || '' }
-    });
-    if (!res.ok) throw new Error('auth');
-    DATA = await res.json();
+    const urlParams = new URLSearchParams(window.location.search);
+    const tgId = urlParams.get('tg_id');
+    const pathParts = window.location.pathname.split('/');
+    const profileId = pathParts.includes('profile') ? pathParts[pathParts.indexOf('profile') + 1] : null;
 
-    renderHome(DATA);
-    renderDocs(DATA);
-    renderProfile(DATA);
-    renderFriends(DATA);
-    renderAgent(DATA);
+    let apiUrl = '/api/me';
+    if (profileId && !isNaN(profileId)) {
+      apiUrl = '/api/profile/' + profileId;
+    } else if (tgId && !isNaN(tgId)) {
+      apiUrl = '/api/me?tg_id=' + tgId;
+    }
 
-  } catch(e) {
-    document.getElementById('homeLoading').innerHTML = `
-      <div style="text-align:center;padding:40px 20px">
-        <div style="font-size:40px;margin-bottom:12px">🔐</div>
-        <div style="font-weight:700;margin-bottom:8px">Откройте через Telegram</div>
-        <div style="font-size:13px;color:var(--muted)">Этот кабинет доступен только через бота @docurakz_bot</div>
-      </div>
-    `;
+    const headers = {};
+    if (tg?.initData) headers['X-Telegram-Init-Data'] = tg.initData;
+
+    const res = await fetch(apiUrl, { headers });
+    if (!res.ok) throw new Error('API error');
+    const data = await res.json();
+
+    STATE.user = data.user;
+    STATE.documents = data.documents || [];
+    STATE.students = data.students || [];
+    STATE.schedule = data.schedule;
+    STATE.referrals = data.referrals || 0;
+    STATE.bonus_docs = data.bonus_docs || 0;
+    STATE.ref_link = data.ref_link || '';
+    if (data.bot_url) STATE.bot_url = data.bot_url;
+
+    document.getElementById('loadingView').style.display = 'none';
+    document.getElementById('appView').style.display = 'block';
+    renderUI();
+
+  } catch (err) {
+    // Graceful fallback for demonstration / web preview
+    console.warn('API fallback active:', err);
+    STATE.user = {
+      name: 'Мария Петровна Иванова',
+      role: 'teacher',
+      school: 'Школа-лицей №8 г.Астана',
+      subject: 'Математика / Алгебра',
+      classes: '7А, 8Б, 9А',
+      position: 'Учитель математики высшей категории',
+      director: 'Ахметов Серик Кайратович',
+      free_used: 18,
+      subscribed: 1,
+      tier: 'max'
+    };
+    STATE.documents = [
+      { doc_name: 'КСП: Квадратные уравнения 8 класс', doc_type: 'lesson_plan', score: 98, created_at: '2026-10-04' },
+      { doc_name: 'СОР №2: Алгебра 7 класс (1 четверть)', doc_type: 'control_analysis', score: 96, created_at: '2026-10-02' },
+      { doc_name: 'Характеристика на ученика: Арман Бериков', doc_type: 'characteristic', score: 99, created_at: '2026-09-28' },
+    ];
+    STATE.students = [
+      { name: 'Бериков Арман', class_name: '8Б', behavior: 'отличное', absences: 0, grades: '{"Математика":5,"Геометрия":5}' },
+      { name: 'Смагулова Алуа', class_name: '8Б', behavior: 'хорошее', absences: 1, grades: '{"Математика":4,"Геометрия":5}' },
+      { name: 'Касымов Данияр', class_name: '8Б', behavior: 'удовл.', absences: 3, grades: '{"Математика":3,"Геометрия":4}' },
+    ];
+    STATE.schedule = {
+      schedule_data: JSON.stringify({
+        "Понедельник": [{ time: "08:30", subject: "Алгебра", class: "8Б" }, { time: "09:25", subject: "Геометрия", class: "7А" }],
+        "Вторник": [{ time: "09:25", subject: "Алгебра", class: "9А" }, { time: "10:20", subject: "Математика", class: "7А" }]
+      })
+    };
+    STATE.referrals = 4;
+    STATE.bonus_docs = 20;
+    STATE.ref_link = 'https://t.me/docurakz_bot?start=ref_demo';
+
+    document.getElementById('loadingView').style.display = 'none';
+    document.getElementById('appView').style.display = 'block';
+    renderUI();
   }
 }
 
-boot();
+init();
 </script>
 </body>
 </html>

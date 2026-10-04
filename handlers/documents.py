@@ -60,6 +60,13 @@ DOC_QUESTIONS = {
             {"key": "topic",         "q": "📖 Тема урока?"},
             {"key": "key_points",    "q": "🔑 Ключевые моменты?\n\n_Или напишите «автоматически»_"},
         ],
+        "presentation": [
+            {"key": "subject_class", "q": "📚 Предмет и класс?\n\n_Пример: Физика, 8А_"},
+            {"key": "topic",         "q": "📖 Тема презентации к уроку?\n\n_Пример: Закон Ома для участка цепи_"},
+        ],
+        "chat_digest": [
+            {"key": "messages_text", "q": "📑 Перешлите сообщения из рабочих чатов (WhatsApp/Telegram) или вставьте текст сюда одним сообщением:"},
+        ],
         "monthly_report": [
             {"key": "period",      "q": "📅 За какой период?\n\n_Пример: Октябрь 2024_"},
             {"key": "classes",     "q": "🏫 Классы?\n\n_Пример: 7А, 8Б, 9В_"},
@@ -271,6 +278,13 @@ DOC_QUESTIONS = {
             {"key": "topic",         "q": "📖 Тақырып?"},
             {"key": "key_points",    "q": "🔑 Негізгі тұстар немесе «автоматты»?"},
         ],
+        "presentation": [
+            {"key": "subject_class", "q": "📚 Пән және сынып?\n\n_Мысалы: Физика, 8А_"},
+            {"key": "topic",         "q": "📖 Сабақ тақырыбы?\n\n_Мысалы: Тізбек бөлігі үшін Ом заңы_"},
+        ],
+        "chat_digest": [
+            {"key": "messages_text", "q": "📑 Жұмыс чаттарындағы (WhatsApp/Telegram) хабарламаларды бағыттаңыз немесе осында жазыңыз:"},
+        ],
         "calendar_plan": [
             {"key": "subject_class",  "q": "📚 Пән және сынып?"},
             {"key": "period",         "q": "📅 Қандай кезеңге?\n\n_Мысалы: тоқсан, ай немесе жыл_"},
@@ -419,6 +433,13 @@ DOC_QUESTIONS = {
             {"key": "duration",      "q": "⏱ Duration?\n\n_Example: 45 minutes_"},
             {"key": "goals",         "q": "🎯 Learning objectives?\n\n_Or write «automatic»_"},
         ],
+        "presentation": [
+            {"key": "subject_class", "q": "📚 Subject and class?\n\n_Example: Physics, Grade 8A_"},
+            {"key": "topic",         "q": "📖 Lesson topic for presentation?\n\n_Example: Ohm's Law_"},
+        ],
+        "chat_digest": [
+            {"key": "messages_text", "q": "📑 Forward or paste work chat messages here:"},
+        ],
         "vacation_request": [
             {"key": "vacation_type", "q": "🏖 Type of leave?\n\n1️⃣ Annual leave\n2️⃣ Unpaid leave\n3️⃣ Study leave"},
             {"key": "dates",         "q": "📅 Dates?\n\n_Example: from 01.07.2025 to 25.08.2025_"},
@@ -439,9 +460,11 @@ DOC_QUESTIONS = {
 DOC_NAMES = {
     "ru": {
         "lesson_plan": "Краткосрочный план (КСП)",
+        "presentation": "Презентация к уроку (.pptx)",
         "calendar_plan": "Календарно-тематический план (КТП)",
         "lesson_summary": "Конспект урока",
         "monthly_report": "Отчёт учителя",
+        "chat_digest": "Сводный доклад для завуча",
         "control_analysis": "Анализ контрольной работы",
         "sor_soch": "СОР / СОЧ",
         "sor_soch_analysis": "Анализ СОР / СОЧ",
@@ -478,9 +501,11 @@ DOC_NAMES = {
     },
     "kz": {
         "lesson_plan": "Қысқамерзімді жоспар (ҚМЖ)",
+        "presentation": "Сабаққа арналған слайд (.pptx)",
         "calendar_plan": "Күнтізбелік-тақырыптық жоспар (КТЖ)",
         "lesson_summary": "Сабақ конспектісі",
         "monthly_report": "Мұғалім есебі",
+        "chat_digest": "Оқу ісі меңгерушісіне баяндама",
         "control_analysis": "Бақылау жұмысын талдау",
         "sor_soch": "БЖБ / ТЖБ",
         "sor_soch_analysis": "БЖБ / ТЖБ талдауы",
@@ -517,9 +542,11 @@ DOC_NAMES = {
     },
     "en": {
         "lesson_plan": "Lesson Plan",
+        "presentation": "Lesson Presentation (.pptx)",
         "calendar_plan": "Calendar-Thematic Plan",
         "lesson_summary": "Lesson Summary",
         "monthly_report": "Teacher Report",
+        "chat_digest": "Principal Chat Digest",
         "control_analysis": "Test Analysis",
         "sor_soch": "Summative Assessment",
         "sor_soch_analysis": "Summative Assessment Analysis",
@@ -558,8 +585,8 @@ register_titles(DOC_NAMES)
 
 # Категории документов учителя (школа)
 CAT_DOCS = {
-    "planning": ["lesson_plan", "calendar_plan", "lesson_summary"],
-    "reports":  ["monthly_report", "control_analysis", "sor_soch", "sor_soch_analysis"],
+    "planning": ["lesson_plan", "presentation", "calendar_plan", "lesson_summary"],
+    "reports":  ["monthly_report", "chat_digest", "control_analysis", "sor_soch", "sor_soch_analysis"],
     "students": ["characteristic", "absence_cert", "discipline_act", "gratitude_letter", "parent_letter"],
     "personal": ["vacation_request", "explanation", "announcement"],
 }
@@ -1410,6 +1437,132 @@ class DocumentHandler:
         context.user_data.clear()
         await self._send_post_document_actions(message, context, lang, user, DEVELOPMENT_MONITORING, document_id)
 
+    async def _generate_presentation(self, message, context, lang, user):
+        from handlers.presentation_generator import PresentationGenerator
+        answers = context.user_data.get("doc_answers", {})
+        doc_lang = context.user_data.get("doc_lang", lang)
+        topic = answers.get("topic") or "Тема урока"
+        subj_raw = answers.get("subject_class", "")
+        subject = subj_raw.split(",")[0].strip() if "," in subj_raw else (user.get("subject") or "Предмет")
+        grade = subj_raw.split(",")[-1].strip() if "," in subj_raw else (user.get("classes") or "Класс")
+
+        wait_msg = await message.reply_text(
+            "🎨 *Генерирую интерактивную презентацию PowerPoint (.pptx)...*\n\n"
+            "• Формирую структуру слайдов по стандартам МОН РК\n"
+            "• Оформляю цели, ключевые понятия и дескрипторы"
+            if lang == "ru" else
+            "🎨 *Интерактивті PowerPoint (.pptx) слайдтары жасалуда...*\n\n"
+            "• ҚР Оқу-ағарту мин. стандартына сәйкестендіру\n"
+            "• Мақсаттар мен дескрипторларды әзірлеу",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        try:
+            pg = PresentationGenerator(api_key=self.api_key)
+            out_pptx = await pg.generate_lesson_presentation(
+                topic=topic,
+                subject=subject,
+                grade=grade,
+                lang=doc_lang,
+                teacher_name=user.get("name", ""),
+                school=user.get("school", "")
+            )
+            safe_name = f"Презентация_{datetime.now().strftime('%d%m%Y_%H%M')}.pptx"
+            with open(out_pptx, "rb") as f:
+                await message.reply_document(
+                    document=f,
+                    filename=safe_name,
+                    caption=(
+                        f"✅ *Презентация к уроку готова!*\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"📚 *Тема:* {topic}\n"
+                        f"📊 *Слайдов:* 6–7 слайдов (16:9)\n"
+                        f"📎 Файл PowerPoint (.pptx) прикреплён."
+                    ) if lang == "ru" else (
+                        f"✅ *Сабаққа арналған слайд дайын!*\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"📚 *Тақырыбы:* {topic}\n"
+                        f"📊 *Слайдтар саны:* 6–7 слайд (16:9)\n"
+                        f"📎 PowerPoint (.pptx) файлы тіркелді."
+                    ),
+                    parse_mode=ParseMode.MARKDOWN
+                )
+            if os.path.exists(out_pptx):
+                os.remove(out_pptx)
+            await wait_msg.delete()
+            document_id = await self.db.save_document(message.chat_id, "presentation", f"Презентация: {topic}", "", 100)
+            await self.db.log_analytics(message.chat_id, "presentation", 100, doc_lang)
+            if user and not user.get("subscribed"):
+                await self.db.increment_free(message.chat_id)
+            context.user_data.clear()
+            await self._send_post_document_actions(message, context, lang, user, "presentation", document_id)
+        except Exception as e:
+            print(f"Presentation error: {e}")
+            await wait_msg.delete()
+            await message.reply_text("❌ Ошибка при создании презентации. Попробуйте еще раз.")
+
+    async def _generate_chat_digest(self, message, context, lang, user):
+        from handlers.chat_digest import ChatDigestHandler
+        answers = context.user_data.get("doc_answers", {})
+        doc_lang = context.user_data.get("doc_lang", lang)
+        raw_text = answers.get("messages_text", "")
+
+        wait_msg = await message.reply_text(
+            "🔍 *Анализирую рабочие чаты и составляю доклад для завуча...*"
+            if lang == "ru" else
+            "🔍 *Жұмыс чаттарын талдап, меңгерушіге баяндама жасалуда...*",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        try:
+            cd = ChatDigestHandler(api_key=self.api_key)
+            digest = await cd.analyze_chat_messages(
+                messages_text=raw_text,
+                user_name=user.get("name", "Педагог"),
+                school=user.get("school", "Школа"),
+                role=user.get("position", "Учитель"),
+                lang=doc_lang
+            )
+            out_docx = cd.generate_docx_digest(
+                digest_data=digest,
+                user_name=user.get("name", "Педагог"),
+                school=user.get("school", "Школа"),
+                lang=doc_lang
+            )
+            safe_name = f"Доклад_завучу_{datetime.now().strftime('%d%m%Y_%H%M')}.docx"
+
+            memo = digest.get("final_memo_text", "")
+            summary_txt = (
+                f"📑 *{digest.get('summary_title', 'Доклад для завуча')}*\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"🚨 *Срочные дедлайны:* {len(digest.get('urgent_deadlines', []))}\n"
+                f"📋 *Поручения:* {len(digest.get('methodological_tasks', []))}\n\n"
+                f"💬 *Текст для отправки завучу:*\n_{memo}_\n\n"
+                f"📎 Официальный документ Word (.docx) прикреплён ниже."
+            ) if lang == "ru" else (
+                f"📑 *{digest.get('summary_title', 'Оқу ісі меңгерушісіне баяндама')}*\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"🚨 *Шұғыл дедлайндар:* {len(digest.get('urgent_deadlines', []))}\n"
+                f"📋 *Тапсырмалар:* {len(digest.get('methodological_tasks', []))}\n\n"
+                f"💬 *Меңгерушіге жіберетін хабарлама мәтіні:*\n_{memo}_\n\n"
+                f"📎 Ресми Word (.docx) файлы төменде тіркелді."
+            )
+            await message.reply_text(summary_txt, parse_mode=ParseMode.MARKDOWN)
+
+            with open(out_docx, "rb") as f:
+                await message.reply_document(document=f, filename=safe_name)
+            if os.path.exists(out_docx):
+                os.remove(out_docx)
+            await wait_msg.delete()
+            document_id = await self.db.save_document(message.chat_id, "chat_digest", "Сводный доклад для завуча", "", 100)
+            await self.db.log_analytics(message.chat_id, "chat_digest", 100, doc_lang)
+            if user and not user.get("subscribed"):
+                await self.db.increment_free(message.chat_id)
+            context.user_data.clear()
+            await self._send_post_document_actions(message, context, lang, user, "chat_digest", document_id)
+        except Exception as e:
+            print(f"Chat digest error: {e}")
+            await wait_msg.delete()
+            await message.reply_text("❌ Ошибка при формировании доклада. Попробуйте еще раз.")
+
     async def _send_post_document_actions(self, message, context, lang, user, doc_type, document_id):
         """Единый следующий шаг после любого Word-файла."""
         # Контекст нужен обработчику кнопки «Оценить документ».
@@ -1497,6 +1650,14 @@ class DocumentHandler:
 
         if doc_type == DEVELOPMENT_MONITORING:
             await self._generate_monitoring(message, context, lang)
+            return
+
+        if doc_type == "presentation":
+            await self._generate_presentation(message, context, lang, user)
+            return
+
+        if doc_type == "chat_digest":
+            await self._generate_chat_digest(message, context, lang, user)
             return
 
         # Красивое сообщение о генерации

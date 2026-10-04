@@ -73,11 +73,13 @@ TEXTS = {
         # ДОКУМЕНТЫ — ТИПЫ
         "docs_planning": {
             "lesson_plan":    "📋 Краткосрочный план (КСП)",
+            "presentation":   "🎨 Презентация к уроку (.pptx)",
             "calendar_plan":  "📅 Календарный план на месяц",
             "lesson_summary": "📖 Конспект урока",
         },
         "docs_reports": {
             "monthly_report":   "📊 Отчёт учителя",
+            "chat_digest":      "📑 Доклад для завуча (из чатов)",
             "control_analysis": "📈 Анализ контрольной работы",
         },
         "docs_students": {
@@ -285,11 +287,13 @@ TEXTS = {
 
         "docs_planning": {
             "lesson_plan":    "📋 Қысқамерзімді жоспар (ҚМЖ)",
+            "presentation":   "🎨 Сабаққа арналған слайд (.pptx)",
             "calendar_plan":  "📅 Айлық күнтізбелік жоспар",
             "lesson_summary": "📖 Сабақ конспектісі",
         },
         "docs_reports": {
             "monthly_report":   "📊 Мұғалім есебі",
+            "chat_digest":      "📑 Оқу ісі меңгерушісіне баяндама",
             "control_analysis": "📈 Бақылау жұмысын талдау",
         },
         "docs_students": {

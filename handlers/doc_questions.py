@@ -70,6 +70,7 @@ EN_Q = {
     "materials":       "🧰 Which materials are actually available? If none — write «none».",
     "skills":          "📊 What was covered (by educational areas)?\n\n_Or write «automatic» — I will use the areas from the state standard_",
     "description":     "✍️ Describe in detail what you need:",
+    "messages_text":   "📑 Forward or paste work chat messages here:",
 }
 
 
