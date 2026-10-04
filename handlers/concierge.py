@@ -281,38 +281,58 @@ class ConciergeHandler:
     # ══════════════════════════════════════════════════════
 
     def _configured(self) -> bool:
-        return bool(CONCIERGE_API_KEY)
+        return bool(CONCIERGE_API_KEY or self.anthropic_api_key)
 
     def _call_ai_sync(self, system_prompt: str, history: list, user_message: str) -> dict:
-        """Разговорная модель (OpenAI-совместимый API). Синхронно — вызывается в потоке."""
-        from openai import OpenAI
-        kwargs = {"api_key": CONCIERGE_API_KEY}
-        if CONCIERGE_BASE_URL:
-            kwargs["base_url"] = CONCIERGE_BASE_URL
-        client = OpenAI(**kwargs)
+        """Разговорная модель (OpenAI-совместимый API или Claude Haiku). Синхронно — вызывается в потоке."""
+        if CONCIERGE_API_KEY:
+            from openai import OpenAI
+            kwargs = {"api_key": CONCIERGE_API_KEY}
+            if CONCIERGE_BASE_URL:
+                kwargs["base_url"] = CONCIERGE_BASE_URL
+            client = OpenAI(**kwargs)
 
-        messages = [{"role": "system", "content": system_prompt}]
-        for turn in history[-MAX_HISTORY_MESSAGES:]:
-            messages.append({"role": turn["role"], "content": turn["content"]})
-        messages.append({"role": "user", "content": user_message})
+            messages = [{"role": "system", "content": system_prompt}]
+            for turn in history[-MAX_HISTORY_MESSAGES:]:
+                messages.append({"role": turn["role"], "content": turn["content"]})
+            messages.append({"role": "user", "content": user_message})
 
-        try:
-            resp = client.chat.completions.create(
-                model=CONCIERGE_MODEL, messages=messages, max_tokens=500,
-                temperature=0.7, response_format={"type": "json_object"},
+            try:
+                resp = client.chat.completions.create(
+                    model=CONCIERGE_MODEL, messages=messages, max_tokens=500,
+                    temperature=0.7, response_format={"type": "json_object"},
+                )
+            except Exception as e:
+                logger.info("Concierge: response_format не поддержан (%s), повтор без него", e)
+                resp = client.chat.completions.create(
+                    model=CONCIERGE_MODEL, messages=messages, max_tokens=500, temperature=0.7,
+                )
+
+            raw = resp.choices[0].message.content.strip()
+            parsed = _extract_json(raw)
+            if parsed is None:
+                logger.warning("Concierge: модель вернула не-JSON, использую как текст: %r", raw[:200])
+                return {"reply": raw, "action": "none", "doc_type": None}
+            return parsed
+        elif self.anthropic_api_key:
+            import anthropic
+            client = anthropic.Anthropic(api_key=self.anthropic_api_key)
+            claude_messages = []
+            for turn in history[-MAX_HISTORY_MESSAGES:]:
+                claude_messages.append({"role": turn["role"], "content": turn["content"]})
+            claude_messages.append({"role": "user", "content": user_message})
+            msg = client.messages.create(
+                model="claude-haiku-4-5",
+                max_tokens=500,
+                system=system_prompt,
+                messages=claude_messages,
             )
-        except Exception as e:
-            logger.info("Concierge: response_format не поддержан (%s), повтор без него", e)
-            resp = client.chat.completions.create(
-                model=CONCIERGE_MODEL, messages=messages, max_tokens=500, temperature=0.7,
-            )
-
-        raw = resp.choices[0].message.content.strip()
-        parsed = _extract_json(raw)
-        if parsed is None:
-            logger.warning("Concierge: модель вернула не-JSON, использую как текст: %r", raw[:200])
-            return {"reply": raw, "action": "none", "doc_type": None}
-        return parsed
+            raw = msg.content[0].text.strip()
+            parsed = _extract_json(raw)
+            if parsed is None:
+                return {"reply": raw, "action": "none", "doc_type": None}
+            return parsed
+        return {"reply": None, "action": "none", "doc_type": None}
 
     async def _call_ai(self, system_prompt: str, history: list, user_message: str) -> dict:
         try:
@@ -424,7 +444,8 @@ class ConciergeHandler:
 
     def _build_system_prompt(self, user: dict, lang: str, day_name, suggestions,
                              state: dict | None = None, should_greet: bool = False,
-                             task_hint: str = "") -> str:
+                             task_hint: str = "", schedule: dict | None = None,
+                             students: list | None = None) -> str:
         state = state or {}
         is_pro = bool(user.get("subscribed"))
         is_kg = user.get("role") == "kindergarten"
@@ -460,7 +481,24 @@ class ConciergeHandler:
             profile_block = (f"Профиль: учитель, школа «{user.get('school') or '—'}», предмет: "
                              f"{user.get('subject') or '—'}, классы: {user.get('classes') or '—'}.")
 
-        if suggestions and day_name:
+        if schedule:
+            lines = []
+            for day, items in schedule.items():
+                if isinstance(items, list):
+                    day_str = ", ".join(f"{it.get('time', '')} {it.get('class', '')} {it.get('subject', '')}".strip() for it in items if isinstance(it, dict))
+                    lines.append(f"- {day}: {day_str}")
+                else:
+                    lines.append(f"- {day}: {items}")
+            schedule_text = "\n".join(lines)
+            schedule_block = (
+                f"\nРАСПИСАНИЕ / РЕЖИМ ДНЯ ПОЛЬЗОВАТЕЛЯ:\n{schedule_text}\n"
+                f"Если пользователь спрашивает про расписание («проверь мое расписание», «что у меня запланировано», «какие уроки завтра», «расписание»), "
+                f"ответь точно и конкретно по этому расписанию!\n"
+            )
+            if suggestions and day_name:
+                opts = "; ".join(f"{dt}:{name_}" for dt, name_ in suggestions)
+                schedule_block += f"ВНИМАНИЕ: завтра ({day_name}) есть событие: {opts}. При необходимости предложи подготовить документ.\n"
+        elif suggestions and day_name:
             opts = "; ".join(f"{dt}:{name_}" for dt, name_ in suggestions)
             schedule_block = (
                 f"\nЗАВТРА ({day_name}) в расписании есть событие, для которого обычно нужен документ. "
@@ -469,8 +507,16 @@ class ConciergeHandler:
         elif day_name:
             schedule_block = f"\nУ пользователя есть расписание, завтра — {day_name}, ничего примечательного.\n"
         else:
-            schedule_block = ("\nУ пользователя пока нет расписания — если уместно, один раз мягко напомни, что его можно "
-                              "прикрепить (кнопка «Расписание»/«Режим дня» в меню).\n")
+            schedule_block = ("\nУ пользователя пока нет расписания — если пользователь спрашивает про расписание или планы, "
+                              "ответь, что расписание пока не загружено, и напомни, что его можно прикрепить (кнопка «Расписание»/«Режим дня» в меню).\n")
+
+        students_block = ""
+        if students:
+            by_class = {}
+            for s in students:
+                by_class.setdefault(s.get("class_name") or "без группы", []).append(s.get("name", ""))
+            std_parts = [f"{cls}: {', '.join(names[:15])}" for cls, names in by_class.items()]
+            students_block = f"\nБАЗА УЧЕНИКОВ / ДЕТЕЙ ПОЛЬЗОВАТЕЛЯ:\n" + "; ".join(std_parts) + "\n"
 
         pro_rules = (
             "Пользователь на PRO. Ты можешь сам предлагать подготовить документ; если он согласился на твоё "
@@ -492,13 +538,14 @@ class ConciergeHandler:
 {greet_rule}
 {profile_block}
 {facts_block}{task_block}
+{schedule_block}
+{students_block}
 ПРАВИЛА ОБЩЕНИЯ:
 - Пиши на {"русском" if lang == "ru" else "казахском"} языке, коротко (2–4 предложения), тепло и по-человечески, без канцелярита.
 - Обращайся по имени ({name}). Не повторяй то, что уже говорил в этом разговоре, и не задавай один и тот же вопрос дважды.
 - Помни контекст: опирайся на историю сообщений ниже, а не отвечай каждый раз «с нуля».
 - Если пользователь пишет не по теме документов — просто по-дружески ответь.
 - Если человек сообщает устойчивый факт о себе (класс, предмет, любимый формат, имя директора) — добавь его в "remember" (коротко, до 100 символов). Не запоминай пароли, номера, здоровье, финансы. Если просит «забудь всё» — "forget": true.
-{schedule_block}
 {pro_rules}
 
 ОТВЕЧАЙ СТРОГО В ФОРМАТЕ JSON, без markdown:
@@ -879,6 +926,7 @@ class ConciergeHandler:
         role = user.get("role", "teacher")
         schedule_json = await self.db.get_schedule(user_id)
         schedule = json.loads(schedule_json) if schedule_json else None
+        students = await self.db.get_students(user_id)
         day_name, suggestions = _find_schedule_suggestions(schedule, role) if schedule else (None, None)
 
         pending = state.get("pending")
@@ -898,7 +946,10 @@ class ConciergeHandler:
                          + (f" (не хватает: {miss})" if miss else "")
                          + ". Ответь на его сообщение, а в конце одной короткой фразой напомни, что можно продолжить.")
 
-        system_prompt = self._build_system_prompt(user, ui_lang, day_name, suggestions, state, should_greet, task_hint)
+        system_prompt = self._build_system_prompt(
+            user, ui_lang, day_name, suggestions, state, should_greet, task_hint,
+            schedule=schedule, students=students
+        )
         async with typing_action(context.bot, message.chat_id):
             result = await self._call_ai(system_prompt, state.get("history", []), text)
 
@@ -955,6 +1006,7 @@ class ConciergeHandler:
         role = user.get("role", "teacher")
         schedule_json = await self.db.get_schedule(user_id)
         schedule = json.loads(schedule_json) if schedule_json else None
+        students = await self.db.get_students(user_id)
         day_name, suggestions = _find_schedule_suggestions(schedule, role) if schedule else (None, None)
 
         def _static():
@@ -967,7 +1019,10 @@ class ConciergeHandler:
             return _static()
 
         state = await self._load_state(user_id)
-        system_prompt = self._build_system_prompt(user, lang, day_name, suggestions, state, should_greet=True)
+        system_prompt = self._build_system_prompt(
+            user, lang, day_name, suggestions, state, should_greet=True,
+            schedule=schedule, students=students
+        )
         system_prompt += (
             "\n\nЭто ПРОАКТИВНОЕ напоминание — пользователь ничего не писал, ты пишешь первым, потому что он давно не "
             "создавал документы. Поздоровайся, мягко напомни о себе — без спама, по-дружески, 1–2 предложения."
