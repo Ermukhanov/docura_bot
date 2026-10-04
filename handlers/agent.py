@@ -287,6 +287,45 @@ class AgentHandler:
                 reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]])
             )
 
+        elif data == "agent_memory_menu":
+            memory = await self.db.get_agent_context(user_id)
+            notes = memory.get("custom_notes", [])
+            last_topics = memory.get("last_topics", [])
+            reminders_on = memory.get("reminders_enabled", True)
+
+            notes_str = "\n".join([f"• {n}" for n in notes]) if notes else ("_Пока нет сохранённых заметок_" if lang == "ru" else "_Әзірше сақталған жазбалар жоқ_")
+            topics_str = ", ".join(last_topics[-3:]) if last_topics else ("_Нет недавних тем_" if lang == "ru" else "_Жақында тақырыптар жоқ_")
+
+            text = (
+                f"🧠 *Память и контекст Docura AI*\n\n"
+                f"ИИ помнит особенности ваших предметов, классов и предпочтений:\n\n"
+                f"📌 *Индивидуальные заметки:*\n{notes_str}\n\n"
+                f"📚 *Последние темы:* {topics_str}\n"
+                f"🔔 *Напоминания:* {'Включены' if reminders_on else 'Выключены'}\n\n"
+                f"_Вы также можете управлять памятью и правилами прямо в веб-кабинете!_"
+            ) if lang == "ru" else (
+                f"🧠 *Docura AI жады және контексті*\n\n"
+                f"ЖИ сіздің пәндеріңізді, сыныптарыңызды және қалауларыңызды есте сақтайды:\n\n"
+                f"📌 *Жеке жазбалар:*\n{notes_str}\n\n"
+                f"📚 *Соңғы тақырыптар:* {topics_str}\n"
+                f"🔔 *Еске салғыштар:* {'Қосулы' if reminders_on else 'Өшірулі'}\n\n"
+                f"_Сондай-ақ жадты тікелей веб-кабинеттен басқара аласыз!_"
+            )
+            kb = [
+                [InlineKeyboardButton("🗑️ Очистить память" if lang == "ru" else "🗑️ Жадты тазарту", callback_data="agent_memory_clear")],
+                [MENU_BTN(lang)]
+            ]
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+
+        elif data == "agent_memory_clear":
+            await self.db.save_agent_context(user_id, json.dumps({}, ensure_ascii=False))
+            await query.edit_message_text(
+                "🧹 *Память ИИ успешно очищена.* Теперь контекст будет собираться заново." if lang == "ru"
+                else "🧹 *ЖИ жады сәтті тазартылды.* Енді контекст қайтадан жиналады.",
+                reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]]),
+                parse_mode=ParseMode.MARKDOWN
+            )
+
         elif data in {"agent_auto_generate_ksp", "agent_auto_generate_cycle"}:
             if not user or not user.get("subscribed") or not user.get("auto_generate"):
                 await query.edit_message_text(

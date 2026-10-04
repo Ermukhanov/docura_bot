@@ -26,9 +26,16 @@ def telegram_user():
             except json.JSONDecodeError:
                 pass
 
-    # 2. Query param or header fallback (for testing and direct web view)
+    # 2. Query param or body fallback (for testing, direct web view and forms)
     tg_id = request.args.get('tg_id')
-    if tg_id and tg_id.isdigit():
+    if not tg_id and request.is_json:
+        try:
+            tg_id = request.json.get('tg_id')
+        except Exception:
+            pass
+    if not tg_id:
+        tg_id = request.form.get('tg_id')
+    if tg_id and str(tg_id).isdigit():
         return {'id': int(tg_id)}
 
     user_header = request.headers.get('X-User-Id')
@@ -141,6 +148,170 @@ def api_funnel():
         rating = db.execute('SELECT AVG(rating) FROM analytics WHERE rating IS NOT NULL').fetchone()[0]
     percent = lambda value: round(value * 100 / total, 1) if total else 0
     return jsonify(onboarding_started=total, onboarding_done=counts['onboarding_done'], onboarding_done_percent=percent(counts['onboarding_done']), doc_selected=counts['doc_selected'], doc_selected_percent=percent(counts['doc_selected']), generation_done=counts['generation_done'], generation_done_percent=percent(counts['generation_done']), average_rating=round(rating, 2) if rating else None)
+
+# ── STUDENTS CRUD ──
+@app.post('/api/students')
+@app.post('/api/profile/<int:user_id>/students')
+def api_add_student(user_id=None):
+    tg = {'id': user_id} if user_id else telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+    data = request.get_json(silent=True) or request.form.to_dict()
+    name = (data.get('name') or '').strip()
+    class_name = (data.get('class_name') or '').strip()
+    if not name:
+        return jsonify(error='Name is required'), 400
+
+    behavior = data.get('behavior', 'хорошее')
+    absences = int(data.get('absences') or 0)
+    grades = data.get('grades', '{}')
+    if isinstance(grades, dict):
+        grades = json.dumps(grades, ensure_ascii=False)
+    parents = data.get('parents', '')
+    parent_phone = data.get('parent_phone', '')
+    birth_date = data.get('birth_date', '')
+
+    with conn() as db:
+        cur = db.execute(
+            '''INSERT INTO students (teacher_id, name, class_name, behavior, absences, grades, parents, parent_phone, birth_date)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            (tg['id'], name, class_name, behavior, absences, grades, parents, parent_phone, birth_date)
+        )
+        db.commit()
+        new_id = cur.lastrowid
+        student = db.execute('SELECT * FROM students WHERE id=?', (new_id,)).fetchone()
+    return jsonify(ok=True, student=dict(student) if student else {})
+
+@app.post('/api/students/<int:student_id>/delete')
+@app.delete('/api/students/<int:student_id>')
+def api_delete_student(student_id):
+    tg = telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+    with conn() as db:
+        db.execute('DELETE FROM students WHERE id=? AND teacher_id=?', (student_id, tg['id']))
+        db.commit()
+    return jsonify(ok=True)
+
+# ── SCHEDULE CRUD ──
+@app.post('/api/schedule')
+@app.post('/api/profile/<int:user_id>/schedule')
+def api_save_schedule(user_id=None):
+    tg = {'id': user_id} if user_id else telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+    data = request.get_json(silent=True) or {}
+    schedule_data = data.get('schedule_data')
+    if isinstance(schedule_data, dict):
+        schedule_data = json.dumps(schedule_data, ensure_ascii=False)
+    elif not isinstance(schedule_data, str):
+        schedule_data = '{}'
+
+    with conn() as db:
+        db.execute(
+            '''INSERT INTO schedules (tg_id, schedule_data, updated_at)
+               VALUES (?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(tg_id) DO UPDATE SET schedule_data=excluded.schedule_data, updated_at=CURRENT_TIMESTAMP''',
+            (tg['id'], schedule_data)
+        )
+        db.commit()
+    return jsonify(ok=True)
+
+@app.post('/api/schedule/lesson')
+def api_add_lesson():
+    tg = telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+    data = request.get_json(silent=True) or {}
+    day = data.get('day', 'Понедельник')
+    time_val = data.get('time', '08:30')
+    subject = data.get('subject', 'Урок')
+    class_val = data.get('class', '')
+
+    with conn() as db:
+        row = db.execute('SELECT schedule_data FROM schedules WHERE tg_id=?', (tg['id'],)).fetchone()
+        schedule = json.loads(row['schedule_data']) if row and row['schedule_data'] else {}
+        if day not in schedule or not isinstance(schedule[day], list):
+            schedule[day] = []
+        schedule[day].append({'time': time_val, 'subject': subject, 'class': class_val})
+        new_json = json.dumps(schedule, ensure_ascii=False)
+        db.execute(
+            '''INSERT INTO schedules (tg_id, schedule_data, updated_at)
+               VALUES (?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(tg_id) DO UPDATE SET schedule_data=excluded.schedule_data, updated_at=CURRENT_TIMESTAMP''',
+            (tg['id'], new_json)
+        )
+        db.commit()
+    return jsonify(ok=True, schedule=schedule)
+
+# ── PROFILE UPDATE ──
+@app.post('/api/profile')
+@app.post('/api/profile/<int:user_id>/update')
+def api_update_profile(user_id=None):
+    tg = {'id': user_id} if user_id else telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+    data = request.get_json(silent=True) or request.form.to_dict()
+    name = data.get('name')
+    school = data.get('school')
+    position = data.get('position')
+    subject = data.get('subject')
+    classes = data.get('classes')
+    age_group = data.get('age_group')
+    director = data.get('director')
+
+    with conn() as db:
+        db.execute(
+            '''UPDATE users SET 
+                 name=COALESCE(?, name),
+                 school=COALESCE(?, school),
+                 position=COALESCE(?, position),
+                 subject=COALESCE(?, subject),
+                 classes=COALESCE(?, classes),
+                 age_group=COALESCE(?, age_group),
+                 director=COALESCE(?, director)
+               WHERE tg_id=?''',
+            (name, school, position, subject, classes, age_group, director, tg['id'])
+        )
+        db.commit()
+        user = db.execute('SELECT * FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
+    return jsonify(ok=True, user=dict(user) if user else {})
+
+# ── AI MEMORY ──
+@app.post('/api/memory/clear')
+def api_clear_memory():
+    tg = telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+    with conn() as db:
+        db.execute('DELETE FROM agent_memory WHERE tg_id=?', (tg['id'],))
+        db.commit()
+    return jsonify(ok=True)
+
+@app.post('/api/memory/add')
+def api_add_memory_note():
+    tg = telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+    data = request.get_json(silent=True) or {}
+    note = (data.get('note') or '').strip()
+    if not note:
+        return jsonify(error='Note is empty'), 400
+    with conn() as db:
+        row = db.execute('SELECT context_data FROM agent_memory WHERE tg_id=?', (tg['id'],)).fetchone()
+        ctx = json.loads(row['context_data']) if row and row['context_data'] else {}
+        notes = ctx.setdefault('user_preferences', [])
+        notes.append({'text': note, 'date': data.get('date', '')})
+        new_json = json.dumps(ctx, ensure_ascii=False)
+        db.execute(
+            '''INSERT INTO agent_memory (tg_id, context_data, updated_at)
+               VALUES (?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(tg_id) DO UPDATE SET context_data=excluded.context_data, updated_at=CURRENT_TIMESTAMP''',
+            (tg['id'], new_json)
+        )
+        db.commit()
+    return jsonify(ok=True, context=ctx)
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))

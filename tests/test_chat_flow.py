@@ -203,4 +203,5 @@ async def main():
     print(f"\n{len(PASS)} прошло, {len(FAIL)} упало")
     return 1 if FAIL else 0
 
-sys.exit(asyncio.run(main()))
+if __name__ == "__main__":
+    sys.exit(asyncio.run(main()))
