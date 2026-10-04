@@ -124,7 +124,7 @@ def get_site_url() -> str:
     site_url = os.getenv("SITE_URL")
     if site_url:
         return site_url.rstrip("/")
-    return "https://subjects-behaviour-functional-understood.trycloudflare.com"
+    return "https://docurabot-production.up.railway.app"
 
 
 async def cmd_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
