@@ -4,7 +4,6 @@ import hashlib
 import re
 from urllib.parse import quote
 import anthropic
-from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
@@ -622,7 +621,7 @@ class ProfileHandler:
         amount = result.get("amount", expected_amount)
 
         await self.db.save_receipt_hash(receipt_hash, user_id, "pro", amount)
-        await self.db.activate_subscription(user_id, tier="pro")
+        await self.db.activate_subscription(user_id, tier="pro", expires_in_days=30)
         if tier == "pro_promo":
             await self.db.mark_promo_used(user_id)
 
@@ -631,8 +630,8 @@ class ProfileHandler:
 
         kb = [[MENU_BTN(lang)]]
         await update.message.reply_text(
-            f"🎉 *PRO активирован!*\n\nТеперь у вас безлимитный доступ к Docura.kz. Спасибо за оплату!" if lang == "ru"
-            else f"🎉 *PRO белсендірілді!*\n\nEndi Docura.kz-де шексіз қол жеткізу бар. Рахмет!",
+            "🎉 *PRO активирован!*\n\nТеперь у вас безлимитный доступ к Docura.kz. Спасибо за оплату!" if lang == "ru"
+            else "🎉 *PRO белсендірілді!*\n\nЕнді Docura.kz-де шексіз қол жеткізу бар. Рахмет!",
             reply_markup=InlineKeyboardMarkup(kb),
             parse_mode=ParseMode.MARKDOWN
         )
@@ -656,6 +655,44 @@ class ProfileHandler:
                 "✅ Спасибо! Нажмите кнопку ниже, чтобы отправить сообщение." if lang == "ru" else "✅ Рахмет! Хабарламаны жіберу үшін төмендегі батырманы басыңыз.",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✉️ Отправить на почту" if lang == "ru" else "✉️ Поштаға жіберу", url=mail_url)], [MENU_BTN(lang)]])
             )
+            return
+
+        if step == "student_bulk_confirm":
+            lowered = text.lower()
+            if any(w in lowered for w in ["да", "иә", "қосу", "добавить", "ок", "yes", "ага", "жарайды"]):
+                pending = context.user_data.pop("bulk_students", [])
+                default_class = user.get("age_group") if is_kg else user.get("classes", "")
+                for item in pending:
+                    data = {
+                        "name": item["name"], "class_name": item.get("class_name") or default_class or "—",
+                        "grades": {}, "achievements": [], "absences": 0,
+                        "behavior": "хорошее" if lang == "ru" else "жақсы",
+                    }
+                    await self.db.add_student(user_id, data)
+                    students = await self.db.get_students(user_id)
+                    saved = next((student for student in reversed(students) if student["name"] == item["name"]), None)
+                    if saved:
+                        await self.db.update_student(saved["id"], {
+                            "birth_date": item.get("birth_date", ""), "parents": item.get("parent_name", ""),
+                            "parent_phone": item.get("phone", ""),
+                        })
+                context.user_data["step"] = None
+                await update.message.reply_text(
+                    (f"✅ Добавлено учеников: {len(pending)}" if lang == "ru" else f"✅ Қосылған оқушылар: {len(pending)}"),
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("👥 " + ("Мои ученики" if not is_kg and lang == "ru" else "Мои воспитанники" if is_kg and lang == "ru" else "Менің оқушыларым"), callback_data="prof_students")], [MENU_BTN(lang)]])
+                )
+            elif any(w in lowered for w in ["нет", "жоқ", "отмена", "болдырмау", "no"]):
+                context.user_data.pop("bulk_students", None)
+                context.user_data["step"] = None
+                await update.message.reply_text(
+                    "❌ Отменено." if lang == "ru" else "❌ Болдырылмады.",
+                    reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]])
+                )
+            else:
+                await update.message.reply_text(
+                    "Нажмите кнопку «Добавить всех» или «Отмена» выше." if lang == "ru"
+                    else "Жоғарыдағы «Барлығын қосу» немесе «Болдырмау» батырмасын басыңыз."
+                )
             return
 
         if step == "student_bulk_upload":

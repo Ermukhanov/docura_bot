@@ -34,7 +34,8 @@ class OnboardingHandler:
             ref_code = raw_arg[4:] if raw_arg.startswith("ref_") else raw_arg
             referrer = await self.db.get_user_by_ref_code(ref_code)
             if referrer and referrer["tg_id"] != user_id:
-                await self.db.upsert_user(user_id, {"referred_by": referrer["tg_id"]})
+                # Начисляем приглашённому +2 бонусных документа при старте (итого 5 вместо 3)
+                await self.db.upsert_user(user_id, {"referred_by": referrer["tg_id"], "bonus_docs": 2})
 
         context.user_data.clear()
         context.user_data["onboard_step"] = 0
@@ -262,6 +263,17 @@ class OnboardingHandler:
                 next_question = fields[idx + 1][1]
                 buttons = [[InlineKeyboardButton("← Назад" if lang == "ru" else "← Артқа", callback_data="onboard_back")], [InlineKeyboardButton("❌ Отмена" if lang == "ru" else "❌ Болдырмау", callback_data="onboard_cancel")]]
                 await update.message.reply_text(next_question, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=ParseMode.MARKDOWN)
+            else:
+                await self._show_profile_confirmation(update.message, context, user_id, lang)
+            return
+
+        elif step == "onboard_confirmation":
+            from handlers.query_adapter import MessageQueryAdapter
+            lowered = text.lower()
+            if any(w in lowered for w in ["да", "иә", "дұрыс", "верно", "ок", "ok", "yes", "ага", "жарайды"]):
+                await self._finish_new_onboarding(MessageQueryAdapter(update.message), context, user_id, lang)
+            elif any(w in lowered for w in ["нет", "жоқ", "изменить", "өзгерт", "қате", "ошибка", "no"]):
+                await self._show_registration_question(MessageQueryAdapter(update.message), context, lang, 0)
             else:
                 await self._show_profile_confirmation(update.message, context, user_id, lang)
             return

@@ -6,11 +6,10 @@ import anthropic
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
-from handlers.texts import t
 from database import Database
 
 MENU_BTN = lambda lang: InlineKeyboardButton(
-    "🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"),
+    "🏠 " + ("Главное меню" if lang == "ru" else ("Main menu" if lang == "en" else "Басты мәзір")),
     callback_data="menu_main"
 )
 
@@ -87,7 +86,7 @@ class VoiceHandler:
             return
 
         proc_msg = await update.message.reply_text(
-            "🎤 " + ("Слушаю..." if lang == "ru" else "Тыңдауда...")
+            "🎤 " + ("Слушаю..." if lang == "ru" else ("Listening..." if lang == "en" else "Тыңдауда..."))
         )
 
         try:
@@ -117,7 +116,13 @@ class VoiceHandler:
                      "Попробуйте:\n"
                      "- Говорить чётче и громче\n"
                      "- Написать текстом\n"
-                     "- Использовать /new") if lang == "ru" else
+                     "- Использовать /new") if lang == "ru" else (
+                    "🎤 Could not recognize speech.\n\n"
+                    "Try to:\n"
+                    "- Speak louder and clearer\n"
+                    "- Write text\n"
+                    "- Use /new"
+                    ) if lang == "en" else
                     ("🎤 Сөзді тани алмадым.\n\n"
                      "Мәтінмен жазыңыз немесе /new"),
                     reply_markup=InlineKeyboardMarkup(kb)
@@ -125,7 +130,7 @@ class VoiceHandler:
                 return
 
             await update.message.reply_text(
-                f"🎤 *{'Распознано' if lang == 'ru' else 'Танылды'}:*\n_{voice_text}_",
+                f"🎤 *{'Распознано' if lang == 'ru' else ('Recognized' if lang == 'en' else 'Танылды')}:*\n_{voice_text}_",
                 parse_mode=ParseMode.MARKDOWN
             )
 
@@ -190,7 +195,10 @@ class VoiceHandler:
                 kb = [[MENU_BTN(lang)]]
                 await update.message.reply_text(
                     ("Не смог определить тип документа.\n"
-                     "Выберите документ через меню 👇") if lang == "ru" else
+                     "Выберите документ через меню 👇") if lang == "ru" else (
+                    "Could not determine document type.\n"
+                    "Please select a document from the menu 👇"
+                    ) if lang == "en" else
                     ("Құжат түрін анықтай алмадым.\n"
                      "Мәзірден таңдаңыз 👇"),
                     reply_markup=InlineKeyboardMarkup(kb)
@@ -213,7 +221,10 @@ class VoiceHandler:
                 )
                 await update.message.reply_text(
                     (f"Не смог определить тип документа.\n\n"
-                     f"Попробуйте сказать точнее:\n{example_text}") if lang == "ru" else
+                     f"Попробуйте сказать точнее:\n{example_text}") if lang == "ru" else (
+                    "Could not determine document type.\n\n"
+                    "Please try to be more specific."
+                    ) if lang == "en" else
                     ("Құжат түрін анықтай алмадым.\n"
                      "Нақтырақ айтып көріңіз."),
                     reply_markup=InlineKeyboardMarkup(kb),
@@ -236,8 +247,9 @@ class VoiceHandler:
                            for i, q in enumerate(missing_questions)]
                 context.user_data["questions"] = mini_qs + list(qs)
 
+            start_suffix = 'начинаем!' if lang == 'ru' else ('starting!' if lang == 'en' else 'бастаймыз!')
             await update.message.reply_text(
-                f"✅ *{doc_name}* — {'начинаем!' if lang == 'ru' else 'бастаймыз!'}",
+                f"✅ *{doc_name}* — {start_suffix}",
                 parse_mode=ParseMode.MARKDOWN
             )
 

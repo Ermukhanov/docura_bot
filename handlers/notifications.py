@@ -148,15 +148,22 @@ async def send_reminders(app: Application, db: Database, concierge=None):
                         }
                         text = random.choice(variants.get(lang, variants["ru"]))
 
-                    if not smart:
-                        keyboard = None
-
-                    await app.bot.send_message(
-                        chat_id=tg_id,
-                        text=text,
-                        parse_mode=ParseMode.MARKDOWN,
-                        reply_markup=keyboard,
-                    )
+                    try:
+                        await app.bot.send_message(
+                            chat_id=tg_id,
+                            text=text,
+                            parse_mode=ParseMode.MARKDOWN,
+                            reply_markup=keyboard,
+                        )
+                    except Exception as parse_err:
+                        if "parse entities" in str(parse_err).lower() or "can't parse entities" in str(parse_err).lower():
+                            await app.bot.send_message(
+                                chat_id=tg_id,
+                                text=text,
+                                reply_markup=keyboard,
+                            )
+                        else:
+                            raise
                     await db.update_notified(tg_id)
                     await asyncio.sleep(0.5)
                 except Exception as e:

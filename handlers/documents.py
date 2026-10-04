@@ -8,7 +8,7 @@ from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
-from handlers.texts import t, TEXTS
+from handlers.texts import t
 from handlers.rag_base import get_system_prompt, SELF_EVAL_PROMPT
 from database import Database, free_limit_for
 from handlers.doc_schemas import build_structure_instruction, localize_labels, fix_title, register_titles
@@ -913,10 +913,11 @@ class DocumentHandler:
             context.user_data["step"]       = "help_write"
             doc_type = context.user_data.get("doc_type", "")
             text = (
-                f"✍️ *Помощь с текстом*\n\n"
-                f"Напишите кратко что хотите сказать — я оформлю официально:"
+                "✍️ *Помощь с текстом*\n\nНапишите кратко, что хотите сказать — я оформлю официально:"
+                if lang == "ru" else
+                "✍️ *Мәтінге көмек*\n\nНе айтқыңыз келетінін қысқаша жазыңыз — ресми түрде рәсімдеймін:"
             )
-            kb = [[InlineKeyboardButton("❌ Отмена", callback_data="menu_main")]]
+            kb = [[InlineKeyboardButton("❌ " + t(lang, "cancel"), callback_data="menu_main")]]
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
         # ── Выбрать ученика/воспитанника из базы ──
@@ -1271,7 +1272,7 @@ class DocumentHandler:
             doc_type = context.user_data.get("doc_type", "")
             doc_lang = context.user_data.get("doc_lang", lang)
             doc_name = DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, "")
-            if doc_type == DEVELOPMENT_MONITORING and idx + 1 >= len(qs) and text.strip().lower() in {"пустой", "бос"}:
+            if doc_type == DEVELOPMENT_MONITORING and idx + 1 >= len(qs) and text.strip().lower() in {"пустой", "бос", "blank", "empty"}:
                 await self._generate_monitoring(update.message, context, lang)
             elif doc_type == DEVELOPMENT_MONITORING and idx + 1 >= len(qs):
                 await update.message.reply_text("У тебя есть реальные наблюдения и уровни развития по детям?" if lang == "ru" else "Балалар бойынша нақты бақылаулар мен даму деңгейлері бар ма?", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Да, отправлю данные" if lang == "ru" else "Иә, деректерді жіберемін", callback_data="doc_monitoring_data_yes")], [InlineKeyboardButton("Нет, нужен пустой бланк" if lang == "ru" else "Жоқ, бос бланк керек", callback_data="doc_monitoring_data_no")], [InlineKeyboardButton("Отмена" if lang == "ru" else "Бас тарту", callback_data="doc_cancel")]]))
@@ -1390,11 +1391,16 @@ class DocumentHandler:
         from handlers.word_generator import generate_word
         answers = context.user_data.get("doc_answers", {})
         raw_children = answers.get("children", "").strip().lower()
-        children = (["—"] * 15 if raw_children in {"пустой", "бос"} else [x.strip() for x in answers.get("children", "").replace("\n", ",").split(",") if x.strip()])
+        children = (["—"] * 15 if raw_children in {"пустой", "бос", "blank", "empty"} else [x.strip() for x in answers.get("children", "").replace("\n", ",").split(",") if x.strip()])
         rows = answers.get("rows", [])
         filename = generate_word("", DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], teacher_name=answers.get("educator_name", ""), director_name=answers.get("director_name", ""), monitoring_data={**answers, "children": children, "rows": rows, "lang": lang}, lang=lang)
+        caption_text = {
+            "ru": "📄 Мониторинг развития",
+            "kz": "📄 Даму мониторингі",
+            "en": "📄 Development Monitoring",
+        }.get(lang, "📄 Мониторинг развития")
         with open(filename, "rb") as f:
-            await message.reply_document(document=f, filename=f"monitoring_{datetime.now().strftime('%d%m%Y')}.docx", caption="📄 Мониторинг развития" if lang == "ru" else "📄 Даму мониторингі")
+            await message.reply_document(document=f, filename=f"monitoring_{datetime.now().strftime('%d%m%Y')}.docx", caption=caption_text)
         os.remove(filename)
         user = await self.db.get_user(message.chat_id)
         document_id = await self.db.save_document(message.chat_id, DEVELOPMENT_MONITORING, DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], "", 100)
@@ -1454,11 +1460,12 @@ class DocumentHandler:
             asker = "Учитель"
 
         client = anthropic.AsyncAnthropic(api_key=self.api_key)
+        lang_target = "казахском" if doc_lang == "kz" else ("английском" if doc_lang == "en" else "русском")
         prompt = (
             f"{asker} просит помочь составить текст для поля «{field}» документа «{doc_name}».\n"
             f"{context_line}\n"
             f"Что хочет сказать: {user_input}\n\n"
-            f"Предложи 2 коротких варианта официального текста для вставки в документ."
+            f"Предложи 2 коротких варианта официального текста для вставки в документ на {lang_target} языке."
         )
         msg = await client.messages.create(
             model="claude-haiku-4-5",
@@ -1467,8 +1474,10 @@ class DocumentHandler:
         )
         result = msg.content[0].text
         context.user_data["step"] = "waiting_answer"
+        help_title = "✍️ *Варианты текста:*" if lang == "ru" else "✍️ *Мәтін нұсқалары:*"
+        help_sub = "_Скопируйте нужный вариант и отправьте_" if lang == "ru" else "_Қажетті нұсқаны көшіріп алып жіберіңіз_"
         await update.message.reply_text(
-            f"✍️ *Варианты текста:*\n\n{result}\n\n{DIVIDER}\n_Скопируйте нужный вариант и отправьте_",
+            f"{help_title}\n\n{result}\n\n{DIVIDER}\n{help_sub}",
             parse_mode=ParseMode.MARKDOWN
         )
 
@@ -1645,11 +1654,12 @@ class DocumentHandler:
                 caption = {
                     "ru": f"📄 *{doc_name}*\n✅ Готов к печати",
                     "kz": f"📄 *{doc_name}*\n✅ Басуға дайын",
+                    "en": f"📄 *{doc_name}*\n✅ Ready to print",
                 }
                 await message.reply_document(
                     document=f,
                     filename=f"{doc_name}_{now_local().strftime('%d%m%Y')}.docx",
-                    caption=caption.get(lang, caption["ru"]),
+                    caption=caption.get(lang, caption.get(doc_lang, caption["ru"])),
                     parse_mode=ParseMode.MARKDOWN
                 )
             os.remove(filename)
