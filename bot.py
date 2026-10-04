@@ -93,6 +93,7 @@ async def cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await OnboardingHandler(db).start(update, context)
         return
     context.user_data.clear()
+    await OnboardingHandler(db)._drop_chat_task(update.effective_user.id)
     from handlers.main_menu import MainMenuHandler
     mm = MainMenuHandler(db)
     lang = user.get("lang", "ru")
@@ -390,6 +391,7 @@ async def run():
     app.add_handler(CallbackQueryHandler(profile.callback,    pattern="^(prof_|sub_|student_)"))
     app.add_handler(CallbackQueryHandler(admin.callback,      pattern="^admin_"))
     app.add_handler(CallbackQueryHandler(agent.callback,      pattern="^agent_"))
+    app.add_handler(CallbackQueryHandler(concierge.callback,  pattern="^cg_"))
 
     # Текст
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _route_text))

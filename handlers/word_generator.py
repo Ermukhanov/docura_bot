@@ -6,6 +6,7 @@ import os
 import re
 import tempfile
 from datetime import datetime
+from handlers.doc_schemas import label as _label, DAYS as _DAYS, L as _L
 from docx import Document
 from docx.shared import Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -232,11 +233,14 @@ def _add_kindergarten_cycle_schedule(doc, data: dict):
     def value(key):
         return str(data.get(key, "")).strip() or "________________"
 
+    lang = data.get("lang", "ru")
+    if lang not in ("ru", "kz", "en"):
+        lang = "ru"
     info = [
-        ("Организация", value("organization")),
-        ("Группа", value("group")),
-        ("Период", value("period")),
-        ("Воспитатель", value("educator_name")),
+        (_label("organization", lang), value("organization")),
+        (_label("group", lang), value("group")),
+        (_label("period", lang), value("period")),
+        (_label("educator", lang), value("educator_name")),
     ]
     info_table = doc.add_table(rows=len(info), cols=2)
     info_table.style = "Table Grid"
@@ -247,18 +251,18 @@ def _add_kindergarten_cycle_schedule(doc, data: dict):
         _run(row.cells[0].paragraphs[0], label + ":", bold=True, size=11, color=NAVY)
         _run(row.cells[1].paragraphs[0], text, size=11)
 
-    _para(doc, "Планируемое содержание недели", bold=True, color=NAVY,
+    _para(doc, _label("planned_week", lang), bold=True, color=NAVY,
           space_before=10, space_after=5)
     topic = value("week_topic")
     events = str(data.get("events", "")).strip()
     has_events = events and events.lower() not in {"нет", "жоқ", "none", "no"}
-    days = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница"]
+    days = [_label(k, "ru") for k in _DAYS]
     blocks = [
-        "Утренний прием и гимнастика",
+        _label("cyc_morning", "ru"),
         "ОУД",
-        "Прогулка",
-        "Сон и закаливание",
-        "Игры и уход детей домой",
+        _label("cyc_walk", "ru"),
+        _label("cyc_sleep", "ru"),
+        _label("cyc_games", "ru"),
     ]
     daily = [
         [f"Беседа по теме «{topic}»; гимнастика с наблюдениями.", f"ОУД: «Знакомство с темой {topic}». Цель: выделять признаки. Игра: «Найди пару».", f"Наблюдение по теме «{topic}»; подвижная игра «Повтори движение».", "Подготовка ко сну по режиму группы; дыхательное упражнение.", f"Игра «Назови по теме {topic}»; беседа при уходе."],
@@ -267,9 +271,20 @@ def _add_kindergarten_cycle_schedule(doc, data: dict):
         [f"Пальчиковая игра по теме «{topic}»; координационная гимнастика.", f"ОУД: «Где и как бывает». Цель: закреплять связи. Игра: «Кому что нужно?».", "Наблюдение и игра «Опиши, не называя».", "Спокойная музыка перед сном; процедуры по режиму группы.", f"Сюжетно-ролевая игра по теме «{topic}»; обмен впечатлениями."],
         [f"Повторение слов по теме «{topic}»; выбор движений детьми.", f"ОУД: «Итоги недели». Цель: применять знания. Игра: «Угадай по описанию».", "Игра-наблюдение «Что запомнили?»; двигательная активность.", "Подготовка ко сну по режиму группы; расслабление.", "Свободные игры и беседа об итогах темы."],
     ]
-    if data.get("lang") == "kz":
-        days = ["Дүйсенбі", "Сейсенбі", "Сәрсенбі", "Бейсенбі", "Жұма"]
-        blocks = ["Таңертеңгі қабылдау және гимнастика", "ҰОҚ", "Серуен", "Ұйқы және шынықтыру", "Ойындар және үйге қайту"]
+    if lang == "en":
+        days = [_label(k, "en") for k in _DAYS]
+        blocks = [_label("cyc_morning", "en"), "Organized learning activity", _label("cyc_walk", "en"),
+                  _label("cyc_sleep", "en"), _label("cyc_games", "en")]
+        daily = [
+            [f"Conversation on the topic “{topic}”; observation exercises.", f"Learning activity: “Getting to know {topic}”. Aim: identify features. Game: “Find a pair”.", f"Observation on the topic “{topic}”; action game “Repeat the movement”.", "Preparation for nap according to the group routine; breathing exercise.", f"Game “Name it by topic: {topic}”; short chat with parents."],
+            [f"Looking at illustrations on “{topic}”; new exercises.", "Learning activity: “Features and actions”. Aim: expand vocabulary. Game: “What has changed?”.", "Outdoor game with rules; observation on the walk.", "Relaxation before nap; procedures per group routine.", f"Creative play on “{topic}”; individual conversation."],
+            [f"Morning circle on “{topic}”; rhythmic exercises.", "Learning activity: “Compare and choose”. Aim: learn to compare. Game: “Odd one out”.", "Exploration walk; relay game without equipment.", "Reading before nap; procedures per group routine.", "Board game “Put the picture together”; summary of the day."],
+            [f"Finger play on “{topic}”; coordination exercises.", "Learning activity: “Where and how it happens”. Aim: consolidate connections. Game: “Who needs what?”.", "Observation and the game “Describe without naming”.", "Calm music before nap; procedures per group routine.", f"Role play on “{topic}”; sharing impressions."],
+            [f"Repeating words on “{topic}”; children choose the movements.", "Learning activity: “Results of the week”. Aim: apply knowledge. Game: “Guess by description”.", "Observation game “What do we remember?”; physical activity.", "Preparation for nap according to the group routine; relaxation.", "Free play and a talk about the results of the topic."],
+        ]
+    if lang == "kz":
+        days = [_label(k, "kz") for k in _DAYS]
+        blocks = [_label("cyc_morning", "kz"), "ҰОҚ", _label("cyc_walk", "kz"), _label("cyc_sleep", "kz"), _label("cyc_games", "kz")]
         daily = [
             [f"«{topic}» тақырыбы бойынша әңгіме; бақылау жаттығулары.", f"ҰОҚ: «{topic} тақырыбымен танысу». Мақсат: белгілерін ажырату. Ойын: «Жұбын тап».", f"«{topic}» бойынша бақылау; «Қимылды қайтала» ойыны.", "Топ режимі бойынша ұйқыға дайындық; тыныс алу жаттығуы.", f"«{topic}» бойынша атау ойыны; ата-анамен қысқа әңгіме."],
             [f"«{topic}» суреттерін қарау; жаңа гимнастика.", "ҰОҚ: «Белгілері мен әрекеттері». Мақсат: сөздік қорын кеңейту. Ойын: «Не өзгерді?».", "Ережелі қимылды ойын; серуендегі бақылау.", "Ұйқы алдындағы босаңсу; топ режимі бойынша процедуралар.", f"«{topic}» бойынша шығармашылық ойын; жеке әңгіме."],
@@ -280,7 +295,7 @@ def _add_kindergarten_cycle_schedule(doc, data: dict):
 
     table = doc.add_table(rows=1 + len(blocks), cols=1 + len(days))
     table.style = "Table Grid"
-    headers = ["Режимный момент", *days]
+    headers = [_L("Режимный момент", "Режим сәті", "Routine block")[lang], *days]
     for c_idx, header in enumerate(headers):
         cell = table.rows[0].cells[c_idx]
         _set_cell_color(cell, NAVY_HEX)
@@ -300,7 +315,7 @@ def _add_kindergarten_cycle_schedule(doc, data: dict):
             text = daily[c_idx - 1][r_idx - 1]
             # Пользовательское мероприятие отражается как план, а не как факт.
             if has_events and r_idx == 2:
-                text += f" Учесть при планировании: {events}."
+                text += " " + _L("Учесть при планировании", "Жоспарлау кезінде ескеру", "To consider when planning")[lang] + f": {events}."
             p = cell.paragraphs[0]
             p.alignment = WD_ALIGN_PARAGRAPH.LEFT
             _run(p, text, size=8)
@@ -309,12 +324,18 @@ def _add_kindergarten_cycle_schedule(doc, data: dict):
 
 def _add_development_monitoring(doc, data: dict):
     lang = data.get("lang", "ru")
-    labels = ["Организация", "Группа", "Возраст", "Период", "Воспитатель"] if lang == "ru" else ["Ұйым", "Топ", "Жасы", "Кезең", "Тәрбиеші"]
+    if lang not in ("ru", "kz", "en"):
+        lang = "ru"
+    labels = [_label(k, lang) for k in ("organization", "group", "age", "period", "educator")]
     values = [data.get("organization") or "________________", data.get("group") or "________________", data.get("age_group") or "________________", data.get("period") or "________________", data.get("educator_name") or "________________"]
     info = doc.add_table(rows=len(labels), cols=2); info.style = "Table Grid"
-    for row, label, value in zip(info.rows, labels, values):
-        _set_cell_color(row.cells[0], LIGHT_BLUE_HEX); _run(row.cells[0].paragraphs[0], label + ":", bold=True, size=10); _run(row.cells[1].paragraphs[0], value, size=10)
-    headers = ["№", "ФИО ребенка", "Физическое развитие", "Коммуникативное развитие", "Познавательное развитие", "Творческое развитие", "Социально-эмоциональное развитие", "Примечание"] if lang == "ru" else ["№", "Баланың аты-жөні", "Дене дамуы", "Коммуникативтік даму", "Танымдық даму", "Шығармашылық даму", "Әлеуметтік-эмоциялық даму", "Ескертпе"]
+    for row, lbl, value in zip(info.rows, labels, values):
+        _set_cell_color(row.cells[0], LIGHT_BLUE_HEX); _run(row.cells[0].paragraphs[0], lbl + ":", bold=True, size=10); _run(row.cells[1].paragraphs[0], value, size=10)
+    headers = {
+        "ru": ["№", "ФИО ребенка", "Физическое развитие", "Коммуникативное развитие", "Познавательное развитие", "Творческое развитие", "Социально-эмоциональное развитие", "Примечание"],
+        "kz": ["№", "Баланың аты-жөні", "Дене дамуы", "Коммуникативтік даму", "Танымдық даму", "Шығармашылық даму", "Әлеуметтік-эмоциялық даму", "Ескертпе"],
+        "en": ["No.", "Child's full name", "Physical development", "Communication development", "Cognitive development", "Creative development", "Social-emotional development", "Note"],
+    }[lang]
     rows = data.get("rows") or [[name] for name in data.get("children", [])] or [[] for _ in range(10)]
     table = doc.add_table(rows=1 + len(rows), cols=8); table.style = "Table Grid"
     for i, h in enumerate(headers): _set_cell_color(table.rows[0].cells[i], NAVY_HEX); _run(table.rows[0].cells[i].paragraphs[0], h, bold=True, size=7, color=WHITE)
@@ -344,7 +365,9 @@ def _parse_content(doc, content: str):
     def is_sig(s):
         kw = ["подпись","директор","учитель","кл.рук","дата:","м.п.",
               "классный руководитель","қолы","мұғалім","күні:",
-              "мектеп директоры","________","___/"]
+              "мектеп директоры","________","___/",
+              "signature","director","teacher","head of","date:","seal","staff member",
+              "меңгеруші","тәрбиеші","заведующ","воспитатель"]
         return any(k in s.lower() for k in kw)
 
     def is_table(s):

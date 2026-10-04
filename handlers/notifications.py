@@ -2,11 +2,12 @@ import asyncio
 import logging
 import random
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application
 from telegram.constants import ParseMode
 from database import Database
+from handlers.chat_utils import now_local, LOCAL_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +34,29 @@ def _smart_reminder(user: dict, lang: str):
     return None
 
 
+SEND_WINDOW_START, SEND_WINDOW_END = 10, 19  # местное время, часы
+
+
+def _seconds_until_send_window() -> float:
+    """0, если сейчас окно отправки; иначе секунд до его начала (с запасом до 10:00)."""
+    now = now_local()
+    if SEND_WINDOW_START <= now.hour < SEND_WINDOW_END:
+        return 0
+    start = now.replace(hour=SEND_WINDOW_START, minute=0, second=0, microsecond=0)
+    if now.hour >= SEND_WINDOW_END:
+        start += timedelta(days=1)
+    return max(60.0, (start - now).total_seconds())
+
+
 def _due_since_last_document(user: dict, days: int) -> bool:
     value = user.get("last_doc_date")
     if not value:
         return True
     try:
-        return (datetime.now() - datetime.fromisoformat(value)).total_seconds() >= days * 86400
+        last = datetime.fromisoformat(value)
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=LOCAL_TZ)
+        return (now_local() - last).total_seconds() >= days * 86400
     except (TypeError, ValueError):
         return True
 
@@ -57,6 +75,9 @@ async def send_reminders(app: Application, db: Database, concierge=None):
     PRO — проактивное предложение по завтрашнему расписанию). Если агент не настроен
     (нет CONCIERGE_API_KEY), используется прежний статичный текст — бот не ломается."""
     while True:
+        # Напоминания только днём по местному времени: раньше цикл стартовал в момент
+        # запуска бота (деплой ночью => сообщения в 3 часа ночи) и шёл по UTC.
+        await asyncio.sleep(_seconds_until_send_window())
         try:
             users = await db.get_users_for_notification()
             for user in users:
@@ -77,8 +98,8 @@ async def send_reminders(app: Application, db: Database, concierge=None):
 
                     # PRO-предложение автогенерации: один раз в воскресный вечер,
                     # только при включённой настройке и сохранённом расписании.
-                    is_sunday_evening = datetime.now().weekday() == 6 and datetime.now().hour >= 18
-                    auto_week = datetime.now().strftime("%G-W%V")
+                    is_sunday_evening = now_local().weekday() == 6 and 18 <= now_local().hour < 21
+                    auto_week = now_local().strftime("%G-W%V")
                     if (is_sunday_evening and user.get("subscribed") and user.get("auto_generate")
                             and memory.get("auto_generation_prompt_week") != auto_week):
                         schedule_json = await db.get_schedule(tg_id)
@@ -143,8 +164,9 @@ async def send_reminders(app: Application, db: Database, concierge=None):
         except Exception as e:
             logger.error(f"Reminder scheduler error: {e}")
 
-        # Проверять раз в сутки
-        await asyncio.sleep(86400)
+        # Следующая проверка — завтра в начале окна отправки
+        tomorrow = (now_local() + timedelta(days=1)).replace(hour=SEND_WINDOW_START, minute=0, second=0, microsecond=0)
+        await asyncio.sleep(max(3600.0, (tomorrow - now_local()).total_seconds()))
 
 
 async def check_subscription_expirations(app: Application, db: Database):

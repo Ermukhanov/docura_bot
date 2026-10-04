@@ -11,6 +11,9 @@ from telegram.constants import ParseMode
 from handlers.texts import t, TEXTS
 from handlers.rag_base import get_system_prompt, SELF_EVAL_PROMPT
 from database import Database, free_limit_for
+from handlers.doc_schemas import build_structure_instruction, localize_labels, fix_title, register_titles
+from handlers.doc_questions import get_questions
+from handlers.chat_utils import typing_action, now_local
 
 # Единый реестр подключаемых документов. Остальные типы продолжают работать
 # через существующие DOC_QUESTIONS и общий генератор.
@@ -31,7 +34,7 @@ REGISTRY_QUESTIONS = {
         "kg_activity_summary": [{"key": "topic", "q": "Activity topic?"}, {"key": "age_group", "q": "Group and age?"}, {"key": "goals", "q": "What should children understand or learn?"}, {"key": "materials", "q": "Which materials are actually available? If none, write “none”."}],
         "kg_individual_development_card": [{"key": "child_name", "q": "Child’s full name?"}, {"key": "birth_year_age", "q": "Birth year and age?"}, {"key": "group", "q": "Group?"}, {"key": "school_year", "q": "Academic year?"}, {"key": "observations", "q": "Do you have real observations or need a blank form?"}],
         "lesson_plan": [{"key": "subject_class", "q": "Subject and class?"}, {"key": "topic", "q": "Lesson topic?"}, {"key": "goals", "q": "Learning objectives, if known?"}, {"key": "date", "q": "Lesson date and duration?"}],
-        "calendar_plan": [{"key": "subject_class", "q": "Subject and class?"}, {"key": "period", "q": "Period?"}, {"key": "textbook", "q": "Textbook or curriculum?"}, {"key": "hours_per_week", "q": "Hours per week?"}, {"key": "dates", "q": "Dates or leave them blank?"}],
+        "calendar_plan": [{"key": "subject_class", "q": "Subject and class?"}, {"key": "period", "q": "Period?"}, {"key": "textbook", "q": "Textbook or curriculum?"}, {"key": "hours_per_week", "q": "Hours per week?"}],
     },
 }
 
@@ -547,8 +550,11 @@ DOC_NAMES = {
         "parent_meeting_protocol": "Parent Meeting Protocol",
         "individual_work_plan": "Individual Work Plan",
         "housing_survey_act": "Living Conditions Survey Act",
+        "development_monitoring": "Development Monitoring",
     }
 }
+
+register_titles(DOC_NAMES)
 
 # Категории документов учителя (школа)
 CAT_DOCS = {
@@ -841,8 +847,7 @@ class DocumentHandler:
             if doc_type == DEVELOPMENT_MONITORING:
                 await self._start_development_monitoring(query, context, user, lang)
                 return
-            q_lang   = doc_lang if doc_lang in DOC_QUESTIONS else "ru"
-            qs = REGISTRY_QUESTIONS.get(doc_lang, {}).get(doc_type) or DOC_QUESTIONS.get(q_lang, DOC_QUESTIONS["ru"]).get(doc_type, [])
+            qs = get_questions(doc_type, doc_lang, DOC_QUESTIONS, REGISTRY_QUESTIONS)
             if not qs:
                 fallback_q = {
                     "ru": "✍️ Опишите подробно что нужно создать:",
@@ -875,7 +880,7 @@ class DocumentHandler:
             if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
                 await self._start_cycle_schedule(query, context, user, lang)
                 return
-            qs = REGISTRY_QUESTIONS.get(doc_lang, {}).get(doc_type) or DOC_QUESTIONS.get(doc_lang, DOC_QUESTIONS["ru"]).get(doc_type, [])
+            qs = get_questions(doc_type, doc_lang, DOC_QUESTIONS, REGISTRY_QUESTIONS)
             context.user_data["questions"] = qs or [{"key": "description", "q": "✍️ Опишите, что нужно создать:"}]
             context.user_data["step"] = "waiting_answer"
             await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, doc_type))
@@ -1558,6 +1563,10 @@ class DocumentHandler:
             f"Используй профиль автоматически. Если данных не хватает — пиши [уточнить], не выдумывай."
         )
 
+        # Схема документа на языке документа: заголовки, шапки таблиц, дни недели.
+        # Ставится в конец промпта — перебивает русские названия из правил и образцов.
+        user_prompt += "\n" + build_structure_instruction(doc_type, doc_lang)
+
         if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
             user_prompt += (
                 "\n\nЭто циклограмма для детского сада. Не выдумывай даты, ФИО,"
@@ -1581,13 +1590,18 @@ class DocumentHandler:
                 }
                 await message.reply_text(improve_msg.get(lang, improve_msg["ru"]), parse_mode=ParseMode.MARKDOWN)
 
-            msg = await client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=3000,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}]
-            )
+            async with typing_action(context.bot, user_id):
+                msg = await client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=3000,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": user_prompt}]
+                )
             result = msg.content[0].text
+            # Страховка: если модель всё же оставила русские подписи структуры
+            # (шапка таблицы, заголовки, «Предмет:») в казахском/английском документе —
+            # заменяем их детерминированно. Содержимое документа не затрагивается.
+            result = fix_title(localize_labels(result, doc_lang), doc_type, doc_lang)
 
             eval_msg = await client.messages.create(
                 model="claude-haiku-4-5",
@@ -1634,7 +1648,7 @@ class DocumentHandler:
                 }
                 await message.reply_document(
                     document=f,
-                    filename=f"{doc_name}_{datetime.now().strftime('%d%m%Y')}.docx",
+                    filename=f"{doc_name}_{now_local().strftime('%d%m%Y')}.docx",
                     caption=caption.get(lang, caption["ru"]),
                     parse_mode=ParseMode.MARKDOWN
                 )
@@ -1656,7 +1670,7 @@ class DocumentHandler:
         await self._reward_referrer_if_needed(context, user_id)
         await self.db.upsert_user(user_id, {
             "last_doc_type": doc_type,
-            "last_doc_date": datetime.now().isoformat(),
+            "last_doc_date": now_local().isoformat(),
         })
         await self.db.log_analytics(user_id, doc_type, score, doc_lang)
 

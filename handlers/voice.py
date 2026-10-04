@@ -72,7 +72,6 @@ class VoiceHandler:
 
         # Голосовой ввод доступен только на тарифе PRO
         if user.get("tier") != "pro":
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
             kb = [[InlineKeyboardButton(
                 "⭐ Перейти на PRO" if lang == "ru" else "⭐ PRO-ға өту",
                 callback_data="prof_sub"

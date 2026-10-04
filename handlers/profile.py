@@ -548,7 +548,8 @@ class ProfileHandler:
                 )
                 return
 
-            today = datetime.now().strftime("%d.%m.%Y")
+            from handlers.chat_utils import now_local
+            today = now_local().strftime("%d.%m.%Y")
             client = anthropic.AsyncAnthropic(api_key=self.api_key)
 
             prompt = f"""Это чек оплаты Kaspi. Проверь следующее:

@@ -51,11 +51,23 @@ class OnboardingHandler:
             parse_mode=ParseMode.MARKDOWN,
         )
 
+    async def _drop_chat_task(self, user_id: int):
+        """Сбрасывает незавершённую подготовку документа в разговоре с ИИ-агентом."""
+        try:
+            ctx = await self.db.get_agent_context(user_id)
+            state = ctx.get("concierge")
+            if state and state.get("doc_task"):
+                state["doc_task"] = None
+                await self.db.update_agent_context(user_id, {"concierge": state})
+        except Exception:
+            pass
+
     async def cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         user = await self.db.get_user(user_id)
         lang = user.get("lang", "ru") if user else "ru"
         context.user_data.clear()
+        await self._drop_chat_task(user_id)
         msg = "❌ Отменено. Возвращаю в главное меню..." if lang == "ru" else "❌ Болдырылмады. Басты мәзірге оралуда..."
         await update.message.reply_text(msg)
         from handlers.main_menu import MainMenuHandler

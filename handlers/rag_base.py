@@ -512,13 +512,15 @@ SAMPLE_DOCS_KG = {
 
 # Системный промпт для генерации
 def get_system_prompt(user: dict, lang: str) -> str:
-    today = __import__('datetime').datetime.now().strftime("%d.%m.%Y")
+    from handlers.chat_utils import now_local
+    _now = now_local()
+    today = _now.strftime("%d.%m.%Y")
     day_names = {
         "ru": ["понедельник","вторник","среда","четверг","пятница","суббота","воскресенье"],
         "kz": ["дүйсенбі","сейсенбі","сәрсенбі","бейсенбі","жұма","сенбі","жексенбі"],
         "en": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
     }
-    weekday = day_names[lang][__import__('datetime').datetime.now().weekday()]
+    weekday = day_names.get(lang, day_names['ru'])[_now.weekday()]
     role    = user.get("role", "teacher")
 
     # ── Локализация служебных фраз промпта (не текста документа — тот и так
