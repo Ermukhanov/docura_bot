@@ -6,7 +6,7 @@ import os
 
 load_dotenv()
 
-from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, filters, ContextTypes
@@ -115,6 +115,48 @@ async def cmd_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     lang = user.get("lang", "ru")
     await ProfileHandler(db).show(MessageQueryAdapter(update.message), update.effective_user.id, lang)
+
+
+async def cmd_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Быстрый переход в личный веб-кабинет педагога."""
+    db   = context.application.bot_data["db"]
+    user = await db.get_user(update.effective_user.id)
+    if not user or not user.get("name"):
+        await OnboardingHandler(db).start(update, context)
+        return
+
+    user_id = update.effective_user.id
+    lang = user.get("lang", "ru")
+    site_url = os.getenv("SITE_URL", "https://docura.kz").rstrip("/")
+    cabinet_url = f"{site_url}/profile/{user_id}"
+
+    text = (
+        f"💻 *Ваш персональный веб-кабинет Docura*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"В веб-панели вам доступны:\n"
+        f"• 👥 Полная база учеников и воспитанников с оценками\n"
+        f"• 📅 Интерактивное расписание уроков и режим дня\n"
+        f"• 📄 Архив и скачивание всех созданных документов\n"
+        f"• 📊 Аналитика сэкономленного времени и тарифы\n\n"
+        f"🔗 *Прямая ссылка на ваш кабинет:*\n`{cabinet_url}`"
+    ) if lang == "ru" else (
+        f"💻 *Сіздің Docura жеке веб-кабинетіңіз*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"Веб-панельде қолжетімді:\n"
+        f"• 👥 Оқушылар мен тәрбиеленушілердің толық базасы\n"
+        f"• 📅 Интерактивті сабақ кестесі мен күн тәртібі\n"
+        f"• 📄 Барлық дайын құжаттардың мұрағаты\n"
+        f"• 📊 Үнемделген уақыт аналитикасы мен тарифтер\n\n"
+        f"🔗 *Кабинетіңізге тікелей сілтеме:*\n`{cabinet_url}`"
+    )
+    kb = [
+        [
+            InlineKeyboardButton("📱 " + ("Веб-кабинет (Mini App)" if lang == "ru" else "Веб-кабинет (Mini App)"), web_app=WebAppInfo(url=cabinet_url)),
+            InlineKeyboardButton("🌐 " + ("В браузере" if lang == "ru" else "Браузерде"), url=cabinet_url),
+        ],
+        [InlineKeyboardButton("🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"), callback_data="menu_main")]
+    ]
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
 
 
 async def cmd_tariffs(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -366,6 +408,9 @@ async def run():
     app.add_handler(CommandHandler("mernar",  admin.login))
     app.add_handler(CommandHandler("new",     cmd_new))
     app.add_handler(CommandHandler("profile", cmd_profile))
+    app.add_handler(CommandHandler("cabinet", cmd_cabinet))
+    app.add_handler(CommandHandler("webapp",  cmd_cabinet))
+    app.add_handler(CommandHandler("app",     cmd_cabinet))
     app.add_handler(CommandHandler("history", cmd_history))
     app.add_handler(CommandHandler("invite",  cmd_invite))
     app.add_handler(CommandHandler("tariffs", cmd_tariffs))

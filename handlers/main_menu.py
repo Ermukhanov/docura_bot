@@ -98,17 +98,21 @@ class MainMenuHandler:
                 InlineKeyboardButton(schedule_title, callback_data="agent_schedule"),
             ],
             [
-                InlineKeyboardButton("📚 " + ("История" if lang == "ru" else "Тарих"), callback_data="menu_history"),
+                InlineKeyboardButton("💻 " + ("Личный кабинет" if lang == "ru" else "Жеке кабинет"), callback_data="prof_cabinet"),
                 InlineKeyboardButton("⭐ " + ("Тарифы PRO" if lang == "ru" else "PRO тарифтер"), callback_data="prof_sub"),
             ],
             [
                 InlineKeyboardButton("👤 " + ("Мой профиль" if lang == "ru" else "Менің профилім"), callback_data="menu_profile"),
+                InlineKeyboardButton("📚 " + ("История" if lang == "ru" else "Тарих"), callback_data="menu_history"),
+            ],
+            [
                 InlineKeyboardButton("❓ " + ("Инструкция" if lang == "ru" else "Нұсқаулық"), callback_data="menu_help"),
             ],
         ]
 
     def _settings_keyboard(self, lang, is_kg):
         return [
+            [InlineKeyboardButton("💻 Личный веб-кабинет" if lang == "ru" else "💻 Жеке веб-кабинет", callback_data="prof_cabinet")],
             [InlineKeyboardButton("👤 Мой профиль" if lang == "ru" else "👤 Менің профилім", callback_data="menu_profile")],
             [InlineKeyboardButton("🔔 Напоминания" if lang == "ru" else "🔔 Еске салғыштар", callback_data="agent_reminders")],
             [InlineKeyboardButton("⭐ Тариф и подписка" if lang == "ru" else "⭐ Тариф және жазылым", callback_data="prof_sub")],

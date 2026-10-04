@@ -1,10 +1,11 @@
+import os
 import json
 import base64
 import hashlib
 import re
 from urllib.parse import quote
 import anthropic
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from handlers.texts import t
@@ -119,9 +120,18 @@ class ProfileHandler:
                     f"⏱ Үнемделген уақыт: шамамен *{saved_hours_text} сағ*"
                 )
 
+        site_url = os.getenv("SITE_URL", "https://docura.kz").rstrip("/")
+        cabinet_url = f"{site_url}/profile/{user_id}"
+        cab_label = "🌐 Личный веб-кабинет (сайт):" if lang == "ru" else "🌐 Жеке веб-кабинет (сайт):"
+        text += f"\n\n{cab_label}\n`{cabinet_url}`"
+
         students_btn_text = t(lang, "btn_my_children") if is_kg else t(lang, "btn_my_students")
 
         keyboard = [
+            [
+                InlineKeyboardButton("📱 " + ("Веб-кабинет (Mini App)" if lang == "ru" else "Веб-кабинет (Mini App)"), web_app=WebAppInfo(url=cabinet_url)),
+                InlineKeyboardButton("🌐 " + ("В браузере" if lang == "ru" else "Браузерде"), url=cabinet_url),
+            ],
             [InlineKeyboardButton("✏️ " + t(lang, "btn_edit_profile"), callback_data="prof_edit")],
             [InlineKeyboardButton("👥 " + students_btn_text,           callback_data="prof_students")],
             [InlineKeyboardButton("📅 " + ("Моё расписание" if not is_kg and lang == "ru" else "Мой режим дня" if is_kg and lang == "ru" else "Менің кестем"), callback_data="agent_schedule")],
@@ -197,6 +207,38 @@ class ProfileHandler:
                  "✉️ Шағымды, пікірді немесе қатені бір хабарламада жазыңыз.\n\nЖібергеннен кейін docurakz@gmail.com поштасына арналған батырма шығады."),
                 reply_markup=InlineKeyboardMarkup([[CANCEL_BTN(lang)]])
             )
+
+        elif data == "prof_cabinet":
+            site_url = os.getenv("SITE_URL", "https://docura.kz").rstrip("/")
+            cabinet_url = f"{site_url}/profile/{user_id}"
+            text = (
+                f"💻 *Ваш персональный веб-кабинет Docura*\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"В веб-панели вам доступны:\n"
+                f"• 👥 Полная база учеников и воспитанников с оценками\n"
+                f"• 📅 Интерактивное расписание уроков и режим дня\n"
+                f"• 📄 Архив и скачивание всех созданных документов\n"
+                f"• 📊 Аналитика сэкономленного времени и тарифы\n\n"
+                f"🔗 *Прямая ссылка на ваш кабинет:*\n`{cabinet_url}`"
+            ) if lang == "ru" else (
+                f"💻 *Сіздің Docura жеке веб-кабинетіңіз*\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"Веб-панельде қолжетімді:\n"
+                f"• 👥 Оқушылар мен тәрбиеленушілердің толық базасы\n"
+                f"• 📅 Интерактивті сабақ кестесі мен күн тәртібі\n"
+                f"• 📄 Барлық дайын құжаттардың мұрағаты\n"
+                f"• 📊 Үнемделген уақыт аналитикасы мен тарифтер\n\n"
+                f"🔗 *Кабинетіңізге тікелей сілтеме:*\n`{cabinet_url}`"
+            )
+            kb = [
+                [
+                    InlineKeyboardButton("📱 " + ("Веб-кабинет (Mini App)" if lang == "ru" else "Веб-кабинет (Mini App)"), web_app=WebAppInfo(url=cabinet_url)),
+                    InlineKeyboardButton("🌐 " + ("В браузере" if lang == "ru" else "Браузерде"), url=cabinet_url),
+                ],
+                [BACK_BTN(lang, "menu_profile"), MENU_BTN(lang)],
+            ]
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+            return
 
         elif data == "prof_students":
             await self._show_students(query, user_id, lang, is_kg)
