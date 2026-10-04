@@ -127,8 +127,8 @@ async def cmd_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
     lang = user.get("lang", "ru")
-    site_url = os.getenv("SITE_URL", "https://docura.kz").rstrip("/")
-    cabinet_url = f"{site_url}/profile/{user_id}"
+    site_url = os.getenv("SITE_URL", "https://docurakz.vercel.app").rstrip("/")
+    cabinet_url = f"{site_url}/?tg_id={user_id}" if "vercel.app" in site_url else f"{site_url}/profile/{user_id}"
 
     text = (
         f"💻 *Ваш персональный веб-кабинет Docura*\n"

@@ -120,8 +120,8 @@ class ProfileHandler:
                     f"⏱ Үнемделген уақыт: шамамен *{saved_hours_text} сағ*"
                 )
 
-        site_url = os.getenv("SITE_URL", "https://docura.kz").rstrip("/")
-        cabinet_url = f"{site_url}/profile/{user_id}"
+        site_url = os.getenv("SITE_URL", "https://docurakz.vercel.app").rstrip("/")
+        cabinet_url = f"{site_url}/?tg_id={user_id}" if "vercel.app" in site_url else f"{site_url}/profile/{user_id}"
         cab_label = "🌐 Личный веб-кабинет (сайт):" if lang == "ru" else "🌐 Жеке веб-кабинет (сайт):"
         text += f"\n\n{cab_label}\n`{cabinet_url}`"
 
@@ -209,8 +209,8 @@ class ProfileHandler:
             )
 
         elif data == "prof_cabinet":
-            site_url = os.getenv("SITE_URL", "https://docura.kz").rstrip("/")
-            cabinet_url = f"{site_url}/profile/{user_id}"
+            site_url = os.getenv("SITE_URL", "https://docurakz.vercel.app").rstrip("/")
+            cabinet_url = f"{site_url}/?tg_id={user_id}" if "vercel.app" in site_url else f"{site_url}/profile/{user_id}"
             text = (
                 f"💻 *Ваш персональный веб-кабинет Docura*\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
