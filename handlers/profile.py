@@ -16,8 +16,8 @@ CANCEL_BTN = lambda lang: InlineKeyboardButton("❌ " + ("Отмена" if lang 
 
 KASPI_NUMBER = "+7 771 451 4717"
 
-TIER_PRICES = {"pro": 4990, "pro_promo": 2490}
-TIER_NAMES  = {"pro": "PRO"}
+TIER_PRICES = {"pro": 4990, "pro_promo": 2490, "max": 7490, "b2b": 39900}
+TIER_NAMES  = {"pro": "PRO", "max": "MAX", "b2b": "B2B"}
 
 class ProfileHandler:
     def __init__(self, db: Database, api_key: str = ""):
@@ -204,8 +204,15 @@ class ProfileHandler:
         elif data == "prof_sub":
             await self._show_subscription(query, user, lang)
 
-        elif data in ("prof_choose_pro", "prof_choose_pro_promo"):
-            tier = "pro_promo" if data == "prof_choose_pro_promo" else "pro"
+        elif data in ("prof_choose_pro", "prof_choose_pro_promo", "prof_choose_max", "prof_choose_b2b"):
+            if data == "prof_choose_pro_promo":
+                tier = "pro_promo"
+            elif data == "prof_choose_max":
+                tier = "max"
+            elif data == "prof_choose_b2b":
+                tier = "b2b"
+            else:
+                tier = "pro"
 
             if tier == "pro_promo" and user.get("promo_used"):
                 await self._show_subscription(query, user, lang)
@@ -215,23 +222,30 @@ class ProfileHandler:
             context.user_data["step"] = "waiting_payment_receipt"
             price = TIER_PRICES[tier]
 
+            tier_title = {
+                "pro": "Docura PRO",
+                "pro_promo": "Docura PRO (Акция)",
+                "max": "Docura MAX (Эксперт)",
+                "b2b": "Docura B2B (Школа/Садик)"
+            }.get(tier, "Docura PRO")
+
             promo_line_ru = f"\n🔥 Обычная цена {TIER_PRICES['pro']} тг — для вас первый месяц дешевле!\n" if tier == "pro_promo" else ""
             promo_line_kz = f"\n🔥 Әдеттегі баға {TIER_PRICES['pro']} тг — сізге бірінші ай арзанырақ!\n" if tier == "pro_promo" else ""
 
             text = (
-                f"💳 *Docura PRO — {price} тг/мес*\n"
+                f"💳 *{tier_title} — {price} тг/мес*\n"
                 f"{promo_line_ru}\n"
                 f"Переведите *{price} тг* на Kaspi:\n"
                 f"`{KASPI_NUMBER}`\n"
                 f"_(нажмите чтобы скопировать)_\n\n"
-                f"Затем пришлите *скриншот или файл чека* — подписка активируется автоматически ✅\n\n"
-                f"_Бот сам проверит сумму и получателя_"
+                f"Затем пришлите *скриншот или файл чека* — тариф активируется автоматически ✅\n\n"
+                f"_Бот сам проверит сумму и номер получателя_"
             ) if lang == "ru" else (
-                f"💳 *Docura PRO — {price} тг/ай*\n"
+                f"💳 *{tier_title} — {price} тг/ай*\n"
                 f"{promo_line_kz}\n"
-                f"*{price} тг* осы нөмірге аударыңыз:\n"
+                f"*{price} тг* осы Kaspi нөміріне аударыңыз:\n"
                 f"`{KASPI_NUMBER}`\n\n"
-                f"Чек скриншотын немесе файлын жіберіңіз — жазылым автоматты белсендіріледі ✅"
+                f"Чек скриншотын немесе файлын жіберіңіз — тариф автоматты белсендіріледі ✅"
             )
             kb = [[BACK_BTN(lang, "prof_sub")]]
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
@@ -348,17 +362,44 @@ class ProfileHandler:
         if not students:
             keyboard = [
                 [InlineKeyboardButton("➕ " + add_btn_text, callback_data="prof_add_student")],
-                [InlineKeyboardButton("📋 " + ("Загрузить список" if lang == "ru" else "Тізімді жүктеу"), callback_data="prof_upload_students")],
+                [InlineKeyboardButton("📋 " + ("Загрузить списком или фото" if lang == "ru" else "Тізім немесе фотомен жүктеу"), callback_data="prof_upload_students")],
                 [MENU_BTN(lang)],
             ]
+            empty_msg = (
+                f"{title}\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"В вашей базе пока нет сохранённых записей.\n\n"
+                f"💡 *Зачем нужна база?*\n"
+                f"• При составлении характеристик бот сам добавит оценки, успеваемость и достижения каждого ребёнка\n"
+                f"• При формировании справок и писем родителям не нужно каждый раз вспоминать данные\n"
+                f"• Можно загрузить весь класс одним сообщением или просто сфотографировать журнал!\n\n"
+                f"Добавьте своего первого учащегося:"
+            ) if lang == "ru" else (
+                f"{title}\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"Базада әзірге жазбалар жоқ.\n\n"
+                f"💡 *База не үшін қажет?*\n"
+                f"• Мінездеме, бақылау талдауы мен даму карталарында балалардың бағалары мен жетістіктері автоматты қойылады\n"
+                f"• Ата-аналарға арналған анықтама мен хаттарды тез толтырасыз\n"
+                f"• Барлық оқушыларды бір хабарламамен немесе журналды фотоға түсіріп жүктеуге болады!\n\n"
+                f"Бірінші баланы қосыңыз:"
+            )
             await query.edit_message_text(
-                f"{title}\n\n{empty_text}",
+                empty_msg,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode=ParseMode.MARKDOWN
             )
             return
 
-        text = f"{title} ({len(students)})\n\n"
+        text = (
+            f"{title} ({len(students)})\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"💡 _Данные автоматически используются при генерации характеристик и отчётов._\n\n"
+        ) if lang == "ru" else (
+            f"{title} ({len(students)})\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"💡 _Деректер мінездемелер мен есептерді құрастыруда автоматты қолданылады._\n\n"
+        )
         for s in students:
             grades = json.loads(s.get("grades", "{}"))
             avg = round(sum(grades.values()) / len(grades), 1) if grades else "—"
@@ -422,69 +463,106 @@ class ProfileHandler:
         is_kg = user.get("role") == "kindergarten"
         db_line_ru = "✅ База воспитанников" if is_kg else "✅ База учеников"
         db_line_kz = "✅ Тәрбиеленушілер базасы" if is_kg else "✅ Оқушылар базасы"
+        is_sub = bool(user.get("subscribed"))
 
-        if user.get("subscribed") and tier in TIER_NAMES:
-            feats = (
-                "✅ Безлимитная генерация документов\n"
-                "✅ Все типы документов\n"
-                f"✅ Голосовой ввод\n{db_line_ru}\n✅ Точечное редактирование"
-            ) if lang == "ru" else (
-                "✅ Шексіз құжат жасау\n"
-                "✅ Барлық құжат түрлері\n"
-                f"✅ Дауыстық енгізу\n{db_line_kz}\n✅ Түзету"
-            )
-            text = (f"⭐ *Docura PRO активна!*\n\n{feats}" if lang == "ru"
-                    else f"⭐ *Docura PRO белсенді!*\n\n{feats}")
-            keyboard = [[BACK_BTN(lang, "menu_profile")], [MENU_BTN(lang)]]
+        total_free = free_limit_for(user)
+        free_left = max(0, total_free - user.get("free_used", 0))
+        promo_available = not user.get("promo_used")
+        pro_price = TIER_PRICES["pro_promo"] if promo_available else TIER_PRICES["pro"]
+        max_price = TIER_PRICES["max"]
+        b2b_price = TIER_PRICES["b2b"]
+
+        if is_sub and tier in TIER_NAMES:
+            cur_tier_name = TIER_NAMES.get(tier, "PRO")
+            if lang == "ru":
+                text = (
+                    f"⭐ *Ваш активный тариф: Docura {cur_tier_name}*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                    f"✅ Безлимитная генерация документов\n"
+                    f"✅ Стандарты Министерства просвещения РК\n"
+                    f"✅ Голосовой ввод и экспорт в Word (.docx)\n"
+                    f"{db_line_ru}\n"
+                )
+                if tier in ("max", "b2b"):
+                    text += (
+                        f"✅ 🎨 Автогенерация презентаций PowerPoint (.pptx)\n"
+                        f"✅ 🤖 Фоновый ИИ-мониторинг расписания 24/7\n"
+                        f"✅ 📊 Доклад для завуча из рабочих чатов\n"
+                    )
+                if tier == "b2b":
+                    text += f"✅ 🏢 Доступ для 25 педагогов школы/садика\n"
+                text += f"\nЖелаете сменить тариф или продлить? Выберите вариант ниже:"
+            else:
+                text = (
+                    f"⭐ *Сіздің белсенді тарифіңіз: Docura {cur_tier_name}*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                    f"✅ Шексіз құжат жасау\n"
+                    f"✅ ҚР Оқу-ағарту министрлігінің стандарттары\n"
+                    f"✅ Дауыстық енгізу және Word (.docx) экспорт\n"
+                    f"{db_line_kz}\n"
+                )
+                if tier in ("max", "b2b"):
+                    text += (
+                        f"✅ 🎨 PowerPoint (.pptx) слайдтарын автожасау\n"
+                        f"✅ 🤖 24/7 кестені ЖИ-мониторингтеу\n"
+                        f"✅ 📊 Жұмыс чаттарынан оқу ісі меңгерушісіне баяндама\n"
+                    )
+                if tier == "b2b":
+                    text += f"✅ 🏢 Мектеп/балабақшаның 25 педагогына қолжетімділік\n"
+                text += f"\nТарифті жаңартқыңыз келе ме? Төменнен таңдаңыз:"
         else:
-            total_free = free_limit_for(user)
-            free_left = max(0, total_free - user.get("free_used", 0))
-            promo_available = not user.get("promo_used")
-            price = TIER_PRICES["pro_promo"] if promo_available else TIER_PRICES["pro"]
-            callback = "prof_choose_pro_promo" if promo_available else "prof_choose_pro"
+            if lang == "ru":
+                text = (
+                    f"⭐ *Тарифные планы Docura*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"Осталось бесплатных: *{free_left}/{total_free}* документов\n"
+                    f"_(приглашайте коллег через /invite и получайте +5 документов)_\n\n"
+                    f"🔹 *1. Тариф PRO* — {pro_price:,} тг/мес\n"
+                    f"• Безлимит на все КСП, отчёты, характеристики\n"
+                    f"• {db_line_ru} и голосовой ввод\n\n"
+                    f"🚀 *2. Тариф MAX (Эксперт)* — {max_price:,} тг/мес\n"
+                    f"• Всё, что в PRO +\n"
+                    f"• 🎨 Создание презентаций PowerPoint (.pptx) к урокам\n"
+                    f"• 🤖 Умный ИИ-агент (мониторинг расписания каждые 6 ч)\n"
+                    f"• 📊 Сводный «Доклад для завуча» из рабочих чатов\n\n"
+                    f"🏢 *3. Корпоративный B2B (Школа/Садик)* — {b2b_price:,} тг/мес\n"
+                    f"• До 25 учителей / воспитателей организации\n"
+                    f"• Единая база, сводные отчёты, безналичный расчёт с актами\n\n"
+                    f"👇 Выберите подходящий тариф для подключения:"
+                ).replace(",", " ")
+            else:
+                text = (
+                    f"⭐ *Docura тарифтік жоспарлары*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"Тегін қалды: *{free_left}/{total_free}* құжат\n"
+                    f"_(/invite арқылы әріптесіңізді шақырып, +5 құжат алыңыз)_\n\n"
+                    f"🔹 *1. PRO тарифі* — {pro_price:,} тг/ай\n"
+                    f"• Барлық ҚМЖ, есеп, мінездемелерге шексіз қолжетімділік\n"
+                    f"• {db_line_kz} және дауыстық енгізу\n\n"
+                    f"🚀 *2. MAX тарифі (Сарапшы)* — {max_price:,} тг/ай\n"
+                    f"• PRO-дағы барлық мүмкіндіктер +\n"
+                    f"• 🎨 Сабаққа арналған PowerPoint (.pptx) слайдтары\n"
+                    f"• 🤖 Ақылды ЖИ-агент (кестені әр 6 сағат сайын тексеру)\n"
+                    f"• 📊 Жұмыс чаттарынан меңгерушіге жиынтық баяндама\n\n"
+                    f"🏢 *3. Корпоративтік B2B (Мектеп/Сад)* — {b2b_price:,} тг/ай\n"
+                    f"• Ұйымның 25 ұстазына дейін\n"
+                    f"• Бірыңғай база, тоқсандық есептер, ресми құжаттар\n\n"
+                    f"👇 Қосылу үшін қажетті тарифті таңдаңыз:"
+                ).replace(",", " ")
 
-            price_line_ru = (
-                f"🔥 *Первый месяц — {price} тг* (вместо {TIER_PRICES['pro']} тг), дальше {TIER_PRICES['pro']} тг/мес\n"
-                if promo_available else f"💳 *{price} тг/мес*\n"
-            )
-            price_line_kz = (
-                f"🔥 *Бірінші ай — {price} тг* ({TIER_PRICES['pro']} тг орнына), одан кейін {TIER_PRICES['pro']} тг/ай\n"
-                if promo_available else f"💳 *{price} тг/ай*\n"
-            )
+        pro_btn_title = (
+            f"⭐ PRO ({pro_price} тг/мес)" if lang == "ru" else f"⭐ PRO ({pro_price} тг/ай)"
+        )
+        if promo_available and not is_sub:
+            pro_btn_title = f"🔥 PRO акция — {pro_price} тг" if lang == "ru" else f"🔥 PRO жеңілдік — {pro_price} тг"
 
-            text = (
-                f"⭐ *Docura PRO*\n\n"
-                f"Осталось бесплатных: *{free_left}/{total_free}*\n"
-                f"_(пригласи коллегу через /invite и получи +5 документов)_\n\n"
-                f"{price_line_ru}"
-                f"✅ Безлимитная генерация\n"
-                f"✅ Все типы документов\n"
-                f"✅ Голосовой ввод\n"
-                f"{db_line_ru}\n"
-                f"✅ Точечное редактирование\n\n"
-                f"👇 После оплаты пришлите чек — подписка активируется автоматически"
-            ) if lang == "ru" else (
-                f"⭐ *Docura PRO*\n\n"
-                f"Тегін қалды: *{free_left}/{total_free}*\n"
-                f"_(/invite арқылы әріптесіңізді шақырып, +5 құжат алыңыз)_\n\n"
-                f"{price_line_kz}"
-                f"✅ Шексіз жасау\n"
-                f"✅ Барлық құжат түрлері\n"
-                f"✅ Дауыстық енгізу\n"
-                f"{db_line_kz}\n\n"
-                f"👇 Төлемнен кейін чекті жіберіңіз"
-            )
-            keyboard = [
-                [InlineKeyboardButton(
-                    (f"🔥 PRO первый месяц — {price} тг" if promo_available else f"⭐ Оформить PRO — {price} тг")
-                    if lang == "ru" else
-                    (f"🔥 PRO бірінші ай — {price} тг" if promo_available else f"⭐ PRO рәсімдеу — {price} тг"),
-                    callback_data=callback
-                )],
-                [BACK_BTN(lang, "menu_profile")],
-                [MENU_BTN(lang)],
-            ]
-
+        keyboard = [
+            [InlineKeyboardButton(pro_btn_title, callback_data="prof_choose_pro_promo" if (promo_available and not is_sub) else "prof_choose_pro")],
+            [InlineKeyboardButton(f"🚀 MAX с презентациями и агентом ({max_price:,} тг)".replace(",", " ") if lang == "ru" else f"🚀 MAX презентация және агентпен ({max_price:,} тг)".replace(",", " "), callback_data="prof_choose_max")],
+            [InlineKeyboardButton(f"🏢 B2B для школы/садика ({b2b_price:,} тг)".replace(",", " ") if lang == "ru" else f"🏢 Мектеп/бақшаға B2B ({b2b_price:,} тг)".replace(",", " "), callback_data="prof_choose_b2b")],
+            [BACK_BTN(lang, "menu_profile")],
+            [MENU_BTN(lang)],
+        ]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
     async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -620,18 +698,20 @@ class ProfileHandler:
 
         amount = result.get("amount", expected_amount)
 
-        await self.db.save_receipt_hash(receipt_hash, user_id, "pro", amount)
-        await self.db.activate_subscription(user_id, tier="pro", expires_in_days=30)
+        clean_tier = "pro" if tier in ("pro", "pro_promo") else tier
+        await self.db.save_receipt_hash(receipt_hash, user_id, clean_tier, amount)
+        await self.db.activate_subscription(user_id, tier=clean_tier, expires_in_days=30)
         if tier == "pro_promo":
             await self.db.mark_promo_used(user_id)
 
         context.user_data.pop("chosen_tier", None)
         context.user_data.pop("step", None)
 
+        tier_title = TIER_NAMES.get(clean_tier, "PRO")
         kb = [[MENU_BTN(lang)]]
         await update.message.reply_text(
-            "🎉 *PRO активирован!*\n\nТеперь у вас безлимитный доступ к Docura.kz. Спасибо за оплату!" if lang == "ru"
-            else "🎉 *PRO белсендірілді!*\n\nЕнді Docura.kz-де шексіз қол жеткізу бар. Рахмет!",
+            f"🎉 *Тариф Docura {tier_title} успешно активирован!*\n\nТеперь у вас расширенный доступ к возможностям платформы. Спасибо за оплату!" if lang == "ru"
+            else f"🎉 *Docura {tier_title} тарифі сәтті белсендірілді!*\n\nЕнді платформаның барлық артықшылықтары қолжетімді. Рахмет!",
             reply_markup=InlineKeyboardMarkup(kb),
             parse_mode=ParseMode.MARKDOWN
         )

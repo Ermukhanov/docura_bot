@@ -25,31 +25,86 @@ class MainMenuHandler:
         lang = user.get("lang", "ru")
         await self._send_main_menu(update.message.chat_id, context, user_id, lang)
 
-    async def _send_main_menu(self, chat_id, context, user_id, lang):
-        user = await self.db.get_user(user_id)
-        subscribed = user.get("subscribed", 0)
+    def _build_menu_text(self, user: dict, lang: str) -> str:
+        name = (user.get("name") or "").split()[0] or ("коллега" if lang == "ru" else "әріптес")
+        is_kg = user.get("role") == "kindergarten"
+        subscribed = bool(user.get("subscribed"))
         free_used  = user.get("free_used", 0)
         total_free = free_limit_for(user)
         free_left  = max(0, total_free - free_used)
-        if subscribed:
-            status = t(lang, "status_pro")
-        else:
-            status = t(lang, "status_free", n=free_left, total=total_free)
+        bonus_docs = user.get("bonus_docs", 0) or 0
+        role_label = "Воспитатель" if is_kg else "Учитель"
+        role_label_kz = "Тәрбиеші" if is_kg else "Мұғалім"
+        org = user.get("school") or ("Детский сад" if is_kg else "Школа")
+        spec = user.get("age_group") if is_kg else user.get("subject", "")
 
-        keyboard = self._main_keyboard(lang)
+        if subscribed:
+            status_line = "⭐ *Docura PRO* — безлимитный доступ активен" if lang == "ru" else "⭐ *Docura PRO* — шексіз қолжетімділік белсенді"
+        else:
+            status_line = f"🆓 *Бесплатный доступ:* осталось *{free_left}/{total_free}* документов" if lang == "ru" else f"🆓 *Тегін қолжетімділік:* қалды *{free_left}/{total_free}* құжат"
+            if bonus_docs:
+                status_line += f" (+{bonus_docs} бонус)"
+
+        if lang == "ru":
+            return (
+                f"✨ *Здравствуйте, {name}!* ✨\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"💼 *{role_label}*: {org}\n"
+                f"📚 *{'Группа' if is_kg else 'Предмет'}*: {spec or '—'}\n"
+                f"{status_line}\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"🤖 *Docura — ваш персональный ИИ-методист:*\n"
+                f"• Составляет КСП, циклограммы, СОР/СОЧ по стандартам РК\n"
+                f"• Помнит ваших учеников и подставляет их в документы\n"
+                f"• Проверяет расписание и готовит планы заблаговременно\n"
+                f"• Принимает голосовые сообщения — говорите, я запишу\n\n"
+                f"Выберите действие ниже или напишите запрос в чат 👇"
+            )
+        else:
+            return (
+                f"✨ *Қош келдіңіз, {name}!* ✨\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"💼 *{role_label_kz}*: {org}\n"
+                f"📚 *{'Топ' if is_kg else 'Пән'}*: {spec or '—'}\n"
+                f"{status_line}\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"🤖 *Docura — сіздің дербес ЖИ-әдіскеріңіз:*\n"
+                f"• ҚМЖ, циклограмма, БЖБ/ТЖБ ҚР стандарттары бойынша дайындайды\n"
+                f"• Оқушыларыңыздың базасын сақтап, құжатқа автоматты қосады\n"
+                f"• Кестені әр 6 сағат сайын бақылап отырады\n"
+                f"• Мәтін және дауыстық хабарламаларды қабылдайды\n\n"
+                f"Төмендегі бөлімді таңдаңыз немесе чатқа жазыңыз 👇"
+            )
+
+    async def _send_main_menu(self, chat_id, context, user_id, lang):
+        user = await self.db.get_user(user_id) or {}
+        is_kg = user.get("role") == "kindergarten"
+        menu_text = self._build_menu_text(user, lang)
+        keyboard = self._main_keyboard(lang, is_kg)
         await context.bot.send_message(
             chat_id=chat_id,
-            text=t(lang, "main_menu", status=status),
+            text=menu_text,
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.MARKDOWN
         )
 
-    def _main_keyboard(self, lang):
-        """Короткое главное меню: редкие настройки вынесены на второй экран."""
+    def _main_keyboard(self, lang: str, is_kg: bool = False):
+        students_title = "👥 " + ("Мои воспитанники" if is_kg and lang == "ru" else "Мои ученики" if lang == "ru" else "Менің оқушыларым")
+        schedule_title = "📅 " + ("Режим дня" if is_kg and lang == "ru" else "Расписание" if lang == "ru" else "Кесте")
         return [
-            [InlineKeyboardButton(t(lang, "btn_create"), callback_data="menu_create")],
-            [InlineKeyboardButton("⚙️ Настройки" if lang == "ru" else "⚙️ Баптаулар", callback_data="menu_settings")],
-            [InlineKeyboardButton(t(lang, "btn_help"), callback_data="menu_help")],
+            [InlineKeyboardButton("📄 " + ("Создать документ" if lang == "ru" else "Құжат жасау"), callback_data="menu_create")],
+            [
+                InlineKeyboardButton(students_title, callback_data="prof_students"),
+                InlineKeyboardButton(schedule_title, callback_data="agent_schedule"),
+            ],
+            [
+                InlineKeyboardButton("📚 " + ("История" if lang == "ru" else "Тарих"), callback_data="menu_history"),
+                InlineKeyboardButton("⭐ " + ("Тарифы PRO" if lang == "ru" else "PRO тарифтер"), callback_data="prof_sub"),
+            ],
+            [
+                InlineKeyboardButton("👤 " + ("Мой профиль" if lang == "ru" else "Менің профилім"), callback_data="menu_profile"),
+                InlineKeyboardButton("❓ " + ("Инструкция" if lang == "ru" else "Нұсқаулық"), callback_data="menu_help"),
+            ],
         ]
 
     def _settings_keyboard(self, lang, is_kg):
@@ -102,23 +157,59 @@ class MainMenuHandler:
             )
 
         elif data == "menu_help":
-            help_key = "help_text_kg" if user.get("role") == "kindergarten" else "help_text"
-            keyboard = [[InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")]]
+            keyboard = [
+                [InlineKeyboardButton("🌐 Личный кабинет (Сайт)" if lang == "ru" else "🌐 Жеке кабинет (Сайт)", url=SITE_URL)],
+                [InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")]
+            ]
+            if lang == "ru":
+                help_text = (
+                    "📖 *Подробная инструкция по работе с Docura*\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n\n"
+                    "🤖 *1. Ваш персональный ИИ-ассистент:*\n"
+                    "• Вам не обязательно ходить по меню — просто напишите любой вопрос или надиктуйте голосовое в чат (например: _«Подготовь КСП по математике 6 класс на завтра»_ или _«Проверь мое расписание на пятницу»_).\n\n"
+                    "📄 *2. Создание документов по стандартам МОН РК:*\n"
+                    "• Нажмите *«Создать документ»* → выберите категорию и нужный шаблон.\n"
+                    "• Ответьте на краткие уточняющие вопросы (или надиктуйте голосом).\n"
+                    "• Бот сформирует официальный Word (.docx) документ, готовый к печати или сдаче завучу.\n\n"
+                    "👥 *3. База учащихся / воспитанников:*\n"
+                    "• Загрузите учеников в разделе *«Мои ученики»* (списком или фото журнала).\n"
+                    "• При составлении характеристик, карт развития и писем данные и оценки подставятся автоматически.\n\n"
+                    "📅 *4. Расписание и умный мониторинг:*\n"
+                    "• Отправьте фото или текст расписания уроков.\n"
+                    "• ИИ-агент каждые 6 часов мониторит ваше расписание и заранее напоминает о планах к урокам.\n\n"
+                    "🎁 *5. Бонусы за приглашение коллег:*\n"
+                    "• Приглашайте коллег по персональной ссылке (/invite) — получайте +5 документов за каждого!"
+                )
+            else:
+                help_text = (
+                    "📖 *Docura жүйесін пайдалану бойынша толық нұсқаулық*\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n\n"
+                    "🤖 *1. Сіздің дербес ЖИ-көмекшіңіз:*\n"
+                    "• Мәзірді ашу міндетті емес — кез келген сұрақты немесе дауыстық хабарламаны чатқа жаза салыңыз (мысалы: _«Ертеңге 6-сынып математика бойынша ҚМЖ дайында»_ немесе _«Жұмадағы кестемді тексер»_).\n\n"
+                    "📄 *2. ҚР стандарттарына сай ресми құжаттар:*\n"
+                    "• *«Құжат жасау»* батырмасын басып, санат пен қажетті үлгіні таңдаңыз.\n"
+                    "• Қысқа сұрақтарға жауап беріңіз немесе дауыспен айтыңыз.\n"
+                    "• Бот басып шығаруға немесе оқу ісі меңгерушісіне тапсыруға дайын Word (.docx) файлын береді.\n\n"
+                    "👥 *3. Оқушылар / тәрбиеленушілер базасы:*\n"
+                    "• *«Менің оқушыларым»* бөлімінде балаларды қосыңыз (тізім не журнал фотосы).\n"
+                    "• Мінездеме, даму карталары мен хаттар жасағанда олардың деректері автоматты қосылады.\n\n"
+                    "📅 *4. Сабақ кестесі және мониторинг:*\n"
+                    "• Сабақ кестесінің фотосын немесе мәтінін жіберіңіз.\n"
+                    "• ЖИ-агент әр 6 сағат сайын кестені бақылап, сабақ жоспарларын алдын ала ескертіп отырады.\n\n"
+                    "🎁 *5. Әріптестерді шақыру бонустары:*\n"
+                    "• Жеке сілтемемен (/invite) әріптестеріңізді шақырып, әр адам үшін +5 құжат алыңыз!"
+                )
             await query.edit_message_text(
-                t(lang, help_key),
+                help_text,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode=ParseMode.MARKDOWN
             )
 
         elif data == "menu_main":
-            subscribed = user.get("subscribed", 0)
-            free_used  = user.get("free_used", 0)
-            total_free = free_limit_for(user)
-            free_left  = max(0, total_free - free_used)
-            status = t(lang, "status_pro") if subscribed else t(lang, "status_free", n=free_left, total=total_free)
-            keyboard = self._main_keyboard(lang)
+            menu_text = self._build_menu_text(user, lang)
+            keyboard = self._main_keyboard(lang, user.get("role") == "kindergarten")
             await query.edit_message_text(
-                t(lang, "main_menu", status=status),
+                menu_text,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode=ParseMode.MARKDOWN
             )
@@ -153,8 +244,25 @@ class MainMenuHandler:
 
         keyboard.append([InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")])
 
+        if lang == "ru":
+            cat_text = (
+                "📁 *Каталог методических документов*\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "Все шаблоны составлены строго по нормам Министерства просвещения РК.\n\n"
+                "💡 *Умный ввод:* Вы можете выбрать категорию по кнопкам ниже или *просто надиктовать голосовое / написать тему в чат* — ИИ сразу поймёт вас!\n\n"
+                "Выберите нужный раздел:"
+            )
+        else:
+            cat_text = (
+                "📁 *Әдістемелік құжаттар каталогы*\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "Барлық үлгілер ҚР Оқу-ағарту министрлігінің мемлекеттік стандарттарына сәйкес келеді.\n\n"
+                "💡 *Ақылды енгізу:* Төмендегі санатты таңдауыңызға немесе *чатқа дауыспен/мәтінмен тақырыпты жаза салуыңызға* болады — ЖИ бірден түсінеді!\n\n"
+                "Қажетті бөлімді таңдаңыз:"
+            )
+
         await query.edit_message_text(
-            t(lang, "choose_category"),
+            cat_text,
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.MARKDOWN
         )
