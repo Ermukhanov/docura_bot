@@ -4,9 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Docura.kz — Личный кабинет педагога</title>
+<link rel="icon" href="{{ url_for('static', filename='branding/docura-favicon.ico') }}" sizes="any">
+<link rel="icon" type="image/png" sizes="48x48" href="{{ url_for('static', filename='branding/docura-favicon.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='branding/apple-touch-icon.png') }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   :root {
@@ -788,34 +791,381 @@
     font-size: 16px;
     color: var(--text-muted);
   }
+
+  /* ── DOCURA SKY GLASS REDESIGN ── */
+  :root {
+    color-scheme: light;
+    --bg-gradient: linear-gradient(145deg, #f4fcff 0%, #e5f7ff 48%, #f7fcff 100%);
+    --card-glass: rgba(255,255,255,.68);
+    --card-glass-hover: rgba(255,255,255,.9);
+    --card-glass-solid: rgba(255,255,255,.92);
+    --border-glass: rgba(255,255,255,.96);
+    --border-subtle: rgba(125,211,252,.48);
+    --primary: #087db5;
+    --accent: #078dcc;
+    --accent-light: #38c8ff;
+    --accent-soft: #e0f6ff;
+    --accent-gradient: linear-gradient(120deg,#29c5ff 0%,#168fe0 55%,#55d7ff 100%);
+    --accent-glow: rgba(14,165,233,.24);
+    --success: #159bd1;
+    --success-soft: #e7f8ff;
+    --warning: #168fc6;
+    --warning-soft: #e8f8ff;
+    --purple: #39a9e1;
+    --purple-soft: #eaf8ff;
+    --text-main: #125477;
+    --text-muted: #5283a0;
+    --text-soft: #78a8c1;
+    --shadow-glass: 0 12px 34px rgba(38,157,207,.10), inset 0 1px 0 rgba(255,255,255,.9);
+    --shadow-float: 0 22px 48px rgba(14,165,233,.19), 0 5px 16px rgba(56,189,248,.10);
+    --blur-glass: blur(22px) saturate(175%);
+  }
+  html { scroll-behavior:smooth; }
+  body {
+    background: var(--bg-gradient);
+    color:var(--text-main);
+    background-attachment:fixed;
+  }
+  body::before {
+    content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+    opacity:.22;
+    background-image:radial-gradient(rgba(14,165,233,.24) .7px, transparent .7px);
+    background-size:22px 22px;
+    mask-image:linear-gradient(to bottom,black,transparent 75%);
+  }
+  .bg-orb { opacity:.72; animation:orbDrift 14s ease-in-out infinite alternate; }
+  .orb-1 { background:#a9eaff; }
+  .orb-2 { background:#a9dcff; animation-delay:-5s; }
+  .orb-3 { background:#c3f2ff; animation-delay:-9s; }
+  @keyframes orbDrift { from { transform:translate3d(0,0,0) scale(1); } to { transform:translate3d(24px,-20px,0) scale(1.12); } }
+  .app-container { max-width:760px; padding-top:22px; }
+  .top-nav,.glass-card,.action-glass-btn,.tier-card,.student-card,.lesson-card,.memory-item,
+  .modal-content,.bottom-nav,.search-input,.form-input,.form-select,.form-textarea {
+    border-color:rgba(255,255,255,.94);
+    box-shadow:var(--shadow-glass);
+    backdrop-filter:var(--blur-glass);
+    -webkit-backdrop-filter:var(--blur-glass);
+  }
+  .top-nav { padding:12px 16px; animation:riseIn .65s both; }
+  .brand-logo-badge { background:linear-gradient(145deg,#4bd5ff,#078dcc); }
+  .brand-title,.hero-name,.metric-val,.action-title,.section-title,.student-name,.lesson-title,.tier-name { color:#125477; }
+  .brand-tag,.tier-badge.free { color:#168fc6; background:#e5f7ff; }
+  .tier-badge.pro { color:#078dcc; background:#e8f8ff; border-color:#a9e5ff; }
+  .tier-badge.b2b { background:linear-gradient(120deg,#39c5f4,#168fc6); color:#fff; }
+  .glass-card { transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s,border-color .28s; }
+  .glass-card:hover { transform:translateY(-3px); border-color:#b6ebff; }
+  .hero-card { background:linear-gradient(135deg,rgba(255,255,255,.92),rgba(213,244,255,.78)); }
+  .hero-card::after { content:""; position:absolute; width:230px;height:230px;right:-95px;top:-125px;border-radius:50%;background:rgba(83,211,255,.18);filter:blur(2px);pointer-events:none; }
+  .hero-avatar { background:linear-gradient(145deg,#fff,#e3f8ff); border-color:#a9e5ff; }
+  .metric-item { background:rgba(255,255,255,.67); transition:transform .2s; }
+  .metric-item:hover { transform:translateY(-3px); }
+  .action-glass-btn { position:relative; overflow:hidden; }
+  .action-glass-btn::before { content:""; position:absolute; inset:0 auto 0 -120%; width:65%; transform:skewX(-20deg); background:linear-gradient(90deg,transparent,rgba(255,255,255,.62),transparent); transition:left .65s; }
+  .action-glass-btn:hover::before { left:150%; }
+  .action-glass-btn.primary-action { background:linear-gradient(115deg,#2dcaff,#078dcc 58%,#52d4ff); box-shadow:0 12px 28px rgba(14,165,233,.24); }
+  .action-icon-wrap,.student-avatar { background:linear-gradient(145deg,#e8faff,#c7f0ff); color:#078dcc; }
+  .student-card,.lesson-card { background:rgba(255,255,255,.7); transition:transform .22s,box-shadow .22s; }
+  .student-card:hover,.lesson-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-float); }
+  .student-delete-btn { background:#e5f7ff!important; color:#168fc6!important; }
+  .student-delete-btn:hover { background:#bcecff!important; color:#087db5!important; }
+  .day-tab-btn.active,.form-btn-submit,.tier-ribbon { background:var(--accent-gradient); }
+  .day-tab-btn { color:#5283a0; }
+  .memory-item { background:rgba(255,255,255,.7); border-left-color:#29b9f0; }
+  .tier-card.featured { border-color:#58cef5; background:linear-gradient(140deg,rgba(255,255,255,.97),rgba(219,246,255,.86)); }
+  .tier-features li span { color:#168fc6; }
+  .bottom-nav { background:rgba(255,255,255,.78); border-top-color:rgba(255,255,255,.96); box-shadow:0 -8px 28px rgba(38,157,207,.10); }
+  .nav-item { color:#6795ae; }
+  .nav-item.active { color:#078dcc; }
+  .modal-overlay { background:rgba(104,194,228,.22)!important; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+  .modal-content { background:rgba(248,253,255,.92)!important; border:1px solid #fff; }
+  .form-input,.form-select,.form-textarea,.search-input { color:#125477; background:rgba(255,255,255,.8); }
+  .form-input::placeholder,.form-textarea::placeholder,.search-input::placeholder { color:#8ab4c9; }
+  .toast { background:rgba(255,255,255,.94)!important; color:#087db5!important; border:1px solid #bdeeff; box-shadow:var(--shadow-float)!important; backdrop-filter:blur(18px); }
+  [style*="color:#065F46"],[style*="color:#047857"],[style*="color:#059669"],[style*="color:#EF4444"],
+  [style*="color:#B45309"],[style*="color:#92400E"] { color:#168fc6!important; }
+  [style*="#ECFDF5"], [style*="#FFFBEB"] { background:linear-gradient(135deg,rgba(255,255,255,.9),rgba(220,246,255,.82))!important; }
+  .form-btn-submit[style*="#0F172A"] { background:var(--accent-gradient)!important; }
+  [style*="border-color:#059669"] { border-color:#9edfff!important; }
+  .tab-panel.active { animation:riseIn .42s cubic-bezier(.2,.8,.2,1) both; }
+  .glass-card,.tier-card { animation:riseIn .55s cubic-bezier(.2,.8,.2,1) both; }
+  .glass-card:nth-child(2),.tier-card:nth-child(2) { animation-delay:.07s; }
+  @keyframes riseIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  button { transition-timing-function:cubic-bezier(.2,.8,.2,1); }
+  button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible { outline:3px solid rgba(56,189,248,.35); outline-offset:2px; }
+  @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms!important; animation-iteration-count:1!important; scroll-behavior:auto!important; transition-duration:.01ms!important; } }
+  @media (max-width:420px) { .app-container { padding:14px 12px 24px; } .glass-card { padding:17px; } .top-nav { padding:10px 12px; } }
+
+  /* ── EXECUTIVE OFFICE SKIN ── */
+  :root {
+    --bg-gradient:#f3f9fc;
+    --card-glass:rgba(255,255,255,.94);
+    --card-glass-hover:#fff;
+    --card-glass-solid:#fff;
+    --border-glass:#d8eaf2;
+    --border-subtle:#c9e3ef;
+    --primary:#28789d;
+    --accent:#238bb6;
+    --accent-light:#55b6d8;
+    --accent-soft:#e9f5fa;
+    --accent-gradient:linear-gradient(110deg,#238bb6,#46a9ce);
+    --accent-glow:rgba(35,139,182,.12);
+    --text-main:#28617c;
+    --text-muted:#62889b;
+    --text-soft:#82a3b3;
+    --shadow-glass:0 3px 12px rgba(60,126,153,.055);
+    --shadow-float:0 7px 20px rgba(60,126,153,.10);
+    --blur-glass:blur(8px);
+    --radius-xl:14px;
+    --radius-lg:11px;
+    --radius-md:9px;
+    --radius-sm:7px;
+  }
+  body { background:#f3f9fc; background-attachment:scroll; }
+  body::before { display:none; }
+  .bg-orb { display:none; }
+  .top-nav,.glass-card,.action-glass-btn,.tier-card,.student-card,.lesson-card,.memory-item,
+  .modal-content,.bottom-nav,.search-input,.form-input,.form-select,.form-textarea {
+    backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:var(--shadow-glass);
+  }
+  .app-container { max-width:720px;padding-top:18px; }
+  .top-nav { background:#fff;border:1px solid #d8eaf2;box-shadow:0 2px 10px rgba(60,126,153,.05); }
+  .brand-logo-badge { background:#e9f5fa;color:#238bb6;box-shadow:none;border:1px solid #d4eaf3;border-radius:9px; }
+  .brand-title,.hero-name,.metric-val,.action-title,.section-title,.student-name,.lesson-title,.tier-name { color:#28617c; }
+  .brand-tag,.tier-badge.free,.tier-badge.pro,.tier-badge.b2b,.tier-badge.max { background:#edf7fb;color:#347f9f;border:1px solid #d6eaf2;box-shadow:none; }
+  .glass-card,.tier-card { background:#fff;border:1px solid #d8eaf2;border-radius:var(--radius-xl);box-shadow:var(--shadow-glass); }
+  .glass-card:hover { transform:translateY(-1px);box-shadow:var(--shadow-float);border-color:#c5e1ed; }
+  .hero-card,.tier-card.featured { background:#fff;border:1px solid #c9e3ef; }
+  .hero-card::after { display:none; }
+  .hero-avatar { border:1px solid #d8eaf2;box-shadow:none;border-radius:12px; }
+  .hero-edit-btn,.btn-pill { background:#f5fafc;border-color:#cfe5ef;color:#347f9f;box-shadow:none;border-radius:8px; }
+  .metric-item { background:#f7fbfd;border:1px solid #e1eef3;border-radius:9px; }
+  .metric-item:hover { transform:none; }
+  .action-glass-btn { background:#fff;border:1px solid #d8eaf2;border-radius:10px;box-shadow:var(--shadow-glass); }
+  .action-glass-btn::before { display:none; }
+  .action-glass-btn:hover { transform:translateY(-1px);background:#fbfdfe;box-shadow:var(--shadow-float); }
+  .action-glass-btn.primary-action,.form-btn-submit,.day-tab-btn.active,.tier-ribbon {
+    background:#328fb4;color:#fff;box-shadow:0 3px 9px rgba(50,143,180,.16);border-radius:9px;
+  }
+  .action-glass-btn.primary-action .action-icon-wrap { background:rgba(255,255,255,.18); }
+  .action-icon-wrap,.student-avatar { background:#edf7fb;color:#3988a8;border-radius:9px; }
+  .student-card,.lesson-card { background:#fff;border:1px solid #deebf1;border-radius:10px;box-shadow:none; }
+  .student-card:hover,.lesson-card:hover { transform:none;box-shadow:var(--shadow-glass); }
+  .day-tab-btn { background:#fff;border:1px solid #d8eaf2;border-radius:8px; }
+  .memory-item { background:#f7fbfd;border-left:2px solid #55a9c9;border-radius:4px 8px 8px 4px; }
+  .tier-card.featured { box-shadow:var(--shadow-glass); }
+  .bottom-nav { background:rgba(255,255,255,.97);border-top:1px solid #d8eaf2;box-shadow:0 -3px 12px rgba(60,126,153,.06); }
+  .nav-item { color:#6f94a5; }
+  .nav-item.active { color:#287fa3; }
+  .modal-overlay { background:rgba(193,222,235,.42)!important;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px); }
+  .modal-content { background:#fff!important;border:1px solid #d8eaf2;border-radius:14px; }
+  .form-input,.form-select,.form-textarea,.search-input { background:#fbfdfe;border:1px solid #d8eaf2;border-radius:9px;box-shadow:none; }
+  .toast { background:#fff!important;color:#347f9f!important;border:1px solid #d8eaf2;box-shadow:var(--shadow-float)!important; }
+  .tab-panel.active,.glass-card,.tier-card,.top-nav { animation:officeIn .3s ease-out both; }
+  @keyframes officeIn { from { opacity:0;transform:translateY(7px); } to { opacity:1;transform:translateY(0); } }
+  .glass-card:nth-child(2),.tier-card:nth-child(2) { animation-delay:0s; }
+  button,.student-card,.lesson-card,.glass-card { transition-duration:.16s; }
+  @media (prefers-reduced-motion:reduce) { .tab-panel.active,.glass-card,.tier-card,.top-nav { animation:none; } }
+
+  /* DOCURA WORKSPACE — quiet, editorial, purpose-built */
+  :root { --ink:#071a2b;--body:#587083;--blue:#0877d8;--cyan:#19b5ff;--line:rgba(7,26,43,.09);--surface:#fff;--canvas:#f8fbff; }
+  body { background-color:var(--canvas);background-image:linear-gradient(rgba(248,251,255,.52),rgba(248,251,255,.64)),url("{{ url_for('static', filename='branding/docura-banner.webp') }}");background-position:center top;background-size:cover;background-attachment:fixed;color:var(--ink);font-family:Inter,'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif; }
+  .app-container { width:100%;max-width:none;min-height:100vh;padding:0 42px 48px;display:grid;grid-template-columns:224px minmax(0,1fr);grid-template-rows:68px 1fr;column-gap:38px;align-items:start; }
+  .top-nav { grid-column:1 / -1;position:sticky;top:0;z-index:50;height:68px;margin:0 -42px 0;padding:0 42px;background:rgba(255,255,255,.92);border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);display:grid;grid-template-columns:224px minmax(0,1fr) auto;gap:38px; }
+  .nav-brand { grid-column:1;gap:10px; }
+  .brand-logo-badge { width:38px;height:38px;object-fit:contain;border:0;border-radius:7px;background:#fff;box-shadow:none; }
+  .brand-title { font-size:15px;letter-spacing:.08em;color:var(--ink);font-weight:750; }
+  .brand-title span { color:var(--blue)!important; }
+  .top-context { grid-column:2;justify-self:center;color:#718695;font-size:12px;font-weight:550; }
+  .nav-actions { grid-column:3;gap:12px; }
+  .tier-badge { font-size:10px;padding:5px 9px;letter-spacing:.07em; }
+  .top-nav .btn-pill { font-size:12px!important;padding:8px 12px!important;background:#fff;border:1px solid var(--line);color:var(--body); }
+  .workspace-sidebar { grid-column:1;grid-row:2;position:sticky;top:88px;align-self:start;min-height:calc(100vh - 104px);padding:24px 0 20px;border-right:1px solid var(--line); }
+  .sidebar-caption { margin:0 18px 12px;color:#91a1ae;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase; }
+  .sidebar-nav { display:grid;gap:4px;padding-right:18px; }
+  .sidebar-nav .nav-item { width:100%;height:40px;padding:0 12px;display:flex;flex-direction:row;justify-content:flex-start;gap:12px;border:0;border-radius:8px;background:transparent;color:#62798a;text-align:left;font-size:13px;font-weight:550;position:relative; }
+  .sidebar-nav .nav-item:hover { background:#f2f8fc;color:#345d76; }
+  .sidebar-nav .nav-item.active { background:#edf7ff;color:#0877d8;font-weight:650; }
+  .sidebar-nav .nav-item.active::before { content:"";position:absolute;left:-1px;top:9px;bottom:9px;width:2px;background:#19b5ff;border-radius:2px; }
+  .sidebar-nav .nav-icon { width:18px;height:18px;display:grid;place-items:center;font-size:0; }
+  .sidebar-nav .nav-icon svg,.bottom-nav .nav-icon svg { width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round; }
+  .sidebar-foot { position:absolute;bottom:22px;left:0;right:18px;padding:18px 12px 0;border-top:1px solid var(--line); }
+  .sidebar-foot .profile-link { width:100%;display:flex;align-items:center;gap:10px;padding:0;border:0;background:none;text-align:left;color:var(--body);cursor:pointer; }
+  .profile-mark { width:32px;height:32px;display:grid;place-items:center;border-radius:50%;background:#eaf5fb;color:#287fa3;font-weight:700;font-size:12px; }
+  .profile-copy { min-width:0;display:grid;gap:2px; }
+  .profile-copy strong { max-width:145px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-size:12px;font-weight:650; }
+  .profile-copy small { color:#8195a3;font-size:10px; }
+  #loadingView { grid-column:2;grid-row:2;min-height:70vh;display:grid;align-content:center;justify-items:start!important;text-align:left!important;padding:0 8%!important;color:var(--body); }
+  #loadingView > div:first-child:not(.loading-line) { display:none; }
+  #loadingView::before { content:"DOCURA";color:var(--blue);font-size:11px;font-weight:700;letter-spacing:.16em;margin-bottom:14px; }
+  #appView { grid-column:2;grid-row:2;min-width:0;display:block;max-width:1120px;width:100%;padding:50px 0 80px; }
+  .tab-panel { max-width:100%; }
+  .bottom-nav { display:none; }
+  .welcome-block { margin:0 0 28px; }
+  .welcome-kicker { color:#8a9ba8;font-size:11px;font-weight:650;letter-spacing:.09em;text-transform:uppercase;margin-bottom:12px; }
+  .welcome-title { margin:0;color:var(--ink);font-size:clamp(30px,4vw,42px);font-weight:620;letter-spacing:-.045em;line-height:1.12; }
+  .welcome-title span { color:#247fa8; }
+  .welcome-subtitle { margin-top:11px;color:var(--body);font-size:15px; }
+  .welcome-meta { margin-top:18px;display:flex;align-items:center;gap:12px;color:#738897;font-size:12px; }
+  .welcome-meta .meta-dot { width:4px;height:4px;background:#8abbd5;border-radius:50%; }
+  .composer { background:#fff;border:1px solid rgba(7,26,43,.1);border-radius:16px;padding:22px 24px 16px;box-shadow:0 8px 30px rgba(7,26,43,.045);transition:border-color .18s,box-shadow .18s;margin-bottom:28px; }
+  .composer:focus-within { border-color:#8bd8ff;box-shadow:0 0 0 4px rgba(25,181,255,.07),0 8px 30px rgba(7,26,43,.05); }
+  .composer-head { display:flex;justify-content:space-between;align-items:center;margin-bottom:12px; }
+  .composer-label { font-size:12px;font-weight:650;color:#476276; }
+  .ai-status { display:inline-flex;align-items:center;gap:7px;color:#578097;font-size:11px; }
+  .ai-status::before { content:"";width:6px;height:6px;background:#19c37d;border-radius:50%;box-shadow:0 0 0 3px rgba(25,195,125,.12); }
+  #composerPrompt { width:100%;min-height:104px;resize:vertical;border:0;outline:0;background:transparent;color:var(--ink);font:400 16px/1.6 Inter,'Plus Jakarta Sans',sans-serif; }
+  #composerPrompt::placeholder { color:#9aabb8; }
+  .composer-chips { display:flex;flex-wrap:wrap;gap:7px;padding:12px 0 15px;border-bottom:1px solid var(--line); }
+  .composer-chip { padding:7px 11px;border:1px solid #e4edf2;border-radius:7px;background:#fff;color:#587083;font:500 11px Inter,sans-serif;cursor:pointer;transition:background .15s,border-color .15s,color .15s; }
+  .composer-chip:hover,.composer-chip.active { background:#eff9ff;border-color:#c8eaff;color:#0877d8; }
+  .composer-toolbar { display:flex;justify-content:space-between;align-items:center;padding-top:14px;gap:14px; }
+  .composer-hint { color:#8a9ba8;font-size:11px;line-height:1.5; }
+  .composer-submit { min-height:40px;padding:0 17px;border:0;border-radius:8px;background:#0877d8;color:#fff;font:600 12px Inter,sans-serif;cursor:pointer;transition:transform .15s,background .15s,box-shadow .15s; }
+  .composer-submit:hover { background:#0869bd;transform:translateY(-1px);box-shadow:0 5px 14px rgba(8,119,216,.18); }
+  .composer-submit:active { transform:scale(.98); }
+  .home-stats { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;padding:17px 0 26px;margin-bottom:28px;border-bottom:1px solid var(--line); }
+  .home-stat { display:flex;align-items:baseline;gap:9px; }
+  .home-stat strong { color:var(--ink);font-size:20px;font-weight:620;letter-spacing:-.03em; }
+  .home-stat span { color:#718695;font-size:12px; }
+  .section-header { min-height:40px;margin:0 0 14px; }
+  .section-title { color:var(--ink);font-size:18px;font-weight:620;letter-spacing:-.025em; }
+  .home-doc-row { display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:center;gap:14px;padding:13px 14px;border-bottom:1px solid #edf2f5;border-radius:8px;transition:background .16s; }
+  .home-doc-row:hover { background:#f8fbfd; }
+  .doc-mark { width:34px;height:38px;display:grid;place-items:center;border:1px solid #e1ebf0;border-radius:7px;background:#fbfdfe;color:#5d8ca6; }
+  .doc-mark svg { width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round; }
+  .doc-row-title { color:#274c62;font-size:13px;font-weight:580; }
+  .doc-row-meta { margin-top:4px;color:#8699a6;font-size:11px; }
+  .doc-score { color:#3987aa;font-size:11px;font-weight:600; }
+  .page-heading { margin:0 0 26px;display:flex;align-items:flex-end;justify-content:space-between;gap:18px; }
+  .page-heading h1 { margin:0;color:var(--ink);font-size:30px;font-weight:620;letter-spacing:-.04em; }
+  .page-heading p { margin:7px 0 0;color:#718695;font-size:13px; }
+  .directory-tools { display:flex;align-items:center;gap:10px;margin-bottom:18px; }
+  .directory-tools .search-wrap { margin:0;flex:1;max-width:450px; }
+  .search-icon { font-size:0; }
+  .search-icon::before { content:"";position:absolute;left:1px;top:1px;width:10px;height:10px;border:1.5px solid #8298a6;border-radius:50%; }
+  .search-icon::after { content:"";position:absolute;left:12px;top:12px;width:5px;height:1.5px;background:#8298a6;transform:rotate(45deg); }
+  .search-input { min-height:40px;padding:10px 13px 10px 36px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-size:12px; }
+  .directory-statbar { display:flex;gap:30px;padding:0 0 18px;margin-bottom:8px;border-bottom:1px solid var(--line); }
+  .directory-stat { display:grid;gap:4px; }
+  .directory-stat strong { color:var(--ink);font-size:17px;font-weight:620; }
+  .directory-stat span { color:#8294a0;font-size:10px; }
+  .student-card { min-height:66px;padding:11px 12px;margin:0;border:0;border-bottom:1px solid #edf2f5;border-radius:0;background:transparent; }
+  .student-card:hover { background:#f8fbfd;box-shadow:none; }
+  .student-avatar { width:34px;height:34px;border:0;border-radius:50%;background:#edf5f9;color:#547d94;font-size:13px; }
+  .student-name { font-size:13px;font-weight:580; }
+  .student-sub { color:#8294a0;font-size:11px; }
+  .student-delete-btn { width:30px;height:30px;background:transparent!important;color:#8ca0ad!important;border:1px solid transparent; }
+  .student-delete-btn:hover { background:#f0f7fa!important;border-color:#e0ebf0;color:#437d9a!important; }
+  .schedule-toolbar { display:flex;align-items:center;justify-content:space-between;gap:16px;margin:2px 0 20px; }
+  .schedule-week { color:#708594;font-size:12px; }
+  .day-tabs { margin:0 0 18px;padding:0 0 12px;border-bottom:1px solid var(--line); }
+  .day-tab-btn { min-width:44px;padding:8px 12px;border:0;border-radius:7px;background:transparent;color:#718695;font-size:12px; }
+  .day-tab-btn.active { background:#eaf6ff;color:#0877d8;box-shadow:none; }
+  .lesson-card { min-height:66px;padding:13px 12px;margin:0;border:0;border-bottom:1px solid #edf2f5;border-radius:0;position:relative; }
+  .lesson-card::before { content:"";position:absolute;left:0;top:15px;bottom:15px;width:2px;border-radius:2px;background:#79c8ec; }
+  .lesson-time { min-width:102px;background:transparent;color:#56819a;font-variant-numeric:tabular-nums; }
+  .lesson-title { font-size:13px;font-weight:580; }
+  .lesson-class { margin-top:4px;color:#8294a0;font-size:11px; }
+  .memory-intro { max-width:600px;margin:0 0 25px;color:#718695;font-size:14px;line-height:1.65; }
+  #memoryFactsContainer { display:grid;gap:0; }
+  .memory-item { padding:16px 18px;margin:0;border:0;border-bottom:1px solid #edf2f5;border-left:2px solid #70c8ec;border-radius:0;background:#fff;color:#506b7c;font-size:13px; }
+  .memory-add { margin-top:25px;padding-top:21px;border-top:1px solid var(--line); }
+  .tier-card { padding:24px;border-radius:12px; }
+  #tab-tariffs .form-btn-submit,#tab-referrals .form-btn-submit { background:#0877d8!important; }
+  #tab-tariffs .tier-ribbon { background:#eaf5fb!important;color:#347f9f;box-shadow:none; }
+  #tab-tariffs.active { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:stretch; }
+  #tab-tariffs > .page-heading { grid-column:1 / -1; }
+  #tab-tariffs > .tier-card { margin:0;min-width:0; }
+  #tab-tariffs > .glass-card { grid-column:1 / -1;margin:2px 0 0!important; }
+  .tier-card.featured { border-color:#bedff0;background:#fbfdff; }
+  .tier-ribbon { padding:5px 9px;font-size:9px;letter-spacing:.08em; }
+  .tier-name { font-size:16px;font-weight:620; }
+  .tier-price { color:#177fb5;font-size:21px;font-weight:650; }
+  .tier-features li { color:#516d7e;font-size:12px; }
+  .modal-overlay { background:rgba(7,26,43,.22)!important; }
+  .modal-card { border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 60px rgba(7,26,43,.14); }
+  .modal-title { color:var(--ink);font-size:17px;font-weight:620; }
+  .form-label { color:#506d7f;font-size:12px;font-weight:550; }
+  .form-section-label { margin:20px 0 12px;padding-top:16px;border-top:1px solid var(--line);color:#648197;font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase; }
+  .form-section-label:first-child { margin-top:0;padding-top:0;border:0; }
+  .form-input,.form-select,.form-textarea { min-height:42px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-size:13px; }
+  .form-input:focus,.form-select:focus,.form-textarea:focus { border-color:#70c9ef;box-shadow:0 0 0 3px rgba(25,181,255,.08); }
+  .form-btn-submit { background:#0877d8;color:#fff;font-size:13px;font-weight:600;box-shadow:none; }
+  .toast { border-radius:10px;background:#fff!important;color:#345e74!important; }
+  .toast #toastIcon { display:none; }
+  .loading-line { width:140px;height:2px;margin:0 0 20px;background:linear-gradient(90deg,#e8f4fa,#19b5ff,#e8f4fa);background-size:200% 100%;animation:loadingSweep 1.4s ease-in-out infinite; }
+  @keyframes loadingSweep { from { background-position:100% 0; } to { background-position:-100% 0; } }
+  .empty-state { padding:22px 14px;color:#8498a6;font-size:13px; }
+  @media (max-width:1000px) { #tab-tariffs.active { grid-template-columns:repeat(2,minmax(0,1fr)); } #tab-tariffs > .tier-card:nth-of-type(3) { grid-column:1 / -1; } }
+  @media (max-width:900px) { .app-container { padding:0 24px 48px;grid-template-columns:190px minmax(0,1fr);column-gap:24px; } .top-nav { margin:0 -24px;padding:0 24px;grid-template-columns:190px minmax(0,1fr) auto;gap:24px; } #appView { padding-top:36px; } }
+  @media (max-width:680px) {
+    .app-container { min-height:100vh;display:block;padding:0 18px 92px; }
+    .top-nav { margin:0 -18px;height:58px;padding:0 18px;display:flex;justify-content:space-between; }
+    .top-context { display:none; }
+    .top-nav .nav-actions .btn-pill { display:none; }
+    .workspace-sidebar { display:none; }
+    #loadingView { min-height:calc(100vh - 58px);padding:0 3%!important; }
+    #appView { padding:34px 0 24px; }
+    .bottom-nav { position:fixed;display:flex;justify-content:flex-start;gap:2px;overflow-x:auto;left:0;right:0;bottom:0;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:rgba(255,255,255,.97);border-top:1px solid var(--line);box-shadow:0 -4px 18px rgba(7,26,43,.05); }
+    .bottom-nav .nav-item { min-width:58px;padding:5px 7px;font-size:9px; }
+    .bottom-nav .nav-icon { font-size:0; }
+    .bottom-nav .nav-icon svg { width:17px;height:17px; }
+    .welcome-title { font-size:31px; }
+    .composer { padding:18px 16px 14px;border-radius:13px; }
+    #composerPrompt { min-height:90px;font-size:15px; }
+    .composer-toolbar { align-items:flex-end; }
+    .home-stats { gap:10px; }
+    .home-stat { display:grid;gap:3px; }
+    .home-stat strong { font-size:18px; }
+    .home-stat span { font-size:10px; }
+    .section-title { font-size:16px; }
+    .page-heading h1 { font-size:26px; }
+    .directory-tools { align-items:stretch; }
+    #tab-tariffs.active { grid-template-columns:1fr; }
+    #tab-tariffs > .tier-card:nth-of-type(3) { grid-column:auto; }
+  }
+  @media (max-width:390px) { .welcome-title { font-size:28px; }.composer-submit { padding:0 12px; }.composer-hint { max-width:145px; }.home-doc-row { gap:9px;padding:12px 4px; } }
+  @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important;animation:none!important;transition:none!important; } }
 </style>
 </head>
 <body>
-
-<!-- Ambient Glass Orbs -->
-<div class="bg-orb orb-1"></div>
-<div class="bg-orb orb-2"></div>
-<div class="bg-orb orb-3"></div>
 
 <div class="app-container">
 
   <!-- TOP NAV -->
   <header class="top-nav">
     <div class="nav-brand">
-      <div class="brand-logo-badge">⚡</div>
+      <img class="brand-logo-badge" src="{{ url_for('static', filename='branding/docura-logo.png') }}" alt="" aria-hidden="true">
       <div>
         <div class="brand-title">Docura<span style="color:var(--accent)">.kz</span></div>
       </div>
     </div>
+    <div class="top-context" id="topContext">Рабочее пространство</div>
     <div class="nav-actions">
       <div id="tierBadgeEl" class="tier-badge pro">PRO</div>
-      <button onclick="openBot()" class="btn-pill" style="padding:4px 10px; font-size:11px">🤖 Бот</button>
+      <button onclick="openBot()" class="btn-pill" style="padding:4px 10px; font-size:11px">Открыть бота</button>
     </div>
   </header>
 
+  <aside class="workspace-sidebar" aria-label="Основная навигация">
+    <div class="sidebar-caption">Рабочее пространство</div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-tab="home" onclick="switchTab('home')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-6v-7h-4v7H4a1 1 0 0 1-1-1z"/></svg></span>Главная</button>
+      <button class="nav-item" data-tab="documents" onclick="switchTab('documents')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v6h5M9 13h6M9 17h6"/></svg></span>Документы</button>
+      <button class="nav-item" data-tab="students" onclick="switchTab('students')"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1zM16 5.5a3 3 0 0 1 0 5.8M18 14a4 4 0 0 1 3 4v2"/></svg></span>Ученики</button>
+      <button class="nav-item" data-tab="schedule" onclick="switchTab('schedule')"><span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3M8 17h7"/></svg></span>Расписание</button>
+      <button class="nav-item" data-tab="memory" onclick="switchTab('memory')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M8 14a7 7 0 1 1 8 0c-.8.6-1 1.2-1 2H9c0-.8-.2-1.4-1-2Z"/></svg></span>Память Docura</button>
+      <button class="nav-item" data-tab="referrals" onclick="switchTab('referrals')"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1zM17 8h5M19.5 5.5v5M17 16a4 4 0 0 1 4 4"/></svg></span>Рефералы</button>
+      <button class="nav-item" data-tab="tariffs" onclick="switchTab('tariffs')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 3v18M17 7H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H7"/></svg></span>Подписка</button>
+    </nav>
+    <div class="sidebar-foot">
+      <button class="profile-link" onclick="openEditProfileModal()"><span class="profile-mark" id="profileMark">П</span><span class="profile-copy"><strong id="sidebarProfileName">Профиль педагога</strong><small>Настройки профиля</small></span></button>
+    </div>
+  </aside>
+
   <!-- LOADING SPINNER -->
   <div id="loadingView" style="text-align:center; padding:60px 20px;">
-    <div style="font-size:36px; animation: pulse 1s infinite">⚡</div>
+    <div class="loading-line" aria-hidden="true"></div>
     <div style="margin-top:12px; font-size:14px; font-weight:700; color:var(--text-muted)">Загружаю кабинет...</div>
   </div>
 
@@ -826,94 +1176,56 @@
          TAB 1: ГЛАВНАЯ (DASHBOARD)
          ════════════════════════════════════════════════════ -->
     <section id="tab-home" class="tab-panel active">
-      
-      <!-- HERO CARD -->
-      <div class="glass-card hero-card">
-        <div class="hero-top">
-          <div>
-            <div id="heroRole" class="hero-role">Педагог</div>
-            <div id="heroName" class="hero-name">Загрузка...</div>
-            <div id="heroOrg" class="hero-org">🏫 Школа • Предмет</div>
-            <button onclick="openEditProfileModal()" class="hero-edit-btn">✏️ Редактировать профиль</button>
-          </div>
-          <div id="heroAvatar" class="hero-avatar">🎓</div>
-        </div>
-
-        <div class="metrics-grid">
-          <div class="metric-item">
-            <div id="metricDocs" class="metric-val">0</div>
-            <div class="metric-label">Документов</div>
-          </div>
-          <div class="metric-item">
-            <div id="metricHours" class="metric-val">0 ч</div>
-            <div class="metric-label">Сэкономлено</div>
-          </div>
-          <div class="metric-item">
-            <div id="metricStudents" class="metric-val">0</div>
-            <div class="metric-label">В базе учеников</div>
-          </div>
-        </div>
+      <div class="welcome-block">
+        <div class="welcome-kicker">Рабочее пространство DOCURA</div>
+        <h1 class="welcome-title">Добро пожаловать,<br><span id="heroName">педагог</span></h1>
+        <p class="welcome-subtitle">Что создадим сегодня?</p>
+        <div class="welcome-meta"><span id="heroRole">Педагог</span><span class="meta-dot"></span><span id="heroOrg">Организация · Предмет</span><span id="heroAvatar" hidden></span></div>
       </div>
 
-      <!-- QUICK ACTIONS -->
-      <div class="actions-grid">
-        <div onclick="openAddStudentModal()" class="action-glass-btn">
-          <div class="action-icon-wrap">👥</div>
-          <div class="action-title">+ Ученик / Воспитанник</div>
-          <div class="action-desc">В базу данных</div>
+      <div class="composer">
+        <div class="composer-head"><label class="composer-label" for="composerPrompt">Новый документ</label><span class="ai-status">Docura AI готов</span></div>
+        <textarea id="composerPrompt" placeholder="Опишите, какой документ вам нужен… Например: составь план урока математики для 8 класса по теме квадратных уравнений." aria-label="Опишите документ"></textarea>
+        <div class="composer-chips" aria-label="Типы документов">
+          <button class="composer-chip" type="button" onclick="setComposerType(this,'КСП')">КСП</button>
+          <button class="composer-chip" type="button" onclick="setComposerType(this,'Циклограмма')">Циклограмма</button>
+          <button class="composer-chip" type="button" onclick="setComposerType(this,'Конспект')">Конспект</button>
+          <button class="composer-chip" type="button" onclick="setComposerType(this,'План')">План</button>
+          <button class="composer-chip" type="button" onclick="setComposerType(this,'Отчёт')">Отчёт</button>
+          <button class="composer-chip" type="button" onclick="setComposerType(this,'СОР / СОЧ')">СОР / СОЧ</button>
         </div>
-        <div onclick="openAddLessonModal()" class="action-glass-btn">
-          <div class="action-icon-wrap">📅</div>
-          <div class="action-title">+ Урок в расписание</div>
-          <div class="action-desc">Для авто-генерации</div>
-        </div>
-        <div onclick="switchTab('memory')" class="action-glass-btn">
-          <div class="action-icon-wrap">🧠</div>
-          <div class="action-title">Память ИИ</div>
-          <div class="action-desc">Контекст и правила</div>
-        </div>
-        <div onclick="switchTab('referrals')" class="action-glass-btn">
-          <div class="action-icon-wrap">🎁</div>
-          <div class="action-title">Рефералы (+5 док)</div>
-          <div class="action-desc">Пригласить коллег</div>
-        </div>
-        <div onclick="openBot()" class="action-glass-btn primary-action">
-          <div class="action-icon-wrap">⚡</div>
-          <div>
-            <div class="action-title">Создать документ в Telegram-боте</div>
-            <div class="action-desc">КСП, циклограммы, СОР/СОЧ, презентации PowerPoint за 30 сек</div>
-          </div>
-        </div>
+        <div class="composer-toolbar"><span class="composer-hint">Запрос будет скопирован, затем откроется Telegram-бот Docura для генерации.</span><button class="composer-submit" type="button" onclick="composeDocument()">Продолжить в Telegram <span aria-hidden="true">→</span></button></div>
       </div>
 
-      <!-- RECENT DOCUMENTS -->
-      <div class="glass-card">
-        <div class="section-header">
-          <div class="section-title">📄 Последние документы</div>
-          <span style="font-size:11px; font-weight:700; color:var(--text-muted)">МОН РК</span>
-        </div>
-        <div id="recentDocsList">
-          <div style="text-align:center; padding:20px; color:var(--text-muted); font-size:13px">
-            Документов пока нет. Нажмите «Создать документ в боте»!
-          </div>
-        </div>
+      <div class="home-stats" aria-label="Сводка кабинета">
+        <div class="home-stat"><strong id="metricDocs">0</strong><span>создано документов</span></div>
+        <div class="home-stat"><strong id="metricHours">0 ч</strong><span>сэкономлено</span></div>
+        <div class="home-stat"><strong id="metricStudents">0</strong><span>учеников в базе</span></div>
       </div>
 
+      <section class="home-docs-section">
+        <div class="section-header"><h2 class="section-title">Недавние документы</h2><button class="btn-pill" onclick="switchTab('documents')">Все документы →</button></div>
+        <div id="recentDocsList"><div class="empty-state">Пока нет созданных документов.</div></div>
+      </section>
+
+    </section>
+
+    <section id="tab-documents" class="tab-panel">
+      <header class="page-heading"><div><h1>Документы</h1><p>История созданных материалов и быстрый поиск.</p></div><button class="composer-submit" onclick="switchTab('home')">Создать документ</button></header>
+      <div class="directory-tools"><div class="search-wrap"><span class="search-icon" aria-hidden="true"></span><input id="documentsSearchInput" class="search-input" type="search" placeholder="Поиск по документам…" oninput="filterDocuments()"></div><select id="documentsSort" class="form-select" onchange="renderDocumentsList()" aria-label="Сортировка документов"><option value="newest">Сначала новые</option><option value="oldest">Сначала старые</option></select></div>
+      <div id="documentsListContainer"></div>
     </section>
 
     <!-- ════════════════════════════════════════════════════
          TAB 2: УЧЕНИКИ (STUDENTS CRUD)
          ════════════════════════════════════════════════════ -->
     <section id="tab-students" class="tab-panel">
-      <div class="section-header">
-        <div class="section-title">👥 База учеников и воспитанников</div>
+      <header class="page-heading"><div><h1>Ученики</h1><p>Список учеников и воспитанников, связанный с вашим контекстом Docura.</p></div>
         <button onclick="openAddStudentModal()" class="btn-pill">+ Добавить</button>
-      </div>
+      </header>
 
-      <div class="search-wrap">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="studentsSearchInput" class="search-input" placeholder="Поиск по имени или классу..." oninput="filterStudents()">
-      </div>
+      <div class="directory-statbar"><div class="directory-stat"><strong id="studentsTotal">0</strong><span>Всего учеников</span></div><div class="directory-stat"><strong id="studentsGroups">0</strong><span>Классов и групп</span></div></div>
+      <div class="directory-tools"><div class="search-wrap"><span class="search-icon" aria-hidden="true"></span><input type="search" id="studentsSearchInput" class="search-input" placeholder="Поиск по имени или классу…" oninput="filterStudents()"></div></div>
 
       <div id="studentsListContainer">
         <!-- Rendered by JS -->
@@ -924,21 +1236,12 @@
          TAB 3: РАСПИСАНИЕ (SCHEDULE CRUD)
          ════════════════════════════════════════════════════ -->
     <section id="tab-schedule" class="tab-panel">
-      <div class="section-header">
-        <div class="section-title">📅 Расписание и режим дня</div>
+      <header class="page-heading"><div><h1>Расписание</h1><p>Занятия по дням недели и планы для подготовки.</p></div>
         <button onclick="openAddLessonModal()" class="btn-pill">+ Добавить урок</button>
-      </div>
+      </header>
 
       <!-- Agent Status Banner -->
-      <div class="glass-card" style="padding:14px; background:linear-gradient(135deg, #ECFDF5, #E0F2FE); border-color:#A7F3D0; margin-bottom:12px">
-        <div style="display:flex; align-items:center; gap:8px">
-          <span style="font-size:20px">🤖</span>
-          <div>
-            <div style="font-size:12px; font-weight:800; color:#065F46">ИИ-мониторинг активен (каждые 6 часов)</div>
-            <div style="font-size:11px; color:#047857">ИИ сверяется с расписанием и заранее формирует нужные планы и КСП</div>
-          </div>
-        </div>
-      </div>
+      <div class="schedule-toolbar"><span class="ai-status">Мониторинг расписания активен</span><span class="schedule-week">Неделя · учебное расписание</span></div>
 
       <!-- Days filter -->
       <div class="day-tabs">
@@ -959,29 +1262,21 @@
          TAB 4: ПАМЯТЬ ИИ (AI MEMORY)
          ════════════════════════════════════════════════════ -->
     <section id="tab-memory" class="tab-panel">
-      <div class="section-header">
-        <div class="section-title">🧠 Память ИИ-агента</div>
-        <button onclick="clearMemory()" class="btn-pill" style="color:#EF4444; border-color:#FECACA; background:#FEF2F2">Очистить</button>
-      </div>
+      <header class="page-heading"><div><h1>Память Docura</h1><p>Сохраняйте правила и контекст, которые AI должен помнить.</p></div>
+        <button onclick="clearMemory()" class="btn-pill">Очистить память</button>
+      </header>
 
-      <div class="glass-card">
-        <div style="font-size:13px; font-weight:800; color:var(--text-main); margin-bottom:6px">
-          💡 Что агент помнит о вас:
-        </div>
-        <p style="font-size:12px; color:var(--text-muted); line-height:1.5; margin-bottom:14px">
-          ИИ сохраняет ваши индивидуальные методические требования, стиль написания документов, школьные особенности и любимые формулировки.
-        </p>
-
+      <div class="memory-workspace">
         <div id="memoryFactsContainer">
           <!-- Rendered by JS -->
         </div>
 
-        <div style="margin-top:16px; padding-top:14px; border-top:1px solid #E2E8F0">
+        <div class="memory-add">
           <div class="form-group">
             <label class="form-label">Добавить правило или предпочтение:</label>
-            <input type="text" id="newMemoryNoteInput" class="form-input" placeholder="Например: Всегда пиши подробные дескрипторы для уровня С">
+            <input type="text" id="newMemoryNoteInput" class="form-input" placeholder="Например: Всегда добавляй дифференцированные задания">
           </div>
-          <button onclick="addMemoryNote()" class="form-btn-submit" style="padding:10px">Сохранить в память ИИ</button>
+          <button onclick="addMemoryNote()" class="form-btn-submit" style="padding:10px">+ Добавить правило</button>
         </div>
       </div>
     </section>
@@ -990,10 +1285,9 @@
          TAB 5: РЕФЕРАЛЫ (REFERRALS)
          ════════════════════════════════════════════════════ -->
     <section id="tab-referrals" class="tab-panel">
-      <div class="section-header">
-        <div class="section-title">🎁 Реферальная программа</div>
+      <header class="page-heading"><div><h1>Реферальная программа</h1><p>Приглашайте коллег и делитесь доступом к Docura.</p></div>
         <span style="font-size:12px; font-weight:700; color:var(--success)">+5 документов</span>
-      </div>
+      </header>
 
       <div class="glass-card" style="background:linear-gradient(135deg, #ECFDF5 0%, #E0F2FE 100%); border-color:#A7F3D0">
         <div style="font-size:18px; font-weight:800; color:#065F46; margin-bottom:4px">Приглашайте коллег!</div>
@@ -1011,13 +1305,13 @@
         </div>
 
         <div style="display:flex; gap:8px">
-          <button onclick="copyRefLink()" class="form-btn-submit" style="flex:1; padding:10px; background:#059669">📋 Скопировать</button>
-          <button onclick="shareWhatsApp()" class="form-btn-submit" style="flex:1; padding:10px; background:#10B981">💬 WhatsApp</button>
+          <button onclick="copyRefLink()" class="form-btn-submit" style="flex:1; padding:10px; background:#059669">Скопировать ссылку</button>
+          <button onclick="shareWhatsApp()" class="form-btn-submit" style="flex:1; padding:10px; background:#10B981">Поделиться в WhatsApp</button>
         </div>
 
         <div style="display:flex; justify-content:space-between; margin-top:14px; padding-top:12px; border-top:1px solid #A7F3D0; font-size:12px; font-weight:700; color:#065F46">
-          <span>👥 Приглашено: <b id="refCount">0</b></span>
-          <span>📄 Бонусных документов: <b id="refBonusDocs">0</b></span>
+          <span>Приглашено: <b id="refCount">0</b></span>
+          <span>Бонусных документов: <b id="refBonusDocs">0</b></span>
         </div>
       </div>
     </section>
@@ -1026,10 +1320,9 @@
          TAB 6: ТАРИФЫ И ПОДПИСКА (SUBSCRIPTION)
          ════════════════════════════════════════════════════ -->
     <section id="tab-tariffs" class="tab-panel">
-      <div class="section-header">
-        <div class="section-title">⭐ Тарифы и подписка</div>
+      <header class="page-heading"><div><h1>Тарифы и подписка</h1><p>Выберите формат доступа для себя или всей организации.</p></div>
         <span style="font-size:11px; font-weight:700; color:var(--accent)">Kaspi Pay</span>
-      </div>
+      </header>
 
       <!-- PRO -->
       <div class="tier-card featured">
@@ -1085,7 +1378,7 @@
 
       <!-- Kaspi Details Glass Box -->
       <div class="glass-card" style="margin-top:16px; background:linear-gradient(135deg, #FFFBEB, #EFF6FF); border-color:#FDE68A">
-        <div style="font-size:14px; font-weight:800; color:#B45309; margin-bottom:4px">💳 Оплата через Kaspi:</div>
+        <div style="font-size:14px; font-weight:800; color:#B45309; margin-bottom:4px">Оплата через Kaspi:</div>
         <div style="font-size:12px; color:#92400E; line-height:1.5">
           Номер перевода Kaspi Gold:<br>
           <b style="font-size:15px; color:#B45309">+7 771 451 4717</b> (Мернар Е.)<br>
@@ -1099,31 +1392,14 @@
 </div> <!-- /app-container -->
 
 <!-- BOTTOM TAB BAR -->
-<nav class="bottom-nav">
-  <button class="nav-item active" onclick="switchTab('home')">
-    <span class="nav-icon">🏠</span>
-    <span>Главная</span>
-  </button>
-  <button class="nav-item" onclick="switchTab('students')">
-    <span class="nav-icon">👥</span>
-    <span>Ученики</span>
-  </button>
-  <button class="nav-item" onclick="switchTab('schedule')">
-    <span class="nav-icon">📅</span>
-    <span>Кесте</span>
-  </button>
-  <button class="nav-item" onclick="switchTab('memory')">
-    <span class="nav-icon">🧠</span>
-    <span>Память</span>
-  </button>
-  <button class="nav-item" onclick="switchTab('referrals')">
-    <span class="nav-icon">🎁</span>
-    <span>Бонусы</span>
-  </button>
-  <button class="nav-item" onclick="switchTab('tariffs')">
-    <span class="nav-icon">⭐</span>
-    <span>Тарифы</span>
-  </button>
+<nav class="bottom-nav" aria-label="Навигация">
+  <button class="nav-item active" data-tab="home" onclick="switchTab('home')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-6v-7h-4v7H4a1 1 0 0 1-1-1z"/></svg></span><span>Главная</span></button>
+  <button class="nav-item" data-tab="documents" onclick="switchTab('documents')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v6h5M9 13h6M9 17h6"/></svg></span><span>Документы</span></button>
+  <button class="nav-item" data-tab="students" onclick="switchTab('students')"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1zM16 5.5a3 3 0 0 1 0 5.8M18 14a4 4 0 0 1 3 4v2"/></svg></span><span>Ученики</span></button>
+  <button class="nav-item" data-tab="schedule" onclick="switchTab('schedule')"><span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3M8 17h7"/></svg></span><span>План</span></button>
+  <button class="nav-item" data-tab="memory" onclick="switchTab('memory')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M8 14a7 7 0 1 1 8 0c-.8.6-1 1.2-1 2H9c0-.8-.2-1.4-1-2Z"/></svg></span><span>Память</span></button>
+  <button class="nav-item" data-tab="referrals" onclick="switchTab('referrals')"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1zM17 8h5M19.5 5.5v5M17 16a4 4 0 0 1 4 4"/></svg></span><span>Бонусы</span></button>
+  <button class="nav-item" data-tab="tariffs" onclick="switchTab('tariffs')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 3v18M17 7H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H7"/></svg></span><span>Тарифы</span></button>
 </nav>
 
 <!-- ════════════════════════════════════════════════════
@@ -1134,7 +1410,7 @@
 <div id="modalAddStudent" class="modal-overlay">
   <div class="modal-card">
     <div class="modal-header">
-      <div class="modal-title">➕ Добавить ученика / воспитанника</div>
+      <div class="modal-title">Добавить ученика / воспитанника</div>
       <button onclick="closeModal('modalAddStudent')" class="modal-close-btn">✕</button>
     </div>
     <form id="addStudentForm" onsubmit="submitAddStudent(event)">
@@ -1175,7 +1451,7 @@
 <div id="modalAddLesson" class="modal-overlay">
   <div class="modal-card">
     <div class="modal-header">
-      <div class="modal-title">📅 Добавить урок в расписание</div>
+      <div class="modal-title">Добавить урок в расписание</div>
       <button onclick="closeModal('modalAddLesson')" class="modal-close-btn">✕</button>
     </div>
     <form id="addLessonForm" onsubmit="submitAddLesson(event)">
@@ -1211,10 +1487,11 @@
 <div id="modalEditProfile" class="modal-overlay">
   <div class="modal-card">
     <div class="modal-header">
-      <div class="modal-title">✏️ Редактирование профиля</div>
+      <div class="modal-title">Редактирование профиля</div>
       <button onclick="closeModal('modalEditProfile')" class="modal-close-btn">✕</button>
     </div>
     <form id="editProfileForm" onsubmit="submitEditProfile(event)">
+      <div class="form-section-label">Профиль и организация</div>
       <div class="form-group">
         <label class="form-label">Ваше ФИО *</label>
         <input type="text" id="editProfileName" class="form-input" required>
@@ -1227,6 +1504,7 @@
         <label class="form-label">Должность</label>
         <input type="text" id="editProfilePosition" class="form-input">
       </div>
+      <div class="form-section-label">Предметная область</div>
       <div class="form-group">
         <label class="form-label">Предмет (для школы) или Группа (для сада)</label>
         <input type="text" id="editProfileSubject" class="form-input">
@@ -1246,7 +1524,7 @@
 
 <!-- TOAST -->
 <div id="toast" class="toast">
-  <span id="toastIcon">✅</span>
+  <span id="toastIcon" aria-hidden="true"></span>
   <span id="toastText">Готово!</span>
 </div>
 
@@ -1283,7 +1561,7 @@ function esc(str) {
   }[m]));
 }
 
-function showToast(text, icon = '✅') {
+function showToast(text, icon = '') {
   const t = document.getElementById('toast');
   document.getElementById('toastText').textContent = text;
   document.getElementById('toastIcon').textContent = icon;
@@ -1307,21 +1585,48 @@ function openBot() {
   }
 }
 
+function setComposerType(button, type) {
+  document.querySelectorAll('.composer-chip').forEach(chip => chip.classList.toggle('active', chip === button));
+  const input = document.getElementById('composerPrompt');
+  const lead = `${type}: `;
+  if (!input.value.trim() || /^[^:]{2,24}:\s/.test(input.value)) input.value = lead;
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+async function composeDocument() {
+  const input = document.getElementById('composerPrompt');
+  const prompt = input.value.trim();
+  if (!prompt) {
+    input.focus();
+    showToast('Сначала опишите документ');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(prompt);
+    showToast('Запрос скопирован. Вставьте его в чате с Docura.');
+  } catch (e) {
+    showToast('Откроется Telegram-бот Docura');
+  }
+  setTimeout(openBot, 250);
+}
+
 // ── TABS ──
 function switchTab(name) {
   STATE.currentTab = name;
-  const tabs = ['home', 'students', 'schedule', 'memory', 'referrals', 'tariffs'];
-  tabs.forEach((t, idx) => {
+  const sectionNames = { home: 'Рабочее пространство', documents: 'Документы', students: 'Ученики', schedule: 'Расписание', memory: 'Память Docura', referrals: 'Реферальная программа', tariffs: 'Тарифы и подписка' };
+  document.getElementById('topContext').textContent = sectionNames[name] || 'Рабочее пространство';
+  const tabs = ['home', 'documents', 'students', 'schedule', 'memory', 'referrals', 'tariffs'];
+  tabs.forEach(t => {
     const panel = document.getElementById('tab-' + t);
-    const navBtn = document.querySelectorAll('.bottom-nav .nav-item')[idx];
     if (t === name) {
       panel?.classList.add('active');
-      navBtn?.classList.add('active');
     } else {
       panel?.classList.remove('active');
-      navBtn?.classList.remove('active');
     }
   });
+  document.querySelectorAll('.nav-item[data-tab]').forEach(button => button.classList.toggle('active', button.dataset.tab === name));
+  if (name === 'documents') renderDocumentsList();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -1340,8 +1645,10 @@ function renderUI() {
   // Hero
   document.getElementById('heroRole').textContent = isKg ? 'Воспитатель детсада' : 'Педагог / Учитель';
   document.getElementById('heroName').textContent = u.name || 'Уважаемый педагог';
-  document.getElementById('heroOrg').textContent = `🏫 ${u.school || 'Организация'} • ${isKg ? (u.age_group || 'Группа') : (u.subject || 'Предмет')}`;
-  document.getElementById('heroAvatar').textContent = isKg ? '🧸' : '🎓';
+  document.getElementById('heroOrg').textContent = `${u.school || 'Организация'} · ${isKg ? (u.age_group || 'Группа') : (u.subject || 'Предмет')}`;
+  document.getElementById('heroAvatar').textContent = '';
+  document.getElementById('sidebarProfileName').textContent = u.name || 'Профиль педагога';
+  document.getElementById('profileMark').textContent = (u.name || 'П').trim().charAt(0).toLocaleUpperCase('ru');
 
   // Metrics
   document.getElementById('metricDocs').textContent = u.free_used || 0;
@@ -1350,21 +1657,8 @@ function renderUI() {
   document.getElementById('metricStudents').textContent = STATE.students.length;
 
   // Recent Docs
-  const recentContainer = document.getElementById('recentDocsList');
-  if (STATE.documents && STATE.documents.length) {
-    recentContainer.innerHTML = STATE.documents.slice(0, 5).map(doc => `
-      <div style="background:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.9); border-radius:14px; padding:12px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between">
-        <div style="display:flex; align-items:center; gap:10px">
-          <div style="font-size:20px">📄</div>
-          <div>
-            <div style="font-size:13px; font-weight:800; color:var(--text-main)">${esc(doc.doc_name)}</div>
-            <div style="font-size:11px; color:var(--text-muted)">${(doc.created_at || '').slice(0, 10)} • Официальный стандарт РК</div>
-          </div>
-        </div>
-        <div style="font-size:11px; font-weight:800; color:#0284C7; background:#E0F2FE; padding:3px 8px; border-radius:10px">${doc.score || 95}/100 ⭐</div>
-      </div>
-    `).join('');
-  }
+  renderRecentDocuments();
+  renderDocumentsList();
 
   // Students list
   renderStudentsList();
@@ -1391,12 +1685,14 @@ function renderStudentsList(filter = '') {
       (s.class_name || '').toLowerCase().includes(filter.toLowerCase())
     );
   }
+  const groups = new Set((STATE.students || []).map(s => (s.class_name || '').trim()).filter(Boolean));
+  document.getElementById('studentsTotal').textContent = (STATE.students || []).length;
+  document.getElementById('studentsGroups').textContent = groups.size;
 
   if (!list.length) {
     container.innerHTML = `
       <div class="glass-card" style="text-align:center; padding:30px; color:var(--text-muted)">
-        <div style="font-size:32px; margin-bottom:8px">👥</div>
-        <div style="font-size:14px; font-weight:700">В базе пока нет учеников</div>
+        <div style="font-size:14px; font-weight:650">В базе пока нет учеников</div>
         <div style="font-size:12px; margin-top:4px">Нажмите «+ Добавить», чтобы ИИ мог автоматически подставлять их в документы</div>
         <button onclick="openAddStudentModal()" class="btn-pill" style="margin-top:14px">+ Добавить первого ученика</button>
       </div>
@@ -1411,11 +1707,11 @@ function renderStudentsList(filter = '') {
         <div>
           <div class="student-name">${esc(s.name)}</div>
           <div class="student-sub">
-            🏷️ ${esc(s.class_name)} • Поведение: ${esc(s.behavior || 'хорошее')} • Пропусков: ${s.absences || 0}
+            ${esc(s.class_name)} · Поведение: ${esc(s.behavior || 'хорошее')} · Пропусков: ${s.absences || 0}
           </div>
         </div>
       </div>
-      <button onclick="deleteStudent(${s.id})" class="student-delete-btn" title="Удалить">🗑️</button>
+      <button onclick="deleteStudent(${s.id})" class="student-delete-btn" title="Удалить" aria-label="Удалить ученика"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 14h12l1-14M9 7V4h6v3"/></svg></button>
     </div>
   `).join('');
 }
@@ -1424,6 +1720,31 @@ function filterStudents() {
   const query = document.getElementById('studentsSearchInput').value;
   renderStudentsList(query);
 }
+
+function documentRow(doc) {
+  const title = esc(doc.doc_name || doc.title || 'Документ');
+  const date = esc((doc.created_at || '').slice(0, 10) || 'Дата не указана');
+  const score = Number(doc.score);
+  return `<div class="home-doc-row"><span class="doc-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v6h5M9 13h6M9 17h6"/></svg></span><div><div class="doc-row-title">${title}</div><div class="doc-row-meta">${date} · Docura</div></div>${Number.isFinite(score) ? `<span class="doc-score">${score}/100</span>` : '<span class="doc-score">Готов</span>'}</div>`;
+}
+
+function renderRecentDocuments() {
+  const recentContainer = document.getElementById('recentDocsList');
+  const documents = STATE.documents || [];
+  recentContainer.innerHTML = documents.length ? documents.slice(0, 5).map(documentRow).join('') : '<div class="empty-state">Пока нет созданных документов. Начните с запроса выше.</div>';
+}
+
+function renderDocumentsList() {
+  const container = document.getElementById('documentsListContainer');
+  if (!container) return;
+  let docs = [...(STATE.documents || [])];
+  const query = (document.getElementById('documentsSearchInput')?.value || '').trim().toLowerCase();
+  if (query) docs = docs.filter(doc => (doc.doc_name || doc.title || '').toLowerCase().includes(query));
+  if (document.getElementById('documentsSort')?.value === 'oldest') docs.reverse();
+  container.innerHTML = docs.length ? docs.map(documentRow).join('') : `<div class="empty-state">${query ? 'По вашему запросу ничего не найдено.' : 'Созданные документы появятся здесь после генерации.'}</div>`;
+}
+
+function filterDocuments() { renderDocumentsList(); }
 
 // ── SCHEDULE RENDER ──
 function selectDay(day) {
@@ -1447,7 +1768,6 @@ function renderSchedule() {
   if (!lessons.length) {
     container.innerHTML = `
       <div class="glass-card" style="text-align:center; padding:24px; color:var(--text-muted)">
-        <div style="font-size:28px; margin-bottom:6px">📅</div>
         <div style="font-size:13px; font-weight:700">На ${day} уроков не добавлено</div>
         <button onclick="openAddLessonModal()" class="btn-pill" style="margin-top:12px">+ Добавить урок на ${day}</button>
       </div>
@@ -1490,7 +1810,7 @@ function renderMemory() {
   if (notes.length) {
     factsHtml += notes.map(n => `
       <div class="memory-item">
-        ⭐ <b>Индивидуальное предпочтение:</b> ${esc(n.text || n)}
+        <b>Правило:</b> ${esc(n.text || n)}
       </div>
     `).join('');
   } else {
@@ -1706,7 +2026,7 @@ async function clearMemory() {
 function copyRefLink() {
   const link = STATE.ref_link || 'https://t.me/docurakz_bot';
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(link).then(() => showToast('Реферальная ссылка скопирована! 📋'));
+    navigator.clipboard.writeText(link).then(() => showToast('Реферальная ссылка скопирована'));
   } else {
     showToast('Ссылка скопирована!');
   }
