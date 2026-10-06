@@ -22,6 +22,7 @@ from handlers.agent import AgentHandler
 from handlers.concierge import ConciergeHandler
 from handlers.query_adapter import MessageQueryAdapter
 from handlers.notifications import send_reminders, check_subscription_expirations, monitor_schedules
+from security import create_auth_token
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -138,31 +139,33 @@ async def cmd_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     lang = user.get("lang", "ru")
     site_url = get_site_url()
-    cabinet_url = f"{site_url}/?tg_id={user_id}" if "vercel.app" in site_url else f"{site_url}/profile/{user_id}"
+    token = create_auth_token(user_id)
+    browser_url = f"{site_url}/auth?token={token}"
+    webapp_url = f"{site_url}/"
 
     text = (
         f"💻 *Ваш персональный веб-кабинет Docura*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"В веб-панели вам доступны:\n"
-        f"• 👥 Полная база учеников и воспитанников с оценками\n"
-        f"• 📅 Интерактивное расписание уроков и режим дня\n"
+        f"• 👥 База {'воспитанников' if user.get('role') == 'kindergarten' else 'учеников'} с аналитикой\n"
+        f"• 📅 {'Режим дня и сетка занятий ОУД' if user.get('role') == 'kindergarten' else 'Интерактивное расписание уроков'}\n"
         f"• 📄 Архив и скачивание всех созданных документов\n"
         f"• 📊 Аналитика сэкономленного времени и тарифы\n\n"
-        f"🔗 *Прямая ссылка на ваш кабинет:*\n`{cabinet_url}`"
+        f"🔐 *Безопасный вход:* ссылка с одноразовым ключом доступа:\n`{browser_url}`"
     ) if lang == "ru" else (
         f"💻 *Сіздің Docura жеке веб-кабинетіңіз*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"Веб-панельде қолжетімді:\n"
-        f"• 👥 Оқушылар мен тәрбиеленушілердің толық базасы\n"
-        f"• 📅 Интерактивті сабақ кестесі мен күн тәртібі\n"
+        f"• 👥 {'Тәрбиеленушілер' if user.get('role') == 'kindergarten' else 'Оқушылар'} базасы\n"
+        f"• 📅 {'Күн тәртібі мен ОҮҚ кестесі' if user.get('role') == 'kindergarten' else 'Интерактивті сабақ кестесі'}\n"
         f"• 📄 Барлық дайын құжаттардың мұрағаты\n"
         f"• 📊 Үнемделген уақыт аналитикасы мен тарифтер\n\n"
-        f"🔗 *Кабинетіңізге тікелей сілтеме:*\n`{cabinet_url}`"
+        f"🔐 *Қауіпсіз кіру:* бір реттік кіру кілті бар жеке сілтеме:\n`{browser_url}`"
     )
     kb = [
         [
-            InlineKeyboardButton("📱 " + ("Веб-кабинет (Mini App)" if lang == "ru" else "Веб-кабинет (Mini App)"), web_app=WebAppInfo(url=cabinet_url)),
-            InlineKeyboardButton("🌐 " + ("В браузере" if lang == "ru" else "Браузерде"), url=cabinet_url),
+            InlineKeyboardButton("📱 " + ("Веб-кабинет (Mini App)" if lang == "ru" else "Веб-кабинет (Mini App)"), web_app=WebAppInfo(url=webapp_url)),
+            InlineKeyboardButton("🌐 " + ("В браузере" if lang == "ru" else "Браузерде"), url=browser_url),
         ],
         [InlineKeyboardButton("🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"), callback_data="menu_main")]
     ]
@@ -429,8 +432,18 @@ async def run():
 
     # Голос
     app.add_handler(MessageHandler(filters.VOICE, voice.handle))
-    # Личные Word-образцы для документов детского сада.
-    app.add_handler(MessageHandler(filters.Document.ALL, documents.handle_document))
+    # Документы (Word-образцы, расписание в PDF/Word, или чеки)
+    async def _handle_document(update, context):
+        step = context.user_data.get("step")
+        if step == "waiting_payment_receipt":
+            from handlers.profile import ProfileHandler as PH
+            await PH(db, ANTHROPIC_API_KEY).handle_document(update, context)
+            return
+        if step == "agent_waiting_schedule_photo":
+            if await agent.handle_photo(update, context):
+                return
+        await documents.handle_document(update, context)
+    app.add_handler(MessageHandler(filters.Document.ALL, _handle_document))
 
     # Фото — расписание/режим дня или чек
     async def _handle_photo(update, context):
@@ -438,7 +451,7 @@ async def run():
             return
         # иначе это чек оплаты — обрабатывает profile
         from handlers.profile import ProfileHandler as PH
-        await PH(db).handle_photo(update, context)
+        await PH(db, ANTHROPIC_API_KEY).handle_photo(update, context)
     app.add_handler(MessageHandler(filters.PHOTO, _handle_photo))
 
     # Колбэки

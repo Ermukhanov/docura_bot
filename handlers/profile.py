@@ -10,6 +10,7 @@ from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from handlers.texts import t
 from database import Database, free_limit_for
+from security import create_auth_token
 
 MENU_BTN   = lambda lang: InlineKeyboardButton("🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"), callback_data="menu_main")
 BACK_BTN   = lambda lang, cb: InlineKeyboardButton("◀️ " + ("Назад" if lang == "ru" else "Артқа"), callback_data=cb)
@@ -130,16 +131,18 @@ class ProfileHandler:
                 )
 
         site_url = get_site_url()
-        cabinet_url = f"{site_url}/?tg_id={user_id}" if "vercel.app" in site_url else f"{site_url}/profile/{user_id}"
+        token = create_auth_token(user_id)
+        browser_url = f"{site_url}/auth?token={token}"
+        webapp_url = f"{site_url}/"
         cab_label = "🌐 Личный веб-кабинет (сайт):" if lang == "ru" else "🌐 Жеке веб-кабинет (сайт):"
-        text += f"\n\n{cab_label}\n`{cabinet_url}`"
+        text += f"\n\n{cab_label}\n`{browser_url}`"
 
         students_btn_text = t(lang, "btn_my_children") if is_kg else t(lang, "btn_my_students")
 
         keyboard = [
             [
-                InlineKeyboardButton("📱 " + ("Веб-кабинет (Mini App)" if lang == "ru" else "Веб-кабинет (Mini App)"), web_app=WebAppInfo(url=cabinet_url)),
-                InlineKeyboardButton("🌐 " + ("В браузере" if lang == "ru" else "Браузерде"), url=cabinet_url),
+                InlineKeyboardButton("📱 " + ("Веб-кабинет (Mini App)" if lang == "ru" else "Веб-кабинет (Mini App)"), web_app=WebAppInfo(url=webapp_url)),
+                InlineKeyboardButton("🌐 " + ("В браузере" if lang == "ru" else "Браузерде"), url=browser_url),
             ],
             [InlineKeyboardButton("✏️ " + t(lang, "btn_edit_profile"), callback_data="prof_edit")],
             [InlineKeyboardButton("👥 " + students_btn_text,           callback_data="prof_students")],
@@ -219,30 +222,32 @@ class ProfileHandler:
 
         elif data == "prof_cabinet":
             site_url = get_site_url()
-            cabinet_url = f"{site_url}/?tg_id={user_id}" if "vercel.app" in site_url else f"{site_url}/profile/{user_id}"
+            token = create_auth_token(user_id)
+            browser_url = f"{site_url}/auth?token={token}"
+            webapp_url = f"{site_url}/"
             text = (
                 f"💻 *Ваш персональный веб-кабинет Docura*\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"В веб-панели вам доступны:\n"
-                f"• 👥 Полная база учеников и воспитанников с оценками\n"
-                f"• 📅 Интерактивное расписание уроков и режим дня\n"
+                f"• 👥 База {'воспитанников' if is_kg else 'учеников'} с оценками и аналитикой\n"
+                f"• 📅 {'Режим дня и сетка занятий ОУД' if is_kg else 'Интерактивное расписание уроков'}\n"
                 f"• 📄 Архив и скачивание всех созданных документов\n"
                 f"• 📊 Аналитика сэкономленного времени и тарифы\n\n"
-                f"🔗 *Прямая ссылка на ваш кабинет:*\n`{cabinet_url}`"
+                f"🔐 *Безопасный вход:* персональная ссылка с одноразовым ключом доступа:\n`{browser_url}`"
             ) if lang == "ru" else (
                 f"💻 *Сіздің Docura жеке веб-кабинетіңіз*\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"Веб-панельде қолжетімді:\n"
-                f"• 👥 Оқушылар мен тәрбиеленушілердің толық базасы\n"
-                f"• 📅 Интерактивті сабақ кестесі мен күн тәртібі\n"
+                f"• 👥 {'Тәрбиеленушілер' if is_kg else 'Оқушылар'} базасы\n"
+                f"• 📅 {'Күн тәртібі мен ОҮҚ кестесі' if is_kg else 'Интерактивті сабақ кестесі'}\n"
                 f"• 📄 Барлық дайын құжаттардың мұрағаты\n"
                 f"• 📊 Үнемделген уақыт аналитикасы мен тарифтер\n\n"
-                f"🔗 *Кабинетіңізге тікелей сілтеме:*\n`{cabinet_url}`"
+                f"🔐 *Қауіпсіз кіру:* бір реттік кіру кілті бар жеке сілтеме:\n`{browser_url}`"
             )
             kb = [
                 [
-                    InlineKeyboardButton("📱 " + ("Веб-кабинет (Mini App)" if lang == "ru" else "Веб-кабинет (Mini App)"), web_app=WebAppInfo(url=cabinet_url)),
-                    InlineKeyboardButton("🌐 " + ("В браузере" if lang == "ru" else "Браузерде"), url=cabinet_url),
+                    InlineKeyboardButton("📱 " + ("Веб-кабинет (Mini App)" if lang == "ru" else "Веб-кабинет (Mini App)"), web_app=WebAppInfo(url=webapp_url)),
+                    InlineKeyboardButton("🌐 " + ("В браузере" if lang == "ru" else "Браузерде"), url=browser_url),
                 ],
                 [BACK_BTN(lang, "menu_profile"), MENU_BTN(lang)],
             ]

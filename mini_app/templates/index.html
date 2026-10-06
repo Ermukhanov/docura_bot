@@ -1169,6 +1169,19 @@
     <div style="margin-top:12px; font-size:14px; font-weight:700; color:var(--text-muted)">Загружаю кабинет...</div>
   </div>
 
+  <!-- AUTH REQUIRED VIEW (SECURITY SCREEN) -->
+  <div id="authRequiredView" style="display:none; text-align:center; padding:50px 16px;">
+    <div class="glass-card" style="max-width:440px; margin:0 auto; padding:36px 24px; text-align:center; border-radius:24px; box-shadow:var(--shadow-float);">
+      <div style="width:64px; height:64px; background:#E0F2FE; color:#0284C7; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:28px; margin-bottom:16px;">🔒</div>
+      <h2 style="font-size:22px; font-weight:800; color:#0F172A; margin-bottom:10px;">Вход в личный кабинет</h2>
+      <p style="font-size:14px; color:#64748B; line-height:1.6; margin-bottom:24px;">
+        Для защиты ваших данных и документов прямой вход по ссылке закрыт.<br><br>
+        Чтобы безопасно войти в кабинет, откройте нашего Telegram-бота <b>@docurakz_bot</b> и нажмите кнопку <b>«💻 Личный кабинет»</b>. Ссылка содержит персональный защищённый токен.
+      </p>
+      <button onclick="openBot()" class="form-btn-submit" style="padding:14px; font-size:15px; background:linear-gradient(135deg, #0284C7 0%, #2563EB 100%);">Открыть Telegram-бота →</button>
+    </div>
+  </div>
+
   <!-- MAIN APP VIEW -->
   <div id="appView" style="display:none;">
 
@@ -1186,7 +1199,7 @@
       <div class="composer">
         <div class="composer-head"><label class="composer-label" for="composerPrompt">Новый документ</label><span class="ai-status">Docura AI готов</span></div>
         <textarea id="composerPrompt" placeholder="Опишите, какой документ вам нужен… Например: составь план урока математики для 8 класса по теме квадратных уравнений." aria-label="Опишите документ"></textarea>
-        <div class="composer-chips" aria-label="Типы документов">
+        <div id="composerChipsContainer" class="composer-chips" aria-label="Типы документов">
           <button class="composer-chip" type="button" onclick="setComposerType(this,'КСП')">КСП</button>
           <button class="composer-chip" type="button" onclick="setComposerType(this,'Циклограмма')">Циклограмма</button>
           <button class="composer-chip" type="button" onclick="setComposerType(this,'Конспект')">Конспект</button>
@@ -1200,7 +1213,7 @@
       <div class="home-stats" aria-label="Сводка кабинета">
         <div class="home-stat"><strong id="metricDocs">0</strong><span>создано документов</span></div>
         <div class="home-stat"><strong id="metricHours">0 ч</strong><span>сэкономлено</span></div>
-        <div class="home-stat"><strong id="metricStudents">0</strong><span>учеников в базе</span></div>
+        <div class="home-stat"><strong id="metricStudents">0</strong><span id="metricStudentsLabel">учеников в базе</span></div>
       </div>
 
       <section class="home-docs-section">
@@ -1217,15 +1230,15 @@
     </section>
 
     <!-- ════════════════════════════════════════════════════
-         TAB 2: УЧЕНИКИ (STUDENTS CRUD)
+         TAB 2: УЧЕНИКИ / ВОСПИТАННИКИ (CRUD)
          ════════════════════════════════════════════════════ -->
     <section id="tab-students" class="tab-panel">
-      <header class="page-heading"><div><h1>Ученики</h1><p>Список учеников и воспитанников, связанный с вашим контекстом Docura.</p></div>
-        <button onclick="openAddStudentModal()" class="btn-pill">+ Добавить</button>
+      <header class="page-heading"><div><h1 id="studentsTabTitle">Ученики</h1><p id="studentsTabSubtitle">Список учеников и воспитанников, связанный с вашим контекстом Docura.</p></div>
+        <button onclick="openAddStudentModal()" class="btn-pill" id="addStudentBtn">+ Добавить</button>
       </header>
 
-      <div class="directory-statbar"><div class="directory-stat"><strong id="studentsTotal">0</strong><span>Всего учеников</span></div><div class="directory-stat"><strong id="studentsGroups">0</strong><span>Классов и групп</span></div></div>
-      <div class="directory-tools"><div class="search-wrap"><span class="search-icon" aria-hidden="true"></span><input type="search" id="studentsSearchInput" class="search-input" placeholder="Поиск по имени или классу…" oninput="filterStudents()"></div></div>
+      <div class="directory-statbar"><div class="directory-stat"><strong id="studentsTotal">0</strong><span id="studentsTotalLabel">Всего учеников</span></div><div class="directory-stat"><strong id="studentsGroups">0</strong><span id="studentsGroupsLabel">Классов и групп</span></div></div>
+      <div class="directory-tools"><div class="search-wrap"><span class="search-icon" aria-hidden="true"></span><input type="search" id="studentsSearchInput" class="search-input" placeholder="Поиск…" oninput="filterStudents()"></div></div>
 
       <div id="studentsListContainer">
         <!-- Rendered by JS -->
@@ -1233,15 +1246,19 @@
     </section>
 
     <!-- ════════════════════════════════════════════════════
-         TAB 3: РАСПИСАНИЕ (SCHEDULE CRUD)
+         TAB 3: РАСПИСАНИЕ / РЕЖИМ ДНЯ (CRUD)
          ════════════════════════════════════════════════════ -->
     <section id="tab-schedule" class="tab-panel">
-      <header class="page-heading"><div><h1>Расписание</h1><p>Занятия по дням недели и планы для подготовки.</p></div>
-        <button onclick="openAddLessonModal()" class="btn-pill">+ Добавить урок</button>
+      <header class="page-heading"><div><h1 id="scheduleTabTitle">Расписание</h1><p id="scheduleTabSubtitle">Занятия по дням недели и планы для подготовки.</p></div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button onclick="openAddLessonModal()" class="btn-pill" id="addLessonBtn">+ Добавить</button>
+          <button onclick="openScheduleTextModal()" class="btn-pill" style="background:#E0F2FE; color:#0284C7; border-color:#BAE6FD">✍️ Ввести текстом</button>
+          <button onclick="openScheduleUploadModal()" class="btn-pill" style="background:#F0FDF4; color:#16A34A; border-color:#BBF7D0">📸 Фото / файл</button>
+        </div>
       </header>
 
       <!-- Agent Status Banner -->
-      <div class="schedule-toolbar"><span class="ai-status">Мониторинг расписания активен</span><span class="schedule-week">Неделя · учебное расписание</span></div>
+      <div class="schedule-toolbar"><span class="ai-status">Мониторинг расписания активен</span><span class="schedule-week" id="scheduleWeekBadge">Неделя · расписание</span></div>
 
       <!-- Days filter -->
       <div class="day-tabs">
@@ -1324,12 +1341,22 @@
         <span style="font-size:11px; font-weight:700; color:var(--accent)">Kaspi Pay</span>
       </header>
 
+      <!-- Promo Banner -->
+      <div id="promoBanner" style="display:none; background:linear-gradient(135deg, #FEF3C7 0%, #EFF6FF 100%); border:1.5px solid #F59E0B; border-radius:18px; padding:16px 20px; margin-bottom:20px;">
+        <div style="font-size:16px; font-weight:800; color:#B45309; display:flex; align-items:center; gap:8px;">
+          <span>🔥</span> СКИДКА 50% НА ПЕРВЫЙ МЕСЯЦ PRO!
+        </div>
+        <div style="font-size:13px; color:#78350F; margin-top:4px; line-height:1.4;">
+          Специальная цена для новых пользователей: <b>2 490 ₸</b> вместо <s>4 990 ₸</s>. Полный безлимит на все документы, автопилот и базу.
+        </div>
+      </div>
+
       <!-- PRO -->
       <div class="tier-card featured">
         <div class="tier-ribbon">Хит</div>
         <div class="tier-header">
           <div class="tier-name">PRO Тариф</div>
-          <div class="tier-price">4 990 ₸</div>
+          <div class="tier-price" id="tierProPrice">4 990 ₸</div>
           <div class="tier-period">/ месяц</div>
         </div>
         <div style="font-size:12px; color:var(--text-muted)">Полный безлимит для одного педагога</div>
@@ -1376,13 +1403,16 @@
         <button onclick="selectTier('b2b')" class="form-btn-submit" style="background:#0F172A">Подключить организацию</button>
       </div>
 
-      <!-- Kaspi Details Glass Box -->
-      <div class="glass-card" style="margin-top:16px; background:linear-gradient(135deg, #FFFBEB, #EFF6FF); border-color:#FDE68A">
-        <div style="font-size:14px; font-weight:800; color:#B45309; margin-bottom:4px">Оплата через Kaspi:</div>
-        <div style="font-size:12px; color:#92400E; line-height:1.5">
-          Номер перевода Kaspi Gold:<br>
-          <b style="font-size:15px; color:#B45309">+7 771 451 4717</b> (Мернар Е.)<br>
-          После перевода отправьте чек боту в Telegram — подписка активируется автоматически!
+      <!-- Kaspi Direct Payment & Instant Receipt Verification -->
+      <div class="glass-card" style="margin-top:20px; background:linear-gradient(135deg, #F0FDF4 0%, #E0F2FE 100%); border-color:#86EFAC;">
+        <div style="font-size:16px; font-weight:800; color:#166534; margin-bottom:6px;">💳 Быстрая оплата и активация на сайте</div>
+        <div style="font-size:13px; color:#15803D; line-height:1.5; margin-bottom:14px;">
+          1. Переведите сумму на Kaspi Gold: <b style="color:#0F172A; font-size:15px;">+7 771 451 4717</b> (Мернар Е.)<br>
+          2. Загрузите сюда фото или PDF чека — ИИ проверит его и <b>мгновенно активирует тариф</b> прямо на сайте!
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button onclick="openKaspiPay(STATE.promo_available ? 2490 : 4990)" class="form-btn-submit" style="flex:1; min-width:180px; background:#DC2626; padding:12px;">🔴 Оплатить через Kaspi</button>
+          <button onclick="openVerifyReceiptModal('pro')" class="form-btn-submit" style="flex:1; min-width:180px; background:#059669; padding:12px;">🧾 Загрузить чек об оплате</button>
         </div>
       </div>
     </section>
@@ -1406,38 +1436,59 @@
      MODALS
      ════════════════════════════════════════════════════ -->
 
-<!-- MODAL: ADD STUDENT -->
+<!-- MODAL: ADD STUDENT / PUPIL -->
 <div id="modalAddStudent" class="modal-overlay">
   <div class="modal-card">
     <div class="modal-header">
-      <div class="modal-title">Добавить ученика / воспитанника</div>
+      <div class="modal-title" id="studentModalTitle">Добавить ученика / воспитанника</div>
       <button onclick="closeModal('modalAddStudent')" class="modal-close-btn">✕</button>
     </div>
     <form id="addStudentForm" onsubmit="submitAddStudent(event)">
       <div class="form-group">
-        <label class="form-label">ФИО Ученика / Ребёнка *</label>
+        <label class="form-label" id="studentNameLabel">ФИО *</label>
         <input type="text" id="newStudentName" class="form-input" required placeholder="Например: Бериков Арман">
       </div>
       <div class="form-group">
-        <label class="form-label">Класс / Группа *</label>
+        <label class="form-label" id="studentClassLabel">Класс / Группа *</label>
         <input type="text" id="newStudentClass" class="form-input" required placeholder="Например: 8Б или Старшая группа">
       </div>
-      <div class="form-group">
-        <label class="form-label">Поведение</label>
-        <select id="newStudentBehavior" class="form-select">
-          <option value="отличное">Отличное</option>
-          <option value="хорошее" selected>Хорошее</option>
-          <option value="удовлетворительное">Удовлетворительное</option>
-        </select>
+
+      <!-- School fields -->
+      <div id="studentSchoolFields">
+        <div class="form-group">
+          <label class="form-label">Поведение</label>
+          <select id="newStudentBehavior" class="form-select">
+            <option value="отличное">Отличное</option>
+            <option value="хорошее" selected>Хорошее</option>
+            <option value="удовлетворительное">Удовлетворительное</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Оценки / Успеваемость</label>
+          <input type="text" id="newStudentGrades" class="form-input" placeholder="Например: Математика: 5, Казахский: 4">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Пропуски (дней)</label>
+          <input type="number" id="newStudentAbsences" class="form-input" value="0" min="0">
+        </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Оценки / Успеваемость</label>
-        <input type="text" id="newStudentGrades" class="form-input" placeholder="Например: Математика: 5, Казахский: 4">
+
+      <!-- Kindergarten fields -->
+      <div id="studentKgFields" style="display:none;">
+        <div class="form-group">
+          <label class="form-label">Уровень освоения программы (развитие)</label>
+          <select id="newStudentKgLevel" class="form-select">
+            <option value="I - Базовый">I - Базовый уровень</option>
+            <option value="II - Средний" selected>II - Средний уровень</option>
+            <option value="III - Высокий">III - Высокий уровень</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Особенности здоровья / питания / сна</label>
+          <input type="text" id="newStudentKgFeatures" class="form-input" placeholder="Например: аллергия на цитрусы, спокойный сон">
+        </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Пропуски (дней)</label>
-        <input type="number" id="newStudentAbsences" class="form-input" value="0" min="0">
-      </div>
+
       <div class="form-group">
         <label class="form-label">ФИО родителей и телефон</label>
         <input type="text" id="newStudentParents" class="form-input" placeholder="Бериков Б.М., +7 777 000 0000">
@@ -1447,11 +1498,11 @@
   </div>
 </div>
 
-<!-- MODAL: ADD LESSON -->
+<!-- MODAL: ADD LESSON / ROUTINE -->
 <div id="modalAddLesson" class="modal-overlay">
   <div class="modal-card">
     <div class="modal-header">
-      <div class="modal-title">Добавить урок в расписание</div>
+      <div class="modal-title" id="lessonModalTitle">Добавить занятие в расписание</div>
       <button onclick="closeModal('modalAddLesson')" class="modal-close-btn">✕</button>
     </div>
     <form id="addLessonForm" onsubmit="submitAddLesson(event)">
@@ -1467,18 +1518,88 @@
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Время урока *</label>
+        <label class="form-label">Время *</label>
         <input type="text" id="newLessonTime" class="form-input" required placeholder="08:30 - 09:15">
       </div>
       <div class="form-group">
-        <label class="form-label">Предмет / Занятие *</label>
+        <label class="form-label" id="lessonSubjectLabel">Предмет / Занятие (ОУД) *</label>
         <input type="text" id="newLessonSubject" class="form-input" required placeholder="Математика или Сенсорика">
       </div>
       <div class="form-group">
-        <label class="form-label">Класс / Группа *</label>
-        <input type="text" id="newLessonClass" class="form-input" required placeholder="8Б">
+        <label class="form-label" id="lessonClassLabel">Класс / Группа *</label>
+        <input type="text" id="newLessonClass" class="form-input" required placeholder="8Б или Старшая группа">
       </div>
       <button type="submit" class="form-btn-submit">Добавить в расписание</button>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: SCHEDULE TEXT (AI PARSER) -->
+<div id="modalScheduleText" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-title">Ввести расписание текстом (ИИ)</div>
+      <button onclick="closeModal('modalScheduleText')" class="modal-close-btn">✕</button>
+    </div>
+    <form onsubmit="submitScheduleText(event)">
+      <div class="form-group">
+        <label class="form-label">Вставьте текст расписания или режима дня в любом формате:</label>
+        <textarea id="scheduleTextInput" class="form-input" style="min-height:160px; font-family:inherit; resize:vertical;" placeholder="Пример для школы:&#10;Понедельник: 8:30 Алгебра 8А, 9:25 Геометрия 8А&#10;Вторник: 8:30 Алгебра 9Б...&#10;&#10;Или для детсада:&#10;Понедельник: 9:00 Познание, 10:00 Творчество&#10;Вторник: 9:00 Здоровье..."></textarea>
+      </div>
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:14px; line-height:1.4;">
+        Docura AI автоматически распознает занятия, время и классы/группы и распределит по дням недели.
+      </div>
+      <button type="submit" id="scheduleTextSubmitBtn" class="form-btn-submit">Распознать через ИИ</button>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: SCHEDULE UPLOAD (FILE/PHOTO AI PARSER) -->
+<div id="modalScheduleUpload" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-title">Загрузить фото или файл расписания</div>
+      <button onclick="closeModal('modalScheduleUpload')" class="modal-close-btn">✕</button>
+    </div>
+    <form onsubmit="submitScheduleFile(event)">
+      <div class="form-group">
+        <label class="form-label">Выберите фото (JPG, PNG) или документ (PDF, DOCX):</label>
+        <input type="file" id="scheduleFileInput" class="form-input" accept=".jpg,.jpeg,.png,.webp,.pdf,.docx" required>
+      </div>
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:14px; line-height:1.4;">
+        Сфотографируйте расписание на стене или прикрепите документ. ИИ оптически распознает текст и сохранит в сетку.
+      </div>
+      <button type="submit" id="scheduleUploadSubmitBtn" class="form-btn-submit">Загрузить и распознать</button>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: VERIFY KASPI RECEIPT -->
+<div id="modalVerifyReceipt" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-title">Проверка чека Kaspi</div>
+      <button onclick="closeModal('modalVerifyReceipt')" class="modal-close-btn">✕</button>
+    </div>
+    <form onsubmit="submitVerifyReceipt(event)">
+      <div class="form-group">
+        <label class="form-label">Выбранный тариф:</label>
+        <select id="receiptTierSelect" class="form-select">
+          <option value="pro_promo">PRO — 2 490 ₸ (Скидка на 1-й месяц)</option>
+          <option value="pro">PRO — 4 990 ₸ / месяц</option>
+          <option value="max">MAX — 7 490 ₸ / месяц</option>
+          <option value="b2b">B2B — 39 900 ₸ / год</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Прикрепите чек оплаты Kaspi (скриншот или PDF):</label>
+        <input type="file" id="receiptFileInput" class="form-input" accept=".jpg,.jpeg,.png,.pdf" required>
+      </div>
+      <div style="font-size:12px; color:#15803D; background:#F0FDF4; border:1px solid #BBF7D0; border-radius:10px; padding:10px; margin-bottom:14px; line-height:1.4;">
+        ✓ Реквизиты Kaspi Gold: <b>+7 771 451 4717</b> (Мернар Е.)<br>
+        ✓ ИИ проверит номер, сумму и дату чека и мгновенно активирует тариф.
+      </div>
+      <button type="submit" id="verifyReceiptSubmitBtn" class="form-btn-submit" style="background:#059669;">Проверить чек и активировать</button>
     </form>
   </div>
 </div>
@@ -1497,24 +1618,24 @@
         <input type="text" id="editProfileName" class="form-input" required>
       </div>
       <div class="form-group">
-        <label class="form-label">Школа / Детский сад *</label>
+        <label class="form-label" id="editProfileSchoolLabel">Школа / Детский сад *</label>
         <input type="text" id="editProfileSchool" class="form-input" required>
       </div>
       <div class="form-group">
         <label class="form-label">Должность</label>
         <input type="text" id="editProfilePosition" class="form-input">
       </div>
-      <div class="form-section-label">Предметная область</div>
+      <div class="form-section-label">Специализация</div>
       <div class="form-group">
-        <label class="form-label">Предмет (для школы) или Группа (для сада)</label>
+        <label class="form-label" id="editProfileSubjectLabel">Предмет или Возрастная группа</label>
         <input type="text" id="editProfileSubject" class="form-input">
       </div>
-      <div class="form-group">
+      <div class="form-group" id="editProfileClassesGroup">
         <label class="form-label">Классы (через запятую)</label>
         <input type="text" id="editProfileClasses" class="form-input">
       </div>
       <div class="form-group">
-        <label class="form-label">ФИО Директора / Заведующей</label>
+        <label class="form-label" id="editProfileDirectorLabel">ФИО Директора / Заведующей</label>
         <input type="text" id="editProfileDirector" class="form-input">
       </div>
       <button type="submit" class="form-btn-submit">Сохранить изменения</button>
@@ -1540,6 +1661,10 @@ if (tg) {
 
 const STATE = {
   user: null,
+  is_kg: false,
+  promo_available: false,
+  prices: { pro: 4990, pro_promo: 2490, max: 7490, b2b: 39900 },
+  kaspi_number: '+7 771 451 4717',
   documents: [],
   students: [],
   schedule: {},
@@ -1566,7 +1691,7 @@ function showToast(text, icon = '') {
   document.getElementById('toastText').textContent = text;
   document.getElementById('toastIcon').textContent = icon;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2600);
+  setTimeout(() => t.classList.remove('show'), 2800);
 }
 
 function openModal(id) {
@@ -1594,6 +1719,32 @@ function setComposerType(button, type) {
   input.setSelectionRange(input.value.length, input.value.length);
 }
 
+function renderComposerChips(isKg) {
+  const container = document.getElementById('composerChipsContainer');
+  const promptInput = document.getElementById('composerPrompt');
+  if (isKg) {
+    promptInput.placeholder = 'Опишите, какой документ вам нужен… Например: составь циклограмму на неделю для средней группы «Балапан» или конспект ОУД по развитию речи.';
+    container.innerHTML = `
+      <button class="composer-chip active" type="button" onclick="setComposerType(this,'Циклограмма')">Циклограмма</button>
+      <button class="composer-chip" type="button" onclick="setComposerType(this,'ОУД конспект')">ОУД конспект</button>
+      <button class="composer-chip" type="button" onclick="setComposerType(this,'Режим дня')">Режим дня</button>
+      <button class="composer-chip" type="button" onclick="setComposerType(this,'Мониторинг развития')">Мониторинг развития</button>
+      <button class="composer-chip" type="button" onclick="setComposerType(this,'Карточка ребёнка')">Карточка ребёнка</button>
+      <button class="composer-chip" type="button" onclick="setComposerType(this,'Консультация родителям')">Консультация родителям</button>
+    `;
+  } else {
+    promptInput.placeholder = 'Опишите, какой документ вам нужен… Например: составь план урока (КСП) математики для 8 класса по теме квадратных уравнений.';
+    container.innerHTML = `
+      <button class="composer-chip active" type="button" onclick="setComposerType(this,'КСП')">КСП</button>
+      <button class="composer-chip" type="button" onclick="setComposerType(this,'КТП')">КТП</button>
+      <button class="composer-chip" type="button" onclick="setComposerType(this,'СОР / СОЧ')">СОР / СОЧ</button>
+      <button class="composer-chip" type="button" onclick="setComposerType(this,'Конспект урока')">Конспект урока</button>
+      <button class="composer-chip" type="button" onclick="setComposerType(this,'Отчёт')">Отчёт</button>
+      <button class="composer-chip" type="button" onclick="setComposerType(this,'Характеристика')">Характеристика</button>
+    `;
+  }
+}
+
 async function composeDocument() {
   const input = document.getElementById('composerPrompt');
   const prompt = input.value.trim();
@@ -1614,7 +1765,16 @@ async function composeDocument() {
 // ── TABS ──
 function switchTab(name) {
   STATE.currentTab = name;
-  const sectionNames = { home: 'Рабочее пространство', documents: 'Документы', students: 'Ученики', schedule: 'Расписание', memory: 'Память Docura', referrals: 'Реферальная программа', tariffs: 'Тарифы и подписка' };
+  const isKg = STATE.is_kg || STATE.user?.role === 'kindergarten';
+  const sectionNames = {
+    home: 'Рабочее пространство',
+    documents: 'Документы',
+    students: isKg ? 'Воспитанники' : 'Ученики',
+    schedule: isKg ? 'Режим дня и ОУД' : 'Расписание',
+    memory: 'Память Docura',
+    referrals: 'Реферальная программа',
+    tariffs: 'Тарифы и подписка'
+  };
   document.getElementById('topContext').textContent = sectionNames[name] || 'Рабочее пространство';
   const tabs = ['home', 'documents', 'students', 'schedule', 'memory', 'referrals', 'tariffs'];
   tabs.forEach(t => {
@@ -1633,7 +1793,8 @@ function switchTab(name) {
 // ── RENDER UI ──
 function renderUI() {
   const u = STATE.user || {};
-  const isKg = u.role === 'kindergarten';
+  const isKg = STATE.is_kg || (u.role === 'kindergarten');
+  STATE.is_kg = isKg;
   const isSub = Boolean(u.subscribed);
   const tier = (u.tier || (isSub ? 'pro' : 'free')).toLowerCase();
   
@@ -1642,19 +1803,61 @@ function renderUI() {
   badgeEl.className = 'tier-badge ' + tier;
   badgeEl.textContent = tier.toUpperCase();
 
-  // Hero
+  // Hero & Dual Sphere adaptivity
   document.getElementById('heroRole').textContent = isKg ? 'Воспитатель детсада' : 'Педагог / Учитель';
-  document.getElementById('heroName').textContent = u.name || 'Уважаемый педагог';
-  document.getElementById('heroOrg').textContent = `${u.school || 'Организация'} · ${isKg ? (u.age_group || 'Группа') : (u.subject || 'Предмет')}`;
+  document.getElementById('heroName').textContent = u.name || (isKg ? 'Воспитатель' : 'Педагог');
+  document.getElementById('heroOrg').textContent = `${u.school || (isKg ? 'Детский сад' : 'Школа')} · ${isKg ? (u.age_group || 'Группа') : (u.subject || 'Предмет')}`;
   document.getElementById('heroAvatar').textContent = '';
-  document.getElementById('sidebarProfileName').textContent = u.name || 'Профиль педагога';
-  document.getElementById('profileMark').textContent = (u.name || 'П').trim().charAt(0).toLocaleUpperCase('ru');
+  document.getElementById('sidebarProfileName').textContent = u.name || (isKg ? 'Профиль воспитателя' : 'Профиль педагога');
+  document.getElementById('profileMark').textContent = (u.name || (isKg ? 'В' : 'П')).trim().charAt(0).toLocaleUpperCase('ru');
+
+  // Bottom nav & tab names adaptivity
+  const navStudents = document.querySelector('.nav-item[data-tab="students"] span:last-child');
+  if (navStudents) navStudents.textContent = isKg ? 'Воспитанники' : 'Ученики';
+  const navSchedule = document.querySelector('.nav-item[data-tab="schedule"] span:last-child');
+  if (navSchedule) navSchedule.textContent = isKg ? 'Режим' : 'План';
+
+  const studentsTitle = document.getElementById('studentsTabTitle');
+  if (studentsTitle) studentsTitle.textContent = isKg ? 'Воспитанники' : 'Ученики';
+  const studentsSubtitle = document.getElementById('studentsTabSubtitle');
+  if (studentsSubtitle) studentsSubtitle.textContent = isKg ? 'Список воспитанников детского сада и карты развития.' : 'Список учеников и параллелей, связанный с вашим контекстом Docura.';
+  const addStudentBtn = document.getElementById('addStudentBtn');
+  if (addStudentBtn) addStudentBtn.textContent = isKg ? '+ Добавить воспитанника' : '+ Добавить ученика';
+  const studentsTotalLabel = document.getElementById('studentsTotalLabel');
+  if (studentsTotalLabel) studentsTotalLabel.textContent = isKg ? 'Всего воспитанников' : 'Всего учеников';
+  const studentsGroupsLabel = document.getElementById('studentsGroupsLabel');
+  if (studentsGroupsLabel) studentsGroupsLabel.textContent = isKg ? 'Возрастных групп' : 'Классов и параллелей';
+
+  const scheduleTitle = document.getElementById('scheduleTabTitle');
+  if (scheduleTitle) scheduleTitle.textContent = isKg ? 'Режим дня и ОУД' : 'Расписание уроков';
+  const scheduleSubtitle = document.getElementById('scheduleTabSubtitle');
+  if (scheduleSubtitle) scheduleSubtitle.textContent = isKg ? 'Сетка занятий, прогулок и режимных моментов по дням недели.' : 'Занятия по дням недели и планы для подготовки.';
+  const addLessonBtn = document.getElementById('addLessonBtn');
+  if (addLessonBtn) addLessonBtn.textContent = isKg ? '+ Добавить ОУД' : '+ Добавить урок';
+  const scheduleWeekBadge = document.getElementById('scheduleWeekBadge');
+  if (scheduleWeekBadge) scheduleWeekBadge.textContent = isKg ? 'Неделя · Циклограмма' : 'Неделя · Расписание';
+
+  const metricStudentsLabel = document.getElementById('metricStudentsLabel');
+  if (metricStudentsLabel) metricStudentsLabel.textContent = isKg ? 'Воспитанников' : 'Учеников в базе';
+
+  // Composer Chips
+  renderComposerChips(isKg);
 
   // Metrics
   document.getElementById('metricDocs').textContent = u.free_used || 0;
   const hours = ((u.free_used || 0) * 0.5).toFixed(1);
   document.getElementById('metricHours').textContent = `${hours} ч`;
   document.getElementById('metricStudents').textContent = STATE.students.length;
+
+  // Promo Banner & Pricing
+  const promoBanner = document.getElementById('promoBanner');
+  if (promoBanner) {
+    promoBanner.style.display = STATE.promo_available ? 'block' : 'none';
+  }
+  const tierProPrice = document.getElementById('tierProPrice');
+  if (tierProPrice) {
+    tierProPrice.textContent = STATE.promo_available ? '2 490 ₸' : '4 990 ₸';
+  }
 
   // Recent Docs
   renderRecentDocuments();
@@ -1678,6 +1881,7 @@ function renderUI() {
 // ── STUDENTS LIST ──
 function renderStudentsList(filter = '') {
   const container = document.getElementById('studentsListContainer');
+  const isKg = STATE.is_kg || (STATE.user?.role === 'kindergarten');
   let list = STATE.students || [];
   if (filter) {
     list = list.filter(s => 
@@ -1692,9 +1896,9 @@ function renderStudentsList(filter = '') {
   if (!list.length) {
     container.innerHTML = `
       <div class="glass-card" style="text-align:center; padding:30px; color:var(--text-muted)">
-        <div style="font-size:14px; font-weight:650">В базе пока нет учеников</div>
+        <div style="font-size:14px; font-weight:650">В базе пока нет ${isKg ? 'воспитанников' : 'учеников'}</div>
         <div style="font-size:12px; margin-top:4px">Нажмите «+ Добавить», чтобы ИИ мог автоматически подставлять их в документы</div>
-        <button onclick="openAddStudentModal()" class="btn-pill" style="margin-top:14px">+ Добавить первого ученика</button>
+        <button onclick="openAddStudentModal()" class="btn-pill" style="margin-top:14px">+ Добавить первого ${isKg ? 'воспитанника' : 'ученика'}</button>
       </div>
     `;
     return;
@@ -1703,15 +1907,15 @@ function renderStudentsList(filter = '') {
   container.innerHTML = list.map(s => `
     <div class="student-card">
       <div class="student-main">
-        <div class="student-avatar">${(s.name || 'У')[0]}</div>
+        <div class="student-avatar">${isKg ? '👶' : '🎓'} ${(s.name || 'У')[0]}</div>
         <div>
           <div class="student-name">${esc(s.name)}</div>
           <div class="student-sub">
-            ${esc(s.class_name)} · Поведение: ${esc(s.behavior || 'хорошее')} · Пропусков: ${s.absences || 0}
+            ${isKg ? `Группа: <b>${esc(s.class_name)}</b> · Уровень: <b>${esc(s.behavior || 'II - Средний')}</b> ${s.grades ? '· ' + esc(s.grades) : ''}` : `Класс: <b>${esc(s.class_name)}</b> · Поведение: ${esc(s.behavior || 'хорошее')} · Пропусков: ${s.absences || 0}`}
           </div>
         </div>
       </div>
-      <button onclick="deleteStudent(${s.id})" class="student-delete-btn" title="Удалить" aria-label="Удалить ученика"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 14h12l1-14M9 7V4h6v3"/></svg></button>
+      <button onclick="deleteStudent(${s.id})" class="student-delete-btn" title="Удалить" aria-label="Удалить"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 14h12l1-14M9 7V4h6v3"/></svg></button>
     </div>
   `).join('');
 }
@@ -1764,12 +1968,13 @@ function renderSchedule() {
   const day = STATE.activeDay;
   const sched = STATE.schedule || {};
   const lessons = sched[day] || [];
+  const isKg = STATE.is_kg || (STATE.user?.role === 'kindergarten');
 
   if (!lessons.length) {
     container.innerHTML = `
       <div class="glass-card" style="text-align:center; padding:24px; color:var(--text-muted)">
-        <div style="font-size:13px; font-weight:700">На ${day} уроков не добавлено</div>
-        <button onclick="openAddLessonModal()" class="btn-pill" style="margin-top:12px">+ Добавить урок на ${day}</button>
+        <div style="font-size:13px; font-weight:700">На ${day} ${isKg ? 'занятий ОУД' : 'уроков'} не добавлено</div>
+        <button onclick="openAddLessonModal()" class="btn-pill" style="margin-top:12px">+ Добавить ${isKg ? 'ОУД' : 'урок'} на ${day}</button>
       </div>
     `;
     return;
@@ -1777,12 +1982,12 @@ function renderSchedule() {
 
   container.innerHTML = lessons.map(l => `
     <div class="lesson-card">
-      <div class="lesson-time">${esc(l.time || '08:30')}</div>
+      <div class="lesson-time">${esc(l.time || '09:00')}</div>
       <div class="lesson-info">
         <div class="lesson-title">${esc(l.subject)}</div>
-        <div class="lesson-class">Класс / группа: ${esc(l.class || '—')}</div>
+        <div class="lesson-class">${isKg ? 'Группа: ' : 'Класс: '} ${esc(l.class || '—')}</div>
       </div>
-      <span style="font-size:11px; font-weight:700; color:#059669">КСП готов ✓</span>
+      <span style="font-size:11px; font-weight:700; color:#059669">${isKg ? 'Циклограмма ✓' : 'КСП готов ✓'}</span>
     </div>
   `).join('');
 }
@@ -1791,6 +1996,7 @@ function renderSchedule() {
 function renderMemory() {
   const container = document.getElementById('memoryFactsContainer');
   const u = STATE.user || {};
+  const isKg = STATE.is_kg || (u.role === 'kindergarten');
   const mem = STATE.memory || {};
   let notes = [];
   try {
@@ -1803,7 +2009,7 @@ function renderMemory() {
   let factsHtml = `
     <div class="memory-item">
       <b>Организация:</b> ${esc(u.school || 'Не указана')}<br>
-      <b>Специализация:</b> ${esc(u.subject || u.age_group || 'Общая педагогика')} (${esc(u.classes || 'Все классы')})
+      <b>Специализация:</b> ${esc(isKg ? (u.age_group || 'Возрастная группа') : (u.subject || 'Предмет'))} (${esc(isKg ? 'Дошкольное образование' : (u.classes || 'Все классы'))})
     </div>
   `;
 
@@ -1816,7 +2022,7 @@ function renderMemory() {
   } else {
     factsHtml += `
       <div class="memory-item" style="border-left-color:#94A3B8; color:var(--text-muted)">
-        Дополнительных заметок пока нет. Напишите правило ниже (например: «Всегда оформляй домашнее задание дифференцированно»).
+        Дополнительных заметок пока нет. Напишите правило ниже (например: «Всегда оформляй домашнее задание дифференцированно» или «Включай дыхательную гимнастику в каждый ОУД»).
       </div>
     `;
   }
@@ -1826,34 +2032,261 @@ function renderMemory() {
 // ── MODAL OPENS ──
 function openAddStudentModal() {
   document.getElementById('addStudentForm').reset();
+  const isKg = STATE.is_kg || (STATE.user?.role === 'kindergarten');
+  
+  if (isKg) {
+    document.getElementById('studentModalTitle').textContent = 'Добавить воспитанника в группу';
+    document.getElementById('studentNameLabel').textContent = 'ФИО ребёнка *';
+    document.getElementById('studentClassLabel').textContent = 'Возрастная группа *';
+    document.getElementById('newStudentClass').placeholder = 'Например: Старшая группа «Бәйтерек»';
+    document.getElementById('studentSchoolFields').style.display = 'none';
+    document.getElementById('studentKgFields').style.display = 'block';
+  } else {
+    document.getElementById('studentModalTitle').textContent = 'Добавить ученика';
+    document.getElementById('studentNameLabel').textContent = 'ФИО ученика *';
+    document.getElementById('studentClassLabel').textContent = 'Класс *';
+    document.getElementById('newStudentClass').placeholder = 'Например: 8Б';
+    document.getElementById('studentSchoolFields').style.display = 'block';
+    document.getElementById('studentKgFields').style.display = 'none';
+  }
   openModal('modalAddStudent');
 }
 
 function openAddLessonModal() {
   document.getElementById('newLessonDay').value = STATE.activeDay;
+  const isKg = STATE.is_kg || (STATE.user?.role === 'kindergarten');
+
+  if (isKg) {
+    document.getElementById('lessonModalTitle').textContent = 'Добавить занятие (ОУД) / режимный момент';
+    document.getElementById('lessonSubjectLabel').textContent = 'ОУД / Режимный момент *';
+    document.getElementById('newLessonSubject').placeholder = 'Например: Развитие речи или Прогулка';
+    document.getElementById('lessonClassLabel').textContent = 'Возрастная группа *';
+    document.getElementById('newLessonClass').placeholder = 'Например: Средняя группа';
+    document.getElementById('newLessonTime').placeholder = '09:00 - 09:25';
+  } else {
+    document.getElementById('lessonModalTitle').textContent = 'Добавить занятие в расписание';
+    document.getElementById('lessonSubjectLabel').textContent = 'Предмет *';
+    document.getElementById('newLessonSubject').placeholder = 'Например: Алгебра';
+    document.getElementById('lessonClassLabel').textContent = 'Класс *';
+    document.getElementById('newLessonClass').placeholder = 'Например: 8А';
+    document.getElementById('newLessonTime').placeholder = '08:30 - 09:15';
+  }
   openModal('modalAddLesson');
 }
 
 function openEditProfileModal() {
   const u = STATE.user || {};
+  const isKg = STATE.is_kg || (u.role === 'kindergarten');
+
   document.getElementById('editProfileName').value = u.name || '';
   document.getElementById('editProfileSchool').value = u.school || '';
   document.getElementById('editProfilePosition').value = u.position || '';
-  document.getElementById('editProfileSubject').value = u.subject || u.age_group || '';
+  document.getElementById('editProfileSubject').value = isKg ? (u.age_group || '') : (u.subject || '');
   document.getElementById('editProfileClasses').value = u.classes || '';
   document.getElementById('editProfileDirector').value = u.director || '';
+
+  if (isKg) {
+    document.getElementById('editProfileSchoolLabel').textContent = 'Детский сад *';
+    document.getElementById('editProfileSubjectLabel').textContent = 'Возрастная группа *';
+    document.getElementById('editProfileClassesGroup').style.display = 'none';
+    document.getElementById('editProfileDirectorLabel').textContent = 'ФИО Заведующей детсада';
+  } else {
+    document.getElementById('editProfileSchoolLabel').textContent = 'Школа / Гимназия *';
+    document.getElementById('editProfileSubjectLabel').textContent = 'Предмет специализации *';
+    document.getElementById('editProfileClassesGroup').style.display = 'block';
+    document.getElementById('editProfileDirectorLabel').textContent = 'ФИО Директора школы';
+  }
+
   openModal('modalEditProfile');
 }
 
-// ── BACKEND CRUD CALLS ──
+// ── SCHEDULE 3-WAY HANDLERS ──
+function openScheduleTextModal() {
+  document.getElementById('scheduleTextInput').value = '';
+  openModal('modalScheduleText');
+}
 
+function openScheduleUploadModal() {
+  document.getElementById('scheduleFileInput').value = '';
+  openModal('modalScheduleUpload');
+}
+
+async function submitScheduleText(e) {
+  e.preventDefault();
+  const text = document.getElementById('scheduleTextInput').value.trim();
+  if (!text) return showToast('Введите текст расписания');
+  const btn = document.getElementById('scheduleTextSubmitBtn');
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'ИИ распознаёт расписание...';
+
+  try {
+    const res = await fetch('/api/schedule/parse-text', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
+      },
+      body: JSON.stringify({ text, tg_id: STATE.tg_id })
+    });
+    const data = await res.json();
+    if (data.ok && data.schedule) {
+      STATE.schedule = data.schedule;
+      renderSchedule();
+      closeModal('modalScheduleText');
+      showToast('Расписание успешно сохранено в базу!');
+    } else {
+      showToast(data.error || 'Ошибка распознавания расписания', '❌');
+    }
+  } catch(err) {
+    showToast('Ошибка при связи с сервером', '❌');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+}
+
+async function submitScheduleFile(e) {
+  e.preventDefault();
+  const fileInput = document.getElementById('scheduleFileInput');
+  if (!fileInput.files.length) return showToast('Выберите файл расписания');
+  const file = fileInput.files[0];
+
+  const btn = document.getElementById('scheduleUploadSubmitBtn');
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'ИИ оптически распознаёт файл...';
+
+  const formData = new FormData();
+  formData.append('file', file);
+  if (STATE.tg_id) formData.append('tg_id', STATE.tg_id);
+
+  try {
+    const res = await fetch('/api/schedule/upload', {
+      method: 'POST',
+      headers: {
+        ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
+      },
+      body: formData
+    });
+    const data = await res.json();
+    if (data.ok && data.schedule) {
+      STATE.schedule = data.schedule;
+      renderSchedule();
+      closeModal('modalScheduleUpload');
+      showToast('Файл успешно распознан и сохранён!');
+    } else {
+      showToast(data.error || 'Ошибка обработки файла', '❌');
+    }
+  } catch(err) {
+    showToast('Ошибка при отправке файла', '❌');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+}
+
+// ── KASPI PAY & RECEIPT VERIFICATION ──
+function openKaspiPay(amount) {
+  const phone = STATE.kaspi_number || '+7 771 451 4717';
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(phone);
+  }
+  showToast(`Номер Kaspi скопирован: ${phone}`);
+  alert(`Оплата через Kaspi Gold:\n\n1. Переведите ${amount || 2490} ₸ на номер:\n${phone} (Мернар Е. / Docura)\n2. Сделайте скриншот чека или скачайте PDF\n3. Загрузите чек прямо сюда для мгновенной активации тарифа.`);
+}
+
+function openVerifyReceiptModal(tier = 'pro') {
+  const select = document.getElementById('receiptTierSelect');
+  if (STATE.promo_available && (tier === 'pro' || tier === 'pro_promo')) {
+    select.value = 'pro_promo';
+  } else {
+    select.value = tier;
+  }
+  document.getElementById('receiptFileInput').value = '';
+  openModal('modalVerifyReceipt');
+}
+
+async function submitVerifyReceipt(e) {
+  e.preventDefault();
+  const fileInput = document.getElementById('receiptFileInput');
+  if (!fileInput.files.length) return showToast('Выберите чек');
+  const file = fileInput.files[0];
+  const tier = document.getElementById('receiptTierSelect').value;
+
+  const btn = document.getElementById('verifyReceiptSubmitBtn');
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'ИИ проверяет чек оплаты...';
+
+  const formData = new FormData();
+  formData.append('receipt', file);
+  formData.append('tier', tier);
+  if (STATE.tg_id) formData.append('tg_id', STATE.tg_id);
+
+  try {
+    const res = await fetch('/api/payment/verify-receipt', {
+      method: 'POST',
+      headers: {
+        ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
+      },
+      body: formData
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (STATE.user) {
+        STATE.user.subscribed = 1;
+        STATE.user.tier = data.tier || 'pro';
+      }
+      STATE.promo_available = false;
+      closeModal('modalVerifyReceipt');
+      renderUI();
+      showToast('🎉 Чек подтверждён! Подписка активирована на 30 дней!');
+      alert(`🎉 Подписка успешно активирована!\n\nТариф: ${(data.tier || 'pro').toUpperCase()}\nСрок: 30 дней\nВам открыт полный доступ к генерациям и базе.`);
+    } else {
+      showToast(data.error || 'Чек не прошёл проверку', '❌');
+      alert('Ошибка проверки чека:\n' + (data.error || 'Проверьте реквизиты перевода и сумму, либо обратитесь в службу поддержки.'));
+    }
+  } catch(err) {
+    showToast('Ошибка отправки чека', '❌');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+}
+
+function selectTier(tierName) {
+  if (tierName === 'pro') {
+    const amount = STATE.promo_available ? 2490 : 4990;
+    openKaspiPay(amount);
+    openVerifyReceiptModal(STATE.promo_available ? 'pro_promo' : 'pro');
+  } else if (tierName === 'max') {
+    openKaspiPay(7490);
+    openVerifyReceiptModal('max');
+  } else {
+    openKaspiPay(39900);
+    openVerifyReceiptModal('b2b');
+  }
+}
+
+// ── BACKEND CRUD CALLS ──
 async function submitAddStudent(e) {
   e.preventDefault();
+  const isKg = STATE.is_kg || (STATE.user?.role === 'kindergarten');
   const name = document.getElementById('newStudentName').value.trim();
   const class_name = document.getElementById('newStudentClass').value.trim();
-  const behavior = document.getElementById('newStudentBehavior').value;
-  const grades = document.getElementById('newStudentGrades').value.trim();
-  const absences = parseInt(document.getElementById('newStudentAbsences').value) || 0;
+  let behavior = 'хорошее';
+  let grades = '';
+  let absences = 0;
+
+  if (isKg) {
+    behavior = document.getElementById('newStudentKgLevel').value;
+    grades = document.getElementById('newStudentKgFeatures').value.trim();
+  } else {
+    behavior = document.getElementById('newStudentBehavior').value;
+    grades = document.getElementById('newStudentGrades').value.trim();
+    absences = parseInt(document.getElementById('newStudentAbsences').value) || 0;
+  }
   const parents = document.getElementById('newStudentParents').value.trim();
 
   const payload = {
@@ -1872,24 +2305,24 @@ async function submitAddStudent(e) {
     });
     const data = await res.json();
     if (data.ok) {
-      STATE.students.push(data.student || { id: Date.now(), name, class_name, behavior, absences });
+      STATE.students.push(data.student || { id: Date.now(), name, class_name, behavior, grades, absences });
       closeModal('modalAddStudent');
       renderUI();
-      showToast('Ученик успешно добавлен в базу!');
+      showToast(isKg ? 'Воспитанник добавлен в группу!' : 'Ученик успешно добавлен в базу!');
     } else {
       showToast(data.error || 'Ошибка сохранения', '❌');
     }
   } catch(err) {
-    // Fallback UI
-    STATE.students.push({ id: Date.now(), name, class_name, behavior, absences });
+    STATE.students.push({ id: Date.now(), name, class_name, behavior, grades, absences });
     closeModal('modalAddStudent');
     renderUI();
-    showToast('Ученик сохранён локально!');
+    showToast('Сохранено локально');
   }
 }
 
 async function deleteStudent(id) {
-  if (!confirm('Удалить этого ученика из базы?')) return;
+  const isKg = STATE.is_kg || (STATE.user?.role === 'kindergarten');
+  if (!confirm(`Удалить ${isKg ? 'этого воспитанника' : 'этого ученика'} из базы?`)) return;
   try {
     await fetch(`/api/students/${id}/delete`, {
       method: 'POST',
@@ -1902,7 +2335,7 @@ async function deleteStudent(id) {
   } catch(e) {}
   STATE.students = STATE.students.filter(s => s.id !== id);
   renderUI();
-  showToast('Ученик удалён');
+  showToast(isKg ? 'Воспитанник удалён' : 'Ученик удалён');
 }
 
 async function submitAddLesson(e) {
@@ -1940,7 +2373,7 @@ async function submitAddLesson(e) {
 
   closeModal('modalAddLesson');
   selectDay(day);
-  showToast('Урок добавлен в расписание!');
+  showToast('Занятие добавлено!');
 }
 
 async function submitEditProfile(e) {
@@ -2007,7 +2440,7 @@ async function addMemoryNote() {
 }
 
 async function clearMemory() {
-  if (!confirm('Очистить всю персональную память ИИ-агента?')) return;
+  if (!confirm('Очистить персональную память ИИ-агента?')) return;
   try {
     await fetch('/api/memory/clear', {
       method: 'POST',
@@ -2034,19 +2467,15 @@ function copyRefLink() {
 
 function shareWhatsApp() {
   const link = STATE.ref_link || 'https://t.me/docurakz_bot';
-  const text = encodeURIComponent(`Привет! Я создаю КСП и циклограммы за 30 секунд в Docura: ${link}\nПереходи, тебе дадут +2 бесплатных документа!`);
+  const text = encodeURIComponent(`Привет! Я создаю планы уроков и циклограммы за 30 секунд в Docura: ${link}\nПереходи, тебе дадут бонусные документы!`);
   window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
 }
 
-function selectTier(tierName) {
-  openBot();
-  showToast('Переходим в Telegram-бот для активации ' + tierName.toUpperCase() + '...');
-}
-
-// ── INITIAL DATA BOOTSTRAP ──
+// ── INITIAL BOOTSTRAP ──
 async function init() {
   try {
     const urlParams = new URLSearchParams(window.location.search);
+    const isDemo = urlParams.get('demo') === '1';
     let tgId = urlParams.get('tg_id');
     const pathParts = window.location.pathname.split('/');
     const profileId = pathParts.includes('profile') ? pathParts[pathParts.indexOf('profile') + 1] : null;
@@ -2067,10 +2496,27 @@ async function init() {
     if (tg?.initData) headers['X-Telegram-Init-Data'] = tg.initData;
 
     const res = await fetch(apiUrl, { headers });
+    
+    // Security check: if unauthenticated, show protected login gate
+    if (res.status === 401 || res.status === 403) {
+      if (!isDemo) {
+        document.getElementById('loadingView').style.display = 'none';
+        document.getElementById('authRequiredView').style.display = 'block';
+        document.getElementById('appView').style.display = 'none';
+        document.querySelector('.bottom-nav')?.style.setProperty('display', 'none');
+        document.querySelector('.workspace-sidebar')?.style.setProperty('display', 'none');
+        return;
+      }
+    }
+
     if (!res.ok) throw new Error('API error: ' + res.status);
     const data = await res.json();
 
     STATE.user = data.user;
+    STATE.is_kg = Boolean(data.is_kg);
+    STATE.promo_available = Boolean(data.promo_available);
+    if (data.prices) STATE.prices = data.prices;
+    if (data.kaspi_number) STATE.kaspi_number = data.kaspi_number;
     STATE.documents = data.documents || [];
     STATE.students = data.students || [];
     if (data.schedule && data.schedule.schedule_data) {
@@ -2089,38 +2535,30 @@ async function init() {
     renderUI();
 
   } catch(err) {
-    console.warn('API fallback / demo preview:', err);
-    // Demonstration fallback with realistic data
-    STATE.user = {
-      name: 'Ермуханов Мернар Мирханович',
-      school: '№6 Хромтау гимназиясы',
-      position: 'Математика мұғалімі',
-      subject: 'Математика',
-      classes: '8А, 9Б',
-      free_used: 12,
-      subscribed: 1,
-      tier: 'max'
-    };
-    STATE.students = [
-      { id: 1, name: 'Бериков Арман', class_name: '8А', behavior: 'отличное', absences: 0 },
-      { id: 2, name: 'Смагулова Алуа', class_name: '8А', behavior: 'хорошее', absences: 1 },
-      { id: 3, name: 'Касымов Данияр', class_name: '8А', behavior: 'удовл.', absences: 2 }
-    ];
-    STATE.schedule = {
-      'Понедельник': [{ time: '08:30 - 09:15', subject: 'Алгебра', class: '8А' }],
-      'Вторник': [{ time: '09:25 - 10:10', subject: 'Геометрия', class: '8А' }]
-    };
-    STATE.documents = [
-      { doc_name: 'КСП: Квадратные уравнения 8 класс', created_at: '2026-10-04', score: 98 },
-      { doc_name: 'СОР №1 по алгебре 8 класс', created_at: '2026-10-02', score: 96 }
-    ];
-    STATE.referrals = 5;
-    STATE.bonus_docs = 25;
-    STATE.ref_link = 'https://t.me/docurakz_bot?start=ref_demo';
-
-    document.getElementById('loadingView').style.display = 'none';
-    document.getElementById('appView').style.display = 'block';
-    renderUI();
+    console.warn('API init exception:', err);
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('demo') === '1') {
+      STATE.user = {
+        name: 'Ермуханов Мернар Мирханович',
+        school: '№6 Хромтау гимназиясы',
+        position: 'Математика мұғалімі',
+        subject: 'Математика',
+        classes: '8А, 9Б',
+        free_used: 12,
+        subscribed: 1,
+        tier: 'max'
+      };
+      STATE.promo_available = true;
+      document.getElementById('loadingView').style.display = 'none';
+      document.getElementById('appView').style.display = 'block';
+      renderUI();
+    } else {
+      document.getElementById('loadingView').style.display = 'none';
+      document.getElementById('authRequiredView').style.display = 'block';
+      document.getElementById('appView').style.display = 'none';
+      document.querySelector('.bottom-nav')?.style.setProperty('display', 'none');
+      document.querySelector('.workspace-sidebar')?.style.setProperty('display', 'none');
+    }
   }
 }
 

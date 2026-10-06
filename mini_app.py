@@ -1,48 +1,95 @@
-import os, json, hmac, hashlib, sqlite3
+import os
+import json
+import hmac
+import hashlib
+import sqlite3
+import time
+import base64
+import re
+import io
 from urllib.parse import parse_qsl
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, session, redirect
+
+import anthropic
+
+from security import (
+    SECRET_KEY,
+    create_auth_token,
+    verify_auth_token,
+    verify_telegram_init_data,
+)
+from handlers.profile import KASPI_NUMBER, TIER_PRICES
 
 app = Flask(__name__, template_folder='mini_app/templates')
+app.secret_key = SECRET_KEY
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = 86400 * 30  # 30 дней сессии
+
 DB_PATH = os.getenv('DB_PATH', os.path.join(os.path.dirname(__file__), 'docura.db'))
+ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
+
 
 def conn():
     c = sqlite3.connect(DB_PATH)
     c.row_factory = sqlite3.Row
     return c
 
+
 def telegram_user():
-    # 1. Telegram WebApp Init Data
-    raw = request.headers.get('X-Telegram-Init-Data', '')
-    token = os.getenv('TELEGRAM_TOKEN', '')
-    if raw and token:
-        data = dict(parse_qsl(raw, keep_blank_values=True))
-        received = data.pop('hash', '')
-        check = '\n'.join(f'{k}={data[k]}' for k in sorted(data))
-        secret = hmac.new(b'WebAppData', token.encode(), hashlib.sha256).digest()
-        expected = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
-        if hmac.compare_digest(expected, received):
-            try:
-                return json.loads(data.get('user', '{}'))
-            except json.JSONDecodeError:
-                pass
+    """Безопасная аутентификация пользователя.
+    1. Проверяет Telegram WebApp initData (криптографическая подпись бот-токеном).
+    2. Проверяет защищённую серверную сессию (устанавливается через одноразовый auth токен из бота).
+    3. Запрещает подделку аккаунта через произвольный параметр tg_id.
+    """
+    # 1. Telegram WebApp Init Data (HMAC SHA-256)
+    raw_init = request.headers.get('X-Telegram-Init-Data', '')
+    if raw_init:
+        user_data = verify_telegram_init_data(raw_init)
+        if user_data and 'id' in user_data:
+            session.permanent = True
+            session['user_id'] = user_data['id']
+            return user_data
 
-    # 2. Query param or body fallback (for testing, direct web view and forms)
-    tg_id = request.args.get('tg_id')
-    if not tg_id and request.is_json:
-        try:
-            tg_id = request.json.get('tg_id')
-        except Exception:
-            pass
-    if not tg_id:
-        tg_id = request.form.get('tg_id')
-    if tg_id and str(tg_id).isdigit():
-        return {'id': int(tg_id)}
+    # 2. Сессионная кука (после входа по одноразовому токену)
+    sess_id = session.get('user_id')
+    if sess_id:
+        return {'id': int(sess_id)}
 
-    user_header = request.headers.get('X-User-Id')
-    if user_header and user_header.isdigit():
-        return {'id': int(user_header)}
+    # 3. Режим локального тестирования/разработки (только если явно включён флаг)
+    if os.getenv('DOCURA_DEV_MODE') == '1':
+        dev_tg_id = request.args.get('tg_id') or (request.json.get('tg_id') if request.is_json else None) or request.form.get('tg_id')
+        if dev_tg_id and str(dev_tg_id).isdigit():
+            return {'id': int(dev_tg_id)}
 
     return None
+
+
+# ── МАРШРУТЫ АВТОРИЗАЦИИ ──
+
+@app.route('/auth')
+def auth_route():
+    """Вход в личный кабинет по одноразовой защищённой ссылке из Telegram-бота."""
+    token = request.args.get('token', '')
+    user_id = verify_auth_token(token)
+    if not user_id:
+        return render_template(
+            'auth_error.html',
+            error="Срок действия ссылки для входа истёк или токен недействителен. Пожалуйста, откройте личный кабинет через Telegram-бота @docurakz_bot заново."
+        ), 401
+
+    session.permanent = True
+    session['user_id'] = user_id
+    return redirect('/')
+
+
+@app.route('/logout')
+def logout_route():
+    session.pop('user_id', None)
+    return redirect('/')
+
+
+# ── СТРАНИЦЫ ПРИЛОЖЕНИЯ ──
 
 @app.get('/')
 @app.get('/app')
@@ -50,41 +97,50 @@ def telegram_user():
 def app_page(user_id=None):
     return render_template('index.html')
 
+
+# ── API ПРОФИЛЯ И ДАННЫХ (api/me) ──
+
 @app.get('/api/me')
 @app.get('/api/profile/<int:user_id>')
 def api_me(user_id=None):
-    tg = {'id': user_id} if user_id else telegram_user()
+    tg = telegram_user()
     if not tg:
-        return jsonify(error='Telegram authorization required'), 401
+        return jsonify(error='Unauthorized', needs_auth=True), 401
+
+    current_id = tg['id']
+    # Защита от просмотра чужого профиля: если запрошен конкретный user_id, он обязан совпадать с сессией
+    if user_id and user_id != current_id:
+        return jsonify(error='Forbidden: access to another user account is denied'), 403
+
     with conn() as db:
-        user = db.execute('SELECT * FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
+        user = db.execute('SELECT * FROM users WHERE tg_id=?', (current_id,)).fetchone()
         if not user:
             return jsonify(error='User not found'), 404
         docs = db.execute(
             'SELECT doc_name, doc_type, score, created_at FROM documents '
             'WHERE teacher_id=? ORDER BY created_at DESC LIMIT 30',
-            (tg['id'],)
+            (current_id,)
         ).fetchall()
         students = db.execute(
             'SELECT id, name, class_name, grades, achievements, absences, behavior, parents, parent_phone, birth_date '
             'FROM students WHERE teacher_id=? ORDER BY name ASC',
-            (tg['id'],)
+            (current_id,)
         ).fetchall()
         referrals = db.execute(
-            'SELECT COUNT(*) FROM users WHERE referred_by=?', (tg['id'],)
+            'SELECT COUNT(*) FROM users WHERE referred_by=?', (current_id,)
         ).fetchone()[0]
         referrals_rewarded = db.execute(
-            'SELECT COUNT(*) FROM users WHERE referred_by=? AND ref_rewarded=1', (tg['id'],)
+            'SELECT COUNT(*) FROM users WHERE referred_by=? AND ref_rewarded=1', (current_id,)
         ).fetchone()[0]
         memory = db.execute(
-            'SELECT context_data, updated_at FROM agent_memory WHERE tg_id=?', (tg['id'],)
+            'SELECT context_data, updated_at FROM agent_memory WHERE tg_id=?', (current_id,)
         ).fetchone()
         schedule = db.execute(
-            'SELECT schedule_data, updated_at FROM schedules WHERE tg_id=?', (tg['id'],)
+            'SELECT schedule_data, updated_at FROM schedules WHERE tg_id=?', (current_id,)
         ).fetchone()
         samples = db.execute(
             'SELECT doc_type, original_name, lang, created_at FROM user_templates WHERE tg_id=?',
-            (tg['id'],)
+            (current_id,)
         ).fetchall()
         student_count = len(students)
 
@@ -94,9 +150,15 @@ def api_me(user_id=None):
     ref_code = dict(user).get('ref_code', '')
     bot_username = os.getenv('BOT_USERNAME', 'docurakz_bot')
     ref_link = f'https://t.me/{bot_username}?start=ref_{ref_code}' if ref_code else ''
+    is_kg = (user_dict.get('role') == 'kindergarten')
+    promo_available = not bool(user_dict.get('promo_used'))
 
     return jsonify(
         user=user_dict,
+        is_kg=is_kg,
+        promo_available=promo_available,
+        prices=TIER_PRICES,
+        kaspi_number=KASPI_NUMBER,
         documents=[dict(x) for x in docs],
         students=[dict(s) for s in students],
         referrals=referrals,
@@ -110,61 +172,27 @@ def api_me(user_id=None):
         bot_url=f'https://t.me/{bot_username}'
     )
 
-@app.get('/api/stats')
-def api_stats():
-    tg = telegram_user()
-    if not tg:
-        return jsonify(error='Unauthorized'), 401
-    with conn() as db:
-        total_docs = db.execute(
-            'SELECT COUNT(*) FROM documents WHERE teacher_id=?', (tg['id'],)
-        ).fetchone()[0]
-        this_month = db.execute(
-            "SELECT COUNT(*) FROM documents WHERE teacher_id=? AND strftime('%Y-%m', created_at)=strftime('%Y-%m','now')",
-            (tg['id'],)
-        ).fetchone()[0]
-    return jsonify(total_docs=total_docs, this_month=this_month)
 
-@app.get('/api/analytics')
-def api_analytics():
-    tg = telegram_user()
-    if not tg:
-        return jsonify(error='Unauthorized'), 401
-    with conn() as db:
-        by_type = db.execute('SELECT doc_type, COUNT(*) AS count FROM documents WHERE teacher_id=? GROUP BY doc_type ORDER BY count DESC', (tg['id'],)).fetchall()
-        average_rating = db.execute('SELECT AVG(rating) FROM analytics WHERE teacher_id=? AND rating IS NOT NULL', (tg['id'],)).fetchone()[0]
-        activity = db.execute("SELECT date(created_at) AS day, COUNT(*) AS count FROM documents WHERE teacher_id=? AND date(created_at) >= date('now','-29 days') GROUP BY date(created_at) ORDER BY day", (tg['id'],)).fetchall()
-    top = dict(by_type[0]) if by_type else None
-    return jsonify(documents_by_type=[dict(row) for row in by_type], average_rating=round(average_rating, 2) if average_rating else None, activity=[dict(row) for row in activity], top_document=top)
+# ── СТУДЕНТЫ / ВОСПИТАННИКИ (CRUD) ──
 
-@app.get('/api/funnel')
-def api_funnel():
-    tg = telegram_user()
-    if not tg:
-        return jsonify(error='Unauthorized'), 401
-    with conn() as db:
-        total = db.execute("SELECT COUNT(DISTINCT tg_id) FROM funnel_events WHERE event='onboarding_start'").fetchone()[0]
-        counts = {event: db.execute('SELECT COUNT(DISTINCT tg_id) FROM funnel_events WHERE event=?', (event,)).fetchone()[0] for event in ('onboarding_done', 'doc_selected', 'generation_done')}
-        rating = db.execute('SELECT AVG(rating) FROM analytics WHERE rating IS NOT NULL').fetchone()[0]
-    percent = lambda value: round(value * 100 / total, 1) if total else 0
-    return jsonify(onboarding_started=total, onboarding_done=counts['onboarding_done'], onboarding_done_percent=percent(counts['onboarding_done']), doc_selected=counts['doc_selected'], doc_selected_percent=percent(counts['doc_selected']), generation_done=counts['generation_done'], generation_done_percent=percent(counts['generation_done']), average_rating=round(rating, 2) if rating else None)
-
-# ── STUDENTS CRUD ──
 @app.post('/api/students')
 @app.post('/api/profile/<int:user_id>/students')
 def api_add_student(user_id=None):
-    tg = {'id': user_id} if user_id else telegram_user()
+    tg = telegram_user()
     if not tg:
         return jsonify(error='Unauthorized'), 401
+    if user_id and user_id != tg['id']:
+        return jsonify(error='Forbidden'), 403
+
     data = request.get_json(silent=True) or request.form.to_dict()
     name = (data.get('name') or '').strip()
     class_name = (data.get('class_name') or '').strip()
     if not name:
-        return jsonify(error='Name is required'), 400
+        return jsonify(error='Имя обязательно для заполнения'), 400
 
     behavior = data.get('behavior', 'хорошее')
     absences = int(data.get('absences') or 0)
-    grades = data.get('grades', '{}')
+    grades = data.get('grades', '')
     if isinstance(grades, dict):
         grades = json.dumps(grades, ensure_ascii=False)
     parents = data.get('parents', '')
@@ -182,6 +210,7 @@ def api_add_student(user_id=None):
         student = db.execute('SELECT * FROM students WHERE id=?', (new_id,)).fetchone()
     return jsonify(ok=True, student=dict(student) if student else {})
 
+
 @app.post('/api/students/<int:student_id>/delete')
 @app.delete('/api/students/<int:student_id>')
 def api_delete_student(student_id):
@@ -193,13 +222,18 @@ def api_delete_student(student_id):
         db.commit()
     return jsonify(ok=True)
 
-# ── SCHEDULE CRUD ──
+
+# ── РАСПИСАНИЕ И РЕЖИМ ДНЯ (CRUD + РАСПОЗНАВАНИЕ ИИ) ──
+
 @app.post('/api/schedule')
 @app.post('/api/profile/<int:user_id>/schedule')
 def api_save_schedule(user_id=None):
-    tg = {'id': user_id} if user_id else telegram_user()
+    tg = telegram_user()
     if not tg:
         return jsonify(error='Unauthorized'), 401
+    if user_id and user_id != tg['id']:
+        return jsonify(error='Forbidden'), 403
+
     data = request.get_json(silent=True) or {}
     schedule_data = data.get('schedule_data')
     if isinstance(schedule_data, dict):
@@ -217,6 +251,7 @@ def api_save_schedule(user_id=None):
         db.commit()
     return jsonify(ok=True)
 
+
 @app.post('/api/schedule/lesson')
 def api_add_lesson():
     tg = telegram_user()
@@ -225,7 +260,7 @@ def api_add_lesson():
     data = request.get_json(silent=True) or {}
     day = data.get('day', 'Понедельник')
     time_val = data.get('time', '08:30')
-    subject = data.get('subject', 'Урок')
+    subject = data.get('subject', 'Занятие')
     class_val = data.get('class', '')
 
     with conn() as db:
@@ -244,13 +279,169 @@ def api_add_lesson():
         db.commit()
     return jsonify(ok=True, schedule=schedule)
 
-# ── PROFILE UPDATE ──
+
+@app.post('/api/schedule/parse-text')
+def api_parse_schedule_text():
+    """ИИ-распознавание расписания или режима дня из введённого текста."""
+    tg = telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+    data = request.get_json(silent=True) or {}
+    text = (data.get('text') or '').strip()
+    if not text:
+        return jsonify(error='Текст расписания пуст'), 400
+
+    with conn() as db:
+        user = db.execute('SELECT * FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
+    if not user:
+        return jsonify(error='User not found'), 404
+
+    is_kg = (user['role'] == 'kindergarten')
+    if not ANTHROPIC_API_KEY:
+        return jsonify(error='ANTHROPIC_API_KEY не настроен на сервере'), 500
+
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        entity = "режим дня / сетка занятий группы детского сада (ОУД)" if is_kg else "расписание уроков учителя"
+        prompt = f"""Пользователь прислал своё {entity} в свободном формате. Преобразуй в JSON строго по дням недели:
+{{
+  "Понедельник": [{{"time": "09:00", "class": "...", "subject": "..."}}],
+  "Вторник": [...],
+  "Среда": [...],
+  "Четверг": [...],
+  "Пятница": [...],
+  "Суббота": [...]
+}}
+Верни ТОЛЬКО валидный JSON без markdown-блоков:"""
+
+        response = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=1500,
+            messages=[{"role": "user", "content": prompt + "\n\n" + text}]
+        )
+        raw = response.content[0].text.strip()
+        raw = re.sub(r"```[a-z]*", "", raw).strip("` \n")
+        parsed = json.loads(raw)
+
+        with conn() as db:
+            db.execute(
+                '''INSERT INTO schedules (tg_id, schedule_data, updated_at)
+                   VALUES (?, ?, CURRENT_TIMESTAMP)
+                   ON CONFLICT(tg_id) DO UPDATE SET schedule_data=excluded.schedule_data, updated_at=CURRENT_TIMESTAMP''',
+                (tg['id'], json.dumps(parsed, ensure_ascii=False))
+            )
+            db.commit()
+        return jsonify(ok=True, schedule=parsed)
+    except Exception as e:
+        return jsonify(error=f"Ошибка распознавания: {str(e)}"), 500
+
+
+@app.post('/api/schedule/upload')
+def api_upload_schedule_file():
+    """ИИ-распознавание расписания / режима дня из фото (JPG/PNG) или документа (PDF/DOCX)."""
+    tg = telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+
+    if 'file' not in request.files:
+        return jsonify(error='Файл не прикреплен'), 400
+    f = request.files['file']
+    if not f or not f.filename:
+        return jsonify(error='Файл не выбран'), 400
+
+    filename = f.filename.lower()
+    with conn() as db:
+        user = db.execute('SELECT * FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
+    is_kg = bool(user and user['role'] == 'kindergarten')
+    if not ANTHROPIC_API_KEY:
+        return jsonify(error='ANTHROPIC_API_KEY не настроен на сервере'), 500
+
+    file_bytes = f.read()
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    try:
+        if filename.endswith(('.png', '.jpg', '.jpeg', '.webp')):
+            media_type = 'image/png' if filename.endswith('.png') else 'image/jpeg' if filename.endswith(('.jpg', '.jpeg')) else 'image/webp'
+            b64_data = base64.standard_b64encode(file_bytes).decode('utf-8')
+            entity = "режим дня / сетка занятий группы детского сада (ОУД)" if is_kg else "расписание уроков учителя"
+            prompt = f"""Это фото документа: {entity}. Распознай его и верни ТОЛЬКО JSON без markdown:
+{{
+  "Понедельник": [{{"time": "09:00", "class": "...", "subject": "..."}}],
+  "Вторник": [...],
+  "Среда": [...],
+  "Четверг": [...],
+  "Пятница": [...]
+}}"""
+            response = client.messages.create(
+                model="claude-haiku-4-5",
+                max_tokens=1500,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64_data}},
+                        {"type": "text", "text": prompt}
+                    ]
+                }]
+            )
+            raw = response.content[0].text.strip()
+        elif filename.endswith('.docx'):
+            import docx
+            doc = docx.Document(io.BytesIO(file_bytes))
+            full_text = []
+            for p in doc.paragraphs:
+                if p.text.strip(): full_text.append(p.text.strip())
+            for t in doc.tables:
+                for row in t.rows:
+                    full_text.append(" | ".join(cell.text.strip() for cell in row.cells if cell.text.strip()))
+            text_content = "\n".join(full_text)
+            prompt = f"Преобразуй это расписание/режим дня в JSON строго по дням недели (Понедельник-Суббота): {text_content}"
+            response = client.messages.create(
+                model="claude-haiku-4-5",
+                max_tokens=1500,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            raw = response.content[0].text.strip()
+        elif filename.endswith('.pdf'):
+            import pypdf
+            reader = pypdf.PdfReader(io.BytesIO(file_bytes))
+            text_content = "\n".join(page.extract_text() or '' for page in reader.pages)
+            prompt = f"Преобразуй это расписание/режим дня из PDF в JSON строго по дням недели (Понедельник-Суббота): {text_content}"
+            response = client.messages.create(
+                model="claude-haiku-4-5",
+                max_tokens=1500,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            raw = response.content[0].text.strip()
+        else:
+            return jsonify(error='Поддерживаются форматы: JPG, PNG, PDF, DOCX'), 400
+
+        raw = re.sub(r"```[a-z]*", "", raw).strip("` \n")
+        parsed = json.loads(raw)
+
+        with conn() as db:
+            db.execute(
+                '''INSERT INTO schedules (tg_id, schedule_data, updated_at)
+                   VALUES (?, ?, CURRENT_TIMESTAMP)
+                   ON CONFLICT(tg_id) DO UPDATE SET schedule_data=excluded.schedule_data, updated_at=CURRENT_TIMESTAMP''',
+                (tg['id'], json.dumps(parsed, ensure_ascii=False))
+            )
+            db.commit()
+        return jsonify(ok=True, schedule=parsed)
+    except Exception as e:
+        return jsonify(error=f"Ошибка обработки файла: {str(e)}"), 500
+
+
+# ── ОБНОВЛЕНИЕ ПРОФИЛЯ ──
+
 @app.post('/api/profile')
 @app.post('/api/profile/<int:user_id>/update')
 def api_update_profile(user_id=None):
-    tg = {'id': user_id} if user_id else telegram_user()
+    tg = telegram_user()
     if not tg:
         return jsonify(error='Unauthorized'), 401
+    if user_id and user_id != tg['id']:
+        return jsonify(error='Forbidden'), 403
+
     data = request.get_json(silent=True) or request.form.to_dict()
     name = data.get('name')
     school = data.get('school')
@@ -261,6 +452,11 @@ def api_update_profile(user_id=None):
     director = data.get('director')
 
     with conn() as db:
+        user = db.execute('SELECT * FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
+        is_kg = bool(user and user['role'] == 'kindergarten')
+        if is_kg and subject and not age_group:
+            age_group = subject
+
         db.execute(
             '''UPDATE users SET 
                  name=COALESCE(?, name),
@@ -274,10 +470,12 @@ def api_update_profile(user_id=None):
             (name, school, position, subject, classes, age_group, director, tg['id'])
         )
         db.commit()
-        user = db.execute('SELECT * FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
-    return jsonify(ok=True, user=dict(user) if user else {})
+        updated = db.execute('SELECT * FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
+    return jsonify(ok=True, user=dict(updated) if updated else {})
 
-# ── AI MEMORY ──
+
+# ── ПАМЯТЬ ИИ ──
+
 @app.post('/api/memory/clear')
 def api_clear_memory():
     tg = telegram_user()
@@ -288,6 +486,7 @@ def api_clear_memory():
         db.commit()
     return jsonify(ok=True)
 
+
 @app.post('/api/memory/add')
 def api_add_memory_note():
     tg = telegram_user()
@@ -296,7 +495,7 @@ def api_add_memory_note():
     data = request.get_json(silent=True) or {}
     note = (data.get('note') or '').strip()
     if not note:
-        return jsonify(error='Note is empty'), 400
+        return jsonify(error='Текст заметки пуст'), 400
     with conn() as db:
         row = db.execute('SELECT context_data FROM agent_memory WHERE tg_id=?', (tg['id'],)).fetchone()
         ctx = json.loads(row['context_data']) if row and row['context_data'] else {}
@@ -311,6 +510,99 @@ def api_add_memory_note():
         )
         db.commit()
     return jsonify(ok=True, context=ctx)
+
+
+# ── ОПЛАТА И ПРОВЕРКА ЧЕКА KASPI НА САЙТЕ ──
+
+@app.post('/api/payment/verify-receipt')
+def api_verify_receipt():
+    """Проверка чека Kaspi на сайте через Claude Vision и моментальная активация тарифа."""
+    tg = telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+
+    if 'receipt' not in request.files:
+        return jsonify(error='Чек не прикреплен'), 400
+    file = request.files['receipt']
+    if not file or not file.filename:
+        return jsonify(error='Файл чека не выбран'), 400
+
+    tier = request.form.get('tier', 'pro')
+    file_bytes = file.read()
+    receipt_hash = hashlib.sha256(file_bytes).hexdigest()[:16]
+
+    with conn() as db:
+        used = db.execute('SELECT 1 FROM receipts WHERE hash=?', (receipt_hash,)).fetchone()
+        if used:
+            return jsonify(error='Этот чек уже был использован для активации.'), 400
+
+        user = db.execute('SELECT * FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
+        if not user:
+            return jsonify(error='Пользователь не найден'), 404
+
+        promo_available = not bool(user['promo_used'])
+        expected_amount = 2490 if (tier in ('pro', 'pro_promo') and promo_available) else (
+            4990 if tier == 'pro' else 7490 if tier == 'max' else 39900
+        )
+
+    if not ANTHROPIC_API_KEY:
+        return jsonify(error='Сервис проверки временно недоступен (нет API key)'), 500
+
+    try:
+        b64_data = base64.standard_b64encode(file_bytes).decode('utf-8')
+        filename = file.filename.lower()
+        media_type = 'application/pdf' if filename.endswith('.pdf') else 'image/jpeg' if filename.endswith(('.jpg', '.jpeg')) else 'image/png'
+
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        from datetime import datetime, timezone, timedelta
+        tz_kz = timezone(timedelta(hours=5))
+        today = datetime.now(tz_kz).strftime("%d.%m.%Y")
+
+        prompt = f"""Это чек оплаты Kaspi. Проверь следующее:
+1. Номер получателя или реквизиты содержат: {KASPI_NUMBER} (может быть записан без пробелов, с дефисами или скобками)
+2. Сумма платежа равна {expected_amount} тенге (или близка к {expected_amount})
+3. Дата операции — сегодня ({today}) или вчера (допустимо)
+
+Ответь ТОЛЬКО в формате JSON без markdown:
+{{"valid": true/false, "amount": {expected_amount}, "reason": "причина если false"}}"""
+
+        if media_type == 'application/pdf':
+            content_block = {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": b64_data}}
+        else:
+            content_block = {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64_data}}
+
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=200,
+            messages=[{
+                "role": "user",
+                "content": [content_block, {"type": "text", "text": prompt}]
+            }]
+        )
+        raw = response.content[0].text.strip()
+        raw = re.sub(r"```[a-z]*", "", raw).strip("` \n")
+        res_data = json.loads(raw)
+
+        if not res_data.get('valid'):
+            reason = res_data.get('reason', 'не удалось подтвердить данные чека')
+            return jsonify(error=f"Чек отклонён: {reason}. Убедитесь, что перевели {expected_amount} ₸ на номер {KASPI_NUMBER}."), 400
+
+        clean_tier = "pro" if tier in ("pro", "pro_promo") else tier
+        with conn() as db:
+            db.execute("INSERT OR IGNORE INTO receipts (hash, tg_id, tier, amount) VALUES (?,?,?,?)", (receipt_hash, tg['id'], clean_tier, expected_amount))
+            db.execute("""
+                UPDATE users SET
+                    subscribed=1,
+                    subscription_expires=datetime('now', '+30 days'),
+                    tier=?,
+                    promo_used=CASE WHEN ?=1 THEN 1 ELSE promo_used END
+                WHERE tg_id=?
+            """, (clean_tier, 1 if promo_available and tier in ('pro', 'pro_promo') else 0, tg['id']))
+            db.commit()
+
+        return jsonify(ok=True, tier=clean_tier, message=f'Тариф Docura {clean_tier.upper()} успешно активирован на 30 дней!')
+    except Exception as e:
+        return jsonify(error=f"Ошибка проверки чека: {str(e)}"), 500
 
 
 if __name__ == '__main__':

@@ -100,8 +100,8 @@ class AgentHandler:
                 "✍️ Апта күндері бойынша мәтін"
             )
 
-        photo_btn = ("📸 Фото режима дня" if lang == "ru" else "📸 Күн тәртібінің суреті") if is_kg \
-            else ("📸 Фото расписания" if lang == "ru" else "📸 Кесте суреті")
+        photo_btn = ("📸 Фото или файл режима" if lang == "ru" else "📸 Сурет немесе файл") if is_kg \
+            else ("📸 Фото или файл расписания" if lang == "ru" else "📸 Сурет немесе файл")
         view_btn = ("📋 Мой режим дня" if lang == "ru" else "📋 Менің күн тәртібім") if is_kg \
             else ("📋 Моё расписание" if lang == "ru" else "📋 Менің кестем")
 
@@ -150,9 +150,9 @@ class AgentHandler:
             context.user_data["step"] = "agent_waiting_schedule_photo"
             kb = [[MENU_BTN(lang)]]
             prompt_text = (
-                ("📸 Пришлите фото режима дня — бот распознает его автоматически" if is_kg
-                 else "📸 Пришлите фото расписания — бот распознает его автоматически") if lang == "ru"
-                else "📸 Сурет жіберіңіз"
+                ("📸 Пришлите фото или документ (Word/PDF) режима дня — бот распознает его автоматически" if is_kg
+                 else "📸 Пришлите фото или документ (Word/PDF) расписания — бот распознает его автоматически") if lang == "ru"
+                else ("📸 Күн тәртібінің суретін немесе файлын (Word/PDF) жіберіңіз" if is_kg else "📸 Кесте суретін немесе файлын (Word/PDF) жіберіңіз")
             )
             await query.edit_message_text(prompt_text, reply_markup=InlineKeyboardMarkup(kb))
 
@@ -407,43 +407,76 @@ class AgentHandler:
         )
 
         try:
-            file_obj = await update.message.photo[-1].get_file()
-            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-                await file_obj.download_to_drive(tmp.name)
-                tmp_path = tmp.name
-
-            with open(tmp_path, "rb") as f:
-                img_data = base64.standard_b64encode(f.read()).decode("utf-8")
-            os.unlink(tmp_path)
-
             client = anthropic.AsyncAnthropic(api_key=self.api_key)
-            if is_kg:
-                prompt = """Это фото режима дня / расписания занятий группы детского сада. Распознай и верни ТОЛЬКО JSON без markdown:
-{
-  "Понедельник": [{"time": "9:00", "class": "старшая группа", "subject": "Познание"}, ...],
+            entity = "режима дня / расписания занятий группы детского сада (ОУД)" if is_kg else "расписания уроков учителя"
+            base_prompt = f"""Это фото или документ {entity}. Распознай его и верни ТОЛЬКО JSON без markdown:
+{{
+  "Понедельник": [{{"time": "9:00", "class": "...", "subject": "..."}}],
   "Вторник": [...],
-  ...
-}
-Если не можешь распознать — верни {"error": "не удалось распознать"}"""
-            else:
-                prompt = """Это фото расписания уроков учителя. Распознай расписание и верни ТОЛЬКО JSON без markdown:
-{
-  "Понедельник": [{"time": "8:00", "class": "7А", "subject": "Математика"}, ...],
-  "Вторник": [...],
-  ...
-}
-Если не можешь распознать — верни {"error": "не удалось распознать"}"""
+  "Среда": [...],
+  "Четверг": [...],
+  "Пятница": [...]
+}}
+Если не можешь распознать — верни {{"error": "не удалось распознать"}}"""
 
-            response = await client.messages.create(
-                model="claude-haiku-4-5",
-                max_tokens=1000,
-                messages=[{
+            if update.message.photo:
+                file_obj = await update.message.photo[-1].get_file()
+                with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                    await file_obj.download_to_drive(tmp.name)
+                    tmp_path = tmp.name
+                with open(tmp_path, "rb") as f:
+                    img_data = base64.standard_b64encode(f.read()).decode("utf-8")
+                os.unlink(tmp_path)
+                messages = [{
                     "role": "user",
                     "content": [
                         {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_data}},
-                        {"type": "text", "text": prompt}
+                        {"type": "text", "text": base_prompt}
                     ]
                 }]
+            elif update.message.document:
+                doc = update.message.document
+                fname = (doc.file_name or "file.pdf").lower()
+                file_obj = await doc.get_file()
+                suffix = ".docx" if fname.endswith(".docx") else ".pdf" if fname.endswith(".pdf") else ".jpg"
+                with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                    await file_obj.download_to_drive(tmp.name)
+                    tmp_path = tmp.name
+
+                if fname.endswith(".docx"):
+                    import docx
+                    d = docx.Document(tmp_path)
+                    text_parts = [p.text for p in d.paragraphs if p.text.strip()]
+                    for t in d.tables:
+                        for row in t.rows:
+                            text_parts.append(" | ".join(c.text.strip() for c in row.cells if c.text.strip()))
+                    os.unlink(tmp_path)
+                    messages = [{"role": "user", "content": f"{base_prompt}\n\nТекст документа:\n" + "\n".join(text_parts)}]
+                elif fname.endswith(".pdf"):
+                    import pypdf
+                    reader = pypdf.PdfReader(tmp_path)
+                    text_parts = [page.extract_text() or "" for page in reader.pages]
+                    os.unlink(tmp_path)
+                    messages = [{"role": "user", "content": f"{base_prompt}\n\nТекст документа:\n" + "\n".join(text_parts)}]
+                else:
+                    with open(tmp_path, "rb") as f:
+                        img_data = base64.standard_b64encode(f.read()).decode("utf-8")
+                    os.unlink(tmp_path)
+                    media_type = "image/png" if fname.endswith(".png") else "image/jpeg"
+                    messages = [{
+                        "role": "user",
+                        "content": [
+                            {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": img_data}},
+                            {"type": "text", "text": base_prompt}
+                        ]
+                    }]
+            else:
+                return False
+
+            response = await client.messages.create(
+                model="claude-haiku-4-5",
+                max_tokens=1500,
+                messages=messages
             )
 
             import re
