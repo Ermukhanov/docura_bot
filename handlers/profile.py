@@ -141,16 +141,24 @@ class ProfileHandler:
 
         keyboard = [
             [
-                InlineKeyboardButton("📱 " + ("Веб-кабинет (Mini App)" if lang == "ru" else "Веб-кабинет (Mini App)"), web_app=WebAppInfo(url=webapp_url)),
+                InlineKeyboardButton("📱 " + ("Веб-кабинет" if lang == "ru" else "Веб-кабинет"), web_app=WebAppInfo(url=webapp_url)),
                 InlineKeyboardButton("🌐 " + ("В браузере" if lang == "ru" else "Браузерде"), url=browser_url),
             ],
-            [InlineKeyboardButton("✏️ " + t(lang, "btn_edit_profile"), callback_data="prof_edit")],
-            [InlineKeyboardButton("👥 " + students_btn_text,           callback_data="prof_students")],
-            [InlineKeyboardButton("📅 " + ("Моё расписание" if not is_kg and lang == "ru" else "Мой режим дня" if is_kg and lang == "ru" else "Менің кестем"), callback_data="agent_schedule")],
-            [InlineKeyboardButton("🔔 " + ("Напоминания" if lang == "ru" else "Еске салғыштар"), callback_data="agent_reminders")],
-            [InlineKeyboardButton("⭐ " + t(lang, "btn_subscription"),  callback_data="prof_sub")],
-            [InlineKeyboardButton("🌐 " + t(lang, "btn_change_lang"),   callback_data="prof_lang")],
-            [InlineKeyboardButton("✉️ " + ("Жалоба или отзыв" if lang == "ru" else "Шағым немесе пікір"), callback_data="prof_complaint")],
+            [
+                InlineKeyboardButton("✏️ " + ("Редактировать" if lang == "ru" else "Өңдеу"), callback_data="prof_edit"),
+                InlineKeyboardButton("👥 " + students_btn_text,                               callback_data="prof_students"),
+            ],
+            [
+                InlineKeyboardButton("📅 " + ("Расписание" if not is_kg and lang == "ru" else "Режим дня" if is_kg and lang == "ru" else "Кесте"), callback_data="agent_schedule"),
+                InlineKeyboardButton("🔔 " + ("Напоминания" if lang == "ru" else "Еске салғыштар"),                                              callback_data="agent_reminders"),
+            ],
+            [
+                InlineKeyboardButton("⭐ " + ("Подписка и тарифы" if lang == "ru" else "Тарифтер"), callback_data="prof_sub"),
+                InlineKeyboardButton("🌐 " + ("Язык бота" if lang == "ru" else "Бот тілі"),          callback_data="prof_lang"),
+            ],
+            [
+                InlineKeyboardButton("✉️ " + ("Отзыв и поддержка" if lang == "ru" else "Пікір және қолдау"), callback_data="prof_complaint"),
+            ],
             [MENU_BTN(lang)],
         ]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)

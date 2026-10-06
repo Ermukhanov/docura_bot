@@ -512,6 +512,24 @@ def api_add_memory_note():
     return jsonify(ok=True, context=ctx)
 
 
+# ── СБРОС ДАННЫХ АККАУНТА ──
+
+@app.post('/api/account/reset')
+def api_reset_account():
+    """Сброс данных аккаунта (очистка базы учеников/воспитанников, расписания, памяти и документов)."""
+    tg = telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+    user_id = tg['id']
+    with conn() as db:
+        db.execute('DELETE FROM students WHERE teacher_id=?', (user_id,))
+        db.execute('DELETE FROM schedules WHERE tg_id=?', (user_id,))
+        db.execute('DELETE FROM agent_memory WHERE tg_id=?', (user_id,))
+        db.execute('DELETE FROM documents WHERE teacher_id=?', (user_id,))
+        db.commit()
+    return jsonify(ok=True, message='Данные аккаунта успешно сброшены')
+
+
 # ── ОПЛАТА И ПРОВЕРКА ЧЕКА KASPI НА САЙТЕ ──
 
 @app.post('/api/payment/verify-receipt')

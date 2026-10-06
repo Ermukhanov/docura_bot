@@ -1125,7 +1125,243 @@
     #tab-tariffs > .tier-card:nth-of-type(3) { grid-column:auto; }
   }
   @media (max-width:390px) { .welcome-title { font-size:28px; }.composer-submit { padding:0 12px; }.composer-hint { max-width:145px; }.home-doc-row { gap:9px;padding:12px 4px; } }
-  @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important;animation:none!important;transition:none!important; } }
+  /* ════════════════════════════════════════════════════
+     DARK THEME GLASSMORPHISM
+     ════════════════════════════════════════════════════ */
+  body.theme-dark {
+    --bg-gradient: linear-gradient(135deg, #070D18 0%, #0B132B 50%, #030712 100%);
+    --card-glass: rgba(15, 23, 42, 0.82);
+    --card-glass-hover: rgba(30, 41, 59, 0.90);
+    --card-glass-solid: rgba(15, 23, 42, 0.96);
+    --border-glass: rgba(56, 189, 248, 0.22);
+    --border-subtle: rgba(56, 189, 248, 0.16);
+    --primary: #F8FAFC;
+    --text-main: #F8FAFC;
+    --text-muted: #94A3B8;
+    --text-soft: #64748B;
+    --accent-soft: rgba(2, 132, 199, 0.20);
+    --shadow-glass: 0 14px 40px rgba(0, 0, 0, 0.55);
+    --shadow-float: 0 24px 52px -6px rgba(0, 0, 0, 0.75);
+    --ink: #F8FAFC;
+    --line: rgba(56, 189, 248, 0.16);
+  }
+  body.theme-dark .bg-orb.orb-1 { background: #0284C7; opacity: 0.18; }
+  body.theme-dark .bg-orb.orb-2 { background: #4338CA; opacity: 0.24; }
+  body.theme-dark .bg-orb.orb-3 { background: #0369A1; opacity: 0.18; }
+  body.theme-dark .top-nav,
+  body.theme-dark .workspace-sidebar,
+  body.theme-dark .bottom-nav,
+  body.theme-dark .composer,
+  body.theme-dark .home-stat,
+  body.theme-dark .glass-card,
+  body.theme-dark .tier-card,
+  body.theme-dark .modal-card,
+  body.theme-dark .memory-item {
+    background: rgba(15, 23, 42, 0.85);
+    border-color: rgba(56, 189, 248, 0.20);
+    color: #F8FAFC;
+  }
+  body.theme-dark .top-nav { background: rgba(11, 19, 43, 0.90); }
+  body.theme-dark .bottom-nav { background: rgba(11, 19, 43, 0.95); }
+  body.theme-dark .form-input,
+  body.theme-dark .form-select,
+  body.theme-dark .search-input,
+  body.theme-dark #composerPrompt,
+  body.theme-dark textarea {
+    background: rgba(30, 41, 59, 0.8) !important;
+    color: #F8FAFC !important;
+    border-color: rgba(56, 189, 248, 0.25) !important;
+  }
+  body.theme-dark .form-input::placeholder,
+  body.theme-dark .search-input::placeholder,
+  body.theme-dark textarea::placeholder {
+    color: #64748B !important;
+  }
+  body.theme-dark .student-card:hover {
+    background: rgba(30, 41, 59, 0.45);
+  }
+  body.theme-dark .student-card {
+    border-bottom-color: rgba(56, 189, 248, 0.12);
+  }
+  body.theme-dark .composer-chip {
+    background: rgba(30, 41, 59, 0.8);
+    color: #94A3B8;
+    border-color: rgba(56, 189, 248, 0.2);
+  }
+  body.theme-dark .composer-chip.active {
+    background: #0284C7;
+    color: #fff;
+  }
+  body.theme-dark .day-tab-btn {
+    color: #94A3B8;
+  }
+  body.theme-dark .day-tab-btn.active {
+    background: rgba(2, 132, 199, 0.25);
+    color: #38BDF8;
+  }
+  body.theme-dark .toast {
+    background: #0F172A !important;
+    color: #38BDF8 !important;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+  }
+
+  /* ════════════════════════════════════════════════════
+     OPEN QUICK SETTINGS BAR (AT BOTTOM)
+     ════════════════════════════════════════════════════ */
+  .quick-settings-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 14px;
+    margin: 20px 0 10px;
+    background: var(--card-glass);
+    backdrop-filter: var(--blur-glass);
+    -webkit-backdrop-filter: var(--blur-glass);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-glass);
+  }
+  .quick-lang-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .lang-btn {
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .lang-btn:hover {
+    background: rgba(2, 132, 199, 0.08);
+    color: var(--accent);
+  }
+  .lang-btn.active {
+    background: var(--accent-gradient);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.25);
+  }
+  .quick-theme-group {
+    display: flex;
+    align-items: center;
+  }
+  .theme-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 9px;
+    border: 1px solid var(--border-subtle);
+    background: var(--card-glass-solid);
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .theme-toggle-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .quick-settings-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .quick-settings-nav-btn:hover {
+    background: rgba(2, 132, 199, 0.08);
+    color: var(--accent);
+  }
+
+  /* ── PROFILE & SETTINGS TAB STYLES ── */
+  .profile-hero-card {
+    background: linear-gradient(135deg, rgba(224, 242, 254, 0.5) 0%, rgba(255, 255, 255, 0.8) 100%);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-xl);
+    padding: 24px;
+    margin-bottom: 18px;
+    box-shadow: var(--shadow-glass);
+  }
+  body.theme-dark .profile-hero-card {
+    background: linear-gradient(135deg, rgba(3, 105, 161, 0.2) 0%, rgba(15, 23, 42, 0.8) 100%);
+  }
+  .profile-grid-info {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .profile-info-item {
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 12px;
+    border: 1px solid rgba(186, 230, 253, 0.5);
+  }
+  body.theme-dark .profile-info-item {
+    background: rgba(30, 41, 59, 0.6);
+    border-color: rgba(56, 189, 248, 0.15);
+  }
+  .profile-info-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+  .profile-info-val {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+  }
+  .settings-card {
+    background: var(--card-glass);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .settings-card-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .settings-card-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 14px;
+  }
+  .danger-card {
+    border-color: #FECACA !important;
+    background: linear-gradient(135deg, rgba(254, 242, 242, 0.8) 0%, rgba(255, 255, 255, 0.9) 100%) !important;
+  }
+  body.theme-dark .danger-card {
+    border-color: rgba(239, 68, 68, 0.3) !important;
+    background: linear-gradient(135deg, rgba(69, 10, 10, 0.4) 0%, rgba(15, 23, 42, 0.9) 100%) !important;
+  }
 </style>
 </head>
 <body>
@@ -1148,18 +1384,32 @@
   </header>
 
   <aside class="workspace-sidebar" aria-label="Основная навигация">
-    <div class="sidebar-caption">Рабочее пространство</div>
+    <div class="sidebar-caption" id="sidebarNavCaption">Рабочее пространство</div>
     <nav class="sidebar-nav">
-      <button class="nav-item active" data-tab="home" onclick="switchTab('home')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-6v-7h-4v7H4a1 1 0 0 1-1-1z"/></svg></span>Главная</button>
-      <button class="nav-item" data-tab="documents" onclick="switchTab('documents')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v6h5M9 13h6M9 17h6"/></svg></span>Документы</button>
-      <button class="nav-item" data-tab="students" onclick="switchTab('students')"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1zM16 5.5a3 3 0 0 1 0 5.8M18 14a4 4 0 0 1 3 4v2"/></svg></span>Ученики</button>
-      <button class="nav-item" data-tab="schedule" onclick="switchTab('schedule')"><span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3M8 17h7"/></svg></span>Расписание</button>
-      <button class="nav-item" data-tab="memory" onclick="switchTab('memory')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M8 14a7 7 0 1 1 8 0c-.8.6-1 1.2-1 2H9c0-.8-.2-1.4-1-2Z"/></svg></span>Память Docura</button>
-      <button class="nav-item" data-tab="referrals" onclick="switchTab('referrals')"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1zM17 8h5M19.5 5.5v5M17 16a4 4 0 0 1 4 4"/></svg></span>Рефералы</button>
-      <button class="nav-item" data-tab="tariffs" onclick="switchTab('tariffs')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 3v18M17 7H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H7"/></svg></span>Подписка</button>
+      <button class="nav-item active" data-tab="home" onclick="switchTab('home')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-6v-7h-4v7H4a1 1 0 0 1-1-1z"/></svg></span><span class="nav-text-home">Главная</span></button>
+      <button class="nav-item" data-tab="documents" onclick="switchTab('documents')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v6h5M9 13h6M9 17h6"/></svg></span><span class="nav-text-documents">Документы</span></button>
+      <button class="nav-item" data-tab="students" onclick="switchTab('students')"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1zM16 5.5a3 3 0 0 1 0 5.8M18 14a4 4 0 0 1 3 4v2"/></svg></span><span class="nav-text-students">Ученики</span></button>
+      <button class="nav-item" data-tab="schedule" onclick="switchTab('schedule')"><span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3M8 17h7"/></svg></span><span class="nav-text-schedule">Расписание</span></button>
+      <button class="nav-item" data-tab="memory" onclick="switchTab('memory')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M8 14a7 7 0 1 1 8 0c-.8.6-1 1.2-1 2H9c0-.8-.2-1.4-1-2Z"/></svg></span><span class="nav-text-memory">Память Docura</span></button>
+      <button class="nav-item" data-tab="referrals" onclick="switchTab('referrals')"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1zM17 8h5M19.5 5.5v5M17 16a4 4 0 0 1 4 4"/></svg></span><span class="nav-text-referrals">Рефералы</span></button>
+      <button class="nav-item" data-tab="tariffs" onclick="switchTab('tariffs')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 3v18M17 7H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H7"/></svg></span><span class="nav-text-tariffs">Подписка</span></button>
+      <button class="nav-item" data-tab="profile" onclick="switchTab('profile')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="nav-text-profile">Профиль</span></button>
+      <button class="nav-item" data-tab="settings" onclick="switchTab('settings')"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="nav-text-settings">Настройки</span></button>
     </nav>
-    <div class="sidebar-foot">
-      <button class="profile-link" onclick="openEditProfileModal()"><span class="profile-mark" id="profileMark">П</span><span class="profile-copy"><strong id="sidebarProfileName">Профиль педагога</strong><small>Настройки профиля</small></span></button>
+
+    <!-- Sidebar Quick Settings Foot -->
+    <div class="sidebar-foot" style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; gap:3px; background:rgba(2,132,199,0.06); padding:4px; border-radius:10px; border:1px solid var(--border-subtle);">
+        <button type="button" class="lang-btn active" data-lang="ru" onclick="changeLang('ru')" style="flex:1; padding:4px 0;">RU</button>
+        <button type="button" class="lang-btn" data-lang="kz" onclick="changeLang('kz')" style="flex:1; padding:4px 0;">KZ</button>
+        <button type="button" class="lang-btn" data-lang="en" onclick="changeLang('en')" style="flex:1; padding:4px 0;">EN</button>
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button type="button" class="theme-toggle-btn" onclick="toggleTheme()" style="flex:1; justify-content:center; padding:6px 0;">
+          <span class="theme-icon-el">🌙</span> <span class="theme-label-el">Тёмная</span>
+        </button>
+      </div>
+      <button class="profile-link" onclick="switchTab('profile')"><span class="profile-mark" id="profileMark">П</span><span class="profile-copy"><strong id="sidebarProfileName">Профиль педагога</strong><small id="sidebarProfileSub">Личный кабинет</small></span></button>
     </div>
   </aside>
 
@@ -1417,19 +1667,171 @@
       </div>
     </section>
 
+    <!-- ════════════════════════════════════════════════════
+         TAB 7: ЛИЧНЫЙ ПРОФИЛЬ (PROFILE)
+         ════════════════════════════════════════════════════ -->
+    <section id="tab-profile" class="tab-panel">
+      <header class="page-heading">
+        <div>
+          <h1 id="profilePageTitle">Личный профиль</h1>
+          <p id="profilePageSubtitle">Данные педагога, специализация и статистика рабочего пространства.</p>
+        </div>
+        <button onclick="openEditProfileModal()" class="btn-pill" id="btnEditProfileTop">✏️ Редактировать</button>
+      </header>
+
+      <div class="profile-hero-card">
+        <div style="display:flex; align-items:center; gap:16px;">
+          <div style="width:68px; height:68px; border-radius:20px; background:linear-gradient(135deg, #0284C7, #2563EB); color:#fff; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:800; box-shadow:0 8px 24px rgba(2,132,199,0.3);" id="profileAvatarBig">
+            П
+          </div>
+          <div style="flex:1;">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <h2 style="font-size:20px; font-weight:800; color:var(--text-main);" id="profileFullName">Ермуханов Мернар</h2>
+              <span id="profileRoleBadge" class="tier-badge pro" style="font-size:11px; padding:3px 8px;">Педагог</span>
+            </div>
+            <div style="font-size:13px; color:var(--text-muted); margin-top:4px;" id="profileOrgSubtitle">№6 Хромтау гимназиясы · Математика</div>
+          </div>
+        </div>
+
+        <div class="profile-grid-info">
+          <div class="profile-info-item">
+            <div class="profile-info-label" id="lblProfileSchool">Организация</div>
+            <div class="profile-info-val" id="valProfileSchool">—</div>
+          </div>
+          <div class="profile-info-item">
+            <div class="profile-info-label" id="lblProfileSubject">Специализация</div>
+            <div class="profile-info-val" id="valProfileSubject">—</div>
+          </div>
+          <div class="profile-info-item" id="itemProfileClasses">
+            <div class="profile-info-label" id="lblProfileClasses">Классы / Группы</div>
+            <div class="profile-info-val" id="valProfileClasses">—</div>
+          </div>
+          <div class="profile-info-item">
+            <div class="profile-info-label" id="lblProfilePosition">Должность</div>
+            <div class="profile-info-val" id="valProfilePosition">—</div>
+          </div>
+          <div class="profile-info-item" style="grid-column: 1 / -1;">
+            <div class="profile-info-label" id="lblProfileDirector">Директор / Заведующая</div>
+            <div class="profile-info-val" id="valProfileDirector">—</div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:16px;">
+          <button onclick="openEditProfileModal()" class="form-btn-submit" style="flex:1; padding:11px;" id="btnEditProfileHero">✏️ Редактировать профиль</button>
+          <button onclick="openBot()" class="btn-pill" style="padding:11px 16px;" id="btnOpenBotHero">Открыть бота →</button>
+        </div>
+      </div>
+
+      <!-- Quick Stats Card -->
+      <div class="glass-card">
+        <div style="font-size:15px; font-weight:800; color:var(--text-main); margin-bottom:12px;" id="profileStatsHeading">📊 Статистика активности</div>
+        <div class="metrics-grid" style="border:none; padding:0; margin:0;">
+          <div class="metric-item">
+            <div class="metric-val" id="profileStatDocs">0</div>
+            <div class="metric-lbl" id="profileStatDocsLabel">Документов создано</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-val" id="profileStatHours">0 ч</div>
+            <div class="metric-lbl" id="profileStatHoursLabel">Сэкономлено времени</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-val" id="profileStatStudents">0</div>
+            <div class="metric-lbl" id="profileStatStudentsLabel">В базе учеников</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════
+         TAB 8: НАСТРОЙКИ (SETTINGS)
+         ════════════════════════════════════════════════════ -->
+    <section id="tab-settings" class="tab-panel">
+      <header class="page-heading">
+        <div>
+          <h1 id="settingsPageTitle">Настройки</h1>
+          <p id="settingsPageSubtitle">Язык интерфейса, тема оформления и управление аккаунтом.</p>
+        </div>
+      </header>
+
+      <!-- 1. ЯЗЫК САЙТА -->
+      <div class="settings-card">
+        <div class="settings-card-title">
+          <span>🌐</span> <span id="settingsLangTitle">Язык сайта</span>
+        </div>
+        <div class="settings-card-desc" id="settingsLangDesc">
+          Выберите удобный язык интерфейса кабинета. Поддерживаются русский, казахский и английский.
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="lang-btn" data-lang="ru" onclick="changeLang('ru')" style="flex:1; min-width:90px; padding:10px; font-size:13px; text-align:center;">🇷🇺 Русский</button>
+          <button type="button" class="lang-btn" data-lang="kz" onclick="changeLang('kz')" style="flex:1; min-width:90px; padding:10px; font-size:13px; text-align:center;">🇰🇿 Қазақша</button>
+          <button type="button" class="lang-btn" data-lang="en" onclick="changeLang('en')" style="flex:1; min-width:90px; padding:10px; font-size:13px; text-align:center;">🇬🇧 English</button>
+        </div>
+      </div>
+
+      <!-- 2. ЦВЕТ И ТЕМА -->
+      <div class="settings-card">
+        <div class="settings-card-title">
+          <span>🎨</span> <span id="settingsThemeTitle">Цветовая тема сайта</span>
+        </div>
+        <div class="settings-card-desc" id="settingsThemeDesc">
+          Переключение между яркой светлой темой (Sky Blue) и тёмной для комфортной работы вечером.
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="theme-toggle-btn" id="btnThemeLight" onclick="setTheme('light')" style="flex:1; padding:10px; font-size:13px; justify-content:center;">
+            ☀️ Светлая (яркая)
+          </button>
+          <button type="button" class="theme-toggle-btn" id="btnThemeDark" onclick="setTheme('dark')" style="flex:1; padding:10px; font-size:13px; justify-content:center;">
+            🌙 Тёмная (ночной режим)
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. СБРОС АККАУНТА -->
+      <div class="settings-card danger-card">
+        <div class="settings-card-title" style="color:#DC2626;">
+          <span>⚠️</span> <span id="settingsResetTitle">Сброс аккаунта</span>
+        </div>
+        <div class="settings-card-desc" style="color:#991B1B;" id="settingsResetDesc">
+          Очистка рабочего пространства: удаление всех учеников/воспитанников, сохранённого расписания, памяти правил ИИ и документов.
+        </div>
+        <button type="button" onclick="confirmResetAccount()" class="form-btn-submit" style="background:#DC2626; padding:11px;" id="btnResetAccount">
+          ⚠️ Сбросить данные аккаунта
+        </button>
+      </div>
+    </section>
+
+    <!-- OPEN QUICK SETTINGS BAR (VISIBLE DIRECTLY AT BOTTOM) -->
+    <div class="quick-settings-bar" id="quickSettingsBar">
+      <div class="quick-lang-group" title="Язык / Тіл / Language">
+        <button type="button" class="lang-btn active" data-lang="ru" onclick="changeLang('ru')">🇷🇺 RU</button>
+        <button type="button" class="lang-btn" data-lang="kz" onclick="changeLang('kz')">🇰🇿 KZ</button>
+        <button type="button" class="lang-btn" data-lang="en" onclick="changeLang('en')">🇬🇧 EN</button>
+      </div>
+      <div class="quick-theme-group">
+        <button type="button" class="theme-toggle-btn" onclick="toggleTheme()" title="Светлая / Тёмная тема">
+          <span class="theme-icon-el">🌙</span> <span class="theme-label-el">Тёмная</span>
+        </button>
+      </div>
+      <button type="button" class="quick-settings-nav-btn" onclick="switchTab('settings')" title="Настройки">
+        <span>⚙️</span> <span id="quickBarSettingsText">Настройки</span>
+      </button>
+    </div>
+
   </div> <!-- /appView -->
 
 </div> <!-- /app-container -->
 
 <!-- BOTTOM TAB BAR -->
 <nav class="bottom-nav" aria-label="Навигация">
-  <button class="nav-item active" data-tab="home" onclick="switchTab('home')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-6v-7h-4v7H4a1 1 0 0 1-1-1z"/></svg></span><span>Главная</span></button>
-  <button class="nav-item" data-tab="documents" onclick="switchTab('documents')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v6h5M9 13h6M9 17h6"/></svg></span><span>Документы</span></button>
-  <button class="nav-item" data-tab="students" onclick="switchTab('students')"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1zM16 5.5a3 3 0 0 1 0 5.8M18 14a4 4 0 0 1 3 4v2"/></svg></span><span>Ученики</span></button>
-  <button class="nav-item" data-tab="schedule" onclick="switchTab('schedule')"><span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3M8 17h7"/></svg></span><span>План</span></button>
-  <button class="nav-item" data-tab="memory" onclick="switchTab('memory')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M8 14a7 7 0 1 1 8 0c-.8.6-1 1.2-1 2H9c0-.8-.2-1.4-1-2Z"/></svg></span><span>Память</span></button>
-  <button class="nav-item" data-tab="referrals" onclick="switchTab('referrals')"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1zM17 8h5M19.5 5.5v5M17 16a4 4 0 0 1 4 4"/></svg></span><span>Бонусы</span></button>
-  <button class="nav-item" data-tab="tariffs" onclick="switchTab('tariffs')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 3v18M17 7H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H7"/></svg></span><span>Тарифы</span></button>
+  <button class="nav-item active" data-tab="home" onclick="switchTab('home')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-6v-7h-4v7H4a1 1 0 0 1-1-1z"/></svg></span><span class="nav-text-home">Главная</span></button>
+  <button class="nav-item" data-tab="documents" onclick="switchTab('documents')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v6h5M9 13h6M9 17h6"/></svg></span><span class="nav-text-documents">Документы</span></button>
+  <button class="nav-item" data-tab="students" onclick="switchTab('students')"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1zM16 5.5a3 3 0 0 1 0 5.8M18 14a4 4 0 0 1 3 4v2"/></svg></span><span class="nav-text-students">Ученики</span></button>
+  <button class="nav-item" data-tab="schedule" onclick="switchTab('schedule')"><span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3M8 17h7"/></svg></span><span class="nav-text-schedule">План</span></button>
+  <button class="nav-item" data-tab="memory" onclick="switchTab('memory')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M8 14a7 7 0 1 1 8 0c-.8.6-1 1.2-1 2H9c0-.8-.2-1.4-1-2Z"/></svg></span><span class="nav-text-memory">Память</span></button>
+  <button class="nav-item" data-tab="referrals" onclick="switchTab('referrals')"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1zM17 8h5M19.5 5.5v5M17 16a4 4 0 0 1 4 4"/></svg></span><span class="nav-text-referrals">Бонусы</span></button>
+  <button class="nav-item" data-tab="tariffs" onclick="switchTab('tariffs')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 3v18M17 7H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H7"/></svg></span><span class="nav-text-tariffs">Тарифы</span></button>
+  <button class="nav-item" data-tab="profile" onclick="switchTab('profile')"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="nav-text-profile">Профиль</span></button>
+  <button class="nav-item" data-tab="settings" onclick="switchTab('settings')"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="nav-text-settings">Настройки</span></button>
 </nav>
 
 <!-- ════════════════════════════════════════════════════
@@ -1643,6 +2045,29 @@
   </div>
 </div>
 
+<!-- MODAL: CONFIRM ACCOUNT RESET -->
+<div id="modalConfirmReset" class="modal-overlay">
+  <div class="modal-card" style="max-width:440px;">
+    <div class="modal-header">
+      <div class="modal-title" style="color:#DC2626;" id="modalResetTitle">⚠️ Сброс аккаунта</div>
+      <button onclick="closeModal('modalConfirmReset')" class="modal-close-btn">✕</button>
+    </div>
+    <div style="font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:16px;" id="modalResetContent">
+      Вы уверены, что хотите сбросить рабочее пространство? Это действие:
+      <br><br>
+      • Очистит базу учеников и воспитанников<br>
+      • Очистит недельное расписание / режим дня<br>
+      • Очистит персональную память ИИ-агента<br>
+      • Очистит историю созданных документов<br><br>
+      <b style="color:#DC2626;">Это действие нельзя отменить!</b>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <button type="button" onclick="closeModal('modalConfirmReset')" class="btn-pill" style="flex:1; padding:10px;" id="modalResetCancelBtn">Отмена</button>
+      <button type="button" onclick="executeResetAccount()" class="form-btn-submit" style="flex:1; background:#DC2626; padding:10px;" id="modalResetConfirmBtn">Да, сбросить</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div id="toast" class="toast">
   <span id="toastIcon" aria-hidden="true"></span>
@@ -1675,7 +2100,298 @@ const STATE = {
   bot_url: 'https://t.me/docurakz_bot',
   activeDay: 'Понедельник',
   currentTab: 'home',
-  tg_id: null
+  tg_id: null,
+  lang: localStorage.getItem('docura_lang') || 'ru',
+  theme: localStorage.getItem('docura_theme') || 'light'
+};
+
+// ── MULTI-LANGUAGE I18N DICTIONARY ──
+const I18N = {
+  ru: {
+    topContext: "Рабочее пространство",
+    openBot: "Открыть бота",
+    navHome: "Главная",
+    navDocs: "Документы",
+    navStudents: "Ученики",
+    navStudentsKg: "Воспитанники",
+    navSchedule: "План",
+    navScheduleKg: "Режим",
+    navMemory: "Память",
+    navBonuses: "Бонусы",
+    navTariffs: "Тарифы",
+    navProfile: "Профиль",
+    navSettings: "Настройки",
+    welcomeTitle: "Добро пожаловать,",
+    welcomeSubtitle: "Что создадим сегодня?",
+    newDocLabel: "Новый документ",
+    docPromptPlaceholderSchool: "Опишите, какой документ вам нужен… Например: составь план урока (КСП) математики для 8 класса по теме квадратных уравнений.",
+    docPromptPlaceholderKg: "Опишите, какой документ вам нужен… Например: составь циклограмму на неделю для средней группы «Балапан» или конспект ОУД по развитию речи.",
+    sendTelegram: "Продолжить в Telegram",
+    recentDocsHeading: "Недавние документы",
+    allDocsBtn: "Все документы →",
+    statDocsLabel: "создано документов",
+    statHoursLabel: "сэкономлено часов",
+    statStudentsLabel: "учеников в базе",
+    statChildrenLabel: "воспитанников в базе",
+    emptyRecentDocs: "Пока нет созданных документов. Начните с запроса выше.",
+    docsHeading: "Документы",
+    docsSubheading: "История созданных материалов и быстрый поиск.",
+    createDocBtn: "Создать документ",
+    searchDocsPlaceholder: "Поиск по документам…",
+    sortNewest: "Сначала новые",
+    sortOldest: "Сначала старые",
+    emptyDocs: "Созданные документы появятся здесь после генерации.",
+    studentsTabTitle: "Ученики",
+    studentsTabTitleKg: "Воспитанники",
+    studentsTabSubtitle: "Список учеников и параллелей, связанный с вашим контекстом Docura.",
+    studentsTabSubtitleKg: "Список воспитанников детского сада и карты развития.",
+    btnAddStudent: "+ Добавить ученика",
+    btnAddStudentKg: "+ Добавить воспитанника",
+    studentsTotalLabel: "Всего учеников",
+    studentsTotalLabelKg: "Всего воспитанников",
+    studentsGroupsLabel: "Классов и параллелей",
+    studentsGroupsLabelKg: "Возрастных групп",
+    scheduleTabTitle: "Расписание уроков",
+    scheduleTabTitleKg: "Режим дня и ОУД",
+    scheduleTabSubtitle: "Сетка уроков на учебную неделю с автоматической генерацией КСП.",
+    scheduleTabSubtitleKg: "Сетка занятий, прогулок и режимных моментов по дням недели.",
+    btnAddLesson: "+ Добавить урок",
+    btnAddLessonKg: "+ Добавить ОУД",
+    btnScheduleText: "✍️ Ввести текстом",
+    btnScheduleUpload: "📸 Фото / файл",
+    scheduleMonitoringActive: "Мониторинг расписания активен",
+    scheduleWeekBadge: "Неделя · Расписание",
+    scheduleWeekBadgeKg: "Неделя · Циклограмма",
+    memoryHeading: "Память Docura",
+    memorySubheading: "Сохраняйте правила и контекст, которые AI должен помнить.",
+    btnClearMemory: "Очистить память",
+    addRuleLabel: "Добавить правило или предпочтение:",
+    addRulePlaceholder: "Например: Всегда оформляй домашнее задание дифференцированно",
+    btnAddRule: "+ Добавить правило",
+    refHeading: "Реферальная программа",
+    refSubheading: "Приглашайте коллег и делитесь доступом к Docura.",
+    refBonusTag: "+5 документов",
+    refCardTitle: "Приглашайте коллег!",
+    refLinkLabel: "Ваша ссылка:",
+    copyLinkBtn: "Скопировать ссылку",
+    shareWaBtn: "Поделиться в WhatsApp",
+    refCountLabel: "Приглашено:",
+    refBonusDocsLabel: "Бонусных документов:",
+    tariffsHeading: "Тарифы и подписка",
+    tariffsSubheading: "Выберите формат доступа для себя или всей организации.",
+    profileHeading: "Личный профиль",
+    profileSubheading: "Данные педагога, специализация и статистика рабочего пространства.",
+    btnEditProfile: "✏️ Редактировать",
+    profileStatsTitle: "📊 Статистика активности",
+    profileOrgLabel: "Организация",
+    profileSpecLabel: "Специализация",
+    profileClassLabel: "Классы / Группы",
+    profilePosLabel: "Должность",
+    profileDirLabel: "Директор / Заведующая",
+    settingsHeading: "Настройки",
+    settingsSubheading: "Язык интерфейса, тема оформления и управление аккаунтом.",
+    settingsLangTitle: "Язык сайта",
+    settingsLangDesc: "Выберите удобный язык интерфейса кабинета. Поддерживаются русский, казахский и английский.",
+    settingsThemeTitle: "Цветовая тема сайта",
+    settingsThemeDesc: "Переключение между яркой светлой темой (Sky Blue) и тёмной для комфортной работы вечером.",
+    themeLightBtn: "☀️ Светлая (яркая)",
+    themeDarkBtn: "🌙 Тёмная (ночной режим)",
+    settingsResetTitle: "Сброс аккаунта",
+    settingsResetDesc: "Очистка рабочего пространства: удаление всех учеников/воспитанников, сохранённого расписания, памяти правил ИИ и документов.",
+    btnResetAccount: "⚠️ Сбросить данные аккаунта",
+    themeToggleLightLabel: "Светлая",
+    themeToggleDarkLabel: "Тёмная"
+  },
+  kz: {
+    topContext: "Жұмыс кеңістігі",
+    openBot: "Ботты ашу",
+    navHome: "Басты",
+    navDocs: "Құжаттар",
+    navStudents: "Оқушылар",
+    navStudentsKg: "Тәрбиеленушілер",
+    navSchedule: "Кесте",
+    navScheduleKg: "Тәртіп",
+    navMemory: "Жад",
+    navBonuses: "Бонустар",
+    navTariffs: "Тарифтер",
+    navProfile: "Профиль",
+    navSettings: "Баптаулар",
+    welcomeTitle: "Қош келдіңіз,",
+    welcomeSubtitle: "Бүгін қандай құжат жасаймыз?",
+    newDocLabel: "Жаңа құжат",
+    docPromptPlaceholderSchool: "Қандай құжат керек екенін жазыңыз… Мысалы: 8-сыныпқа алгебрадан квадрат теңдеулер бойынша ҚМЖ құрастыр.",
+    docPromptPlaceholderKg: "Қандай құжат керек екенін жазыңыз… Мысалы: «Балапан» ортаңғы тобына бір апталық циклограмма немесе сөйлеуді дамыту ҰОҚ конспектісін құрастыр.",
+    sendTelegram: "Telegram-да жалғастыру",
+    recentDocsHeading: "Соңғы құжаттар",
+    allDocsBtn: "Барлық құжаттар →",
+    statDocsLabel: "құжат жасалды",
+    statHoursLabel: "уақыт үнемделді",
+    statStudentsLabel: "оқушы базада",
+    statChildrenLabel: "тәрбиеленуші базада",
+    emptyRecentDocs: "Әзірге жасалған құжаттар жоқ. Жоғарыда сұраныс жазыңыз.",
+    docsHeading: "Құжаттар",
+    docsSubheading: "Жасалған материалдар тарихы және жылдам іздеу.",
+    createDocBtn: "Құжат құрастыру",
+    searchDocsPlaceholder: "Құжаттар бойынша іздеу…",
+    sortNewest: "Алдымен жаңалары",
+    sortOldest: "Алдымен ескілері",
+    emptyDocs: "Жасалған құжаттар генерациядан кейін осында шығады.",
+    studentsTabTitle: "Оқушылар",
+    studentsTabTitleKg: "Тәрбиеленушілер",
+    studentsTabSubtitle: "Docura жүйесіне байланыстырылған оқушылар мен сыныптар тізімі.",
+    studentsTabSubtitleKg: "Балабақша тәрбиеленушілері мен даму карталарының тізімі.",
+    btnAddStudent: "+ Оқушы қосу",
+    btnAddStudentKg: "+ Тәрбиеленуші қосу",
+    studentsTotalLabel: "Барлық оқушылар",
+    studentsTotalLabelKg: "Барлық тәрбиеленушілер",
+    studentsGroupsLabel: "Сыныптар мен параллельдер",
+    studentsGroupsLabelKg: "Жас топтары",
+    scheduleTabTitle: "Сабақ кестесі",
+    scheduleTabTitleKg: "Күн тәртібі және ҰОҚ",
+    scheduleTabSubtitle: "ҚМЖ автоматты генерациясы бар бір апталық сабақ кестесі.",
+    scheduleTabSubtitleKg: "Апта күндері бойынша ұйымдастырылған іс-әрекеттер мен серуендер кестесі.",
+    btnAddLesson: "+ Сабақ қосу",
+    btnAddLessonKg: "+ ҰОҚ қосу",
+    btnScheduleText: "✍️ Мәтінмен енгізу",
+    btnScheduleUpload: "📸 Фото / файл",
+    scheduleMonitoringActive: "Кесте мониторингі белсенді",
+    scheduleWeekBadge: "Апта · Сабақ кестесі",
+    scheduleWeekBadgeKg: "Апта · Циклограмма",
+    memoryHeading: "Docura жады",
+    memorySubheading: "AI жаттап алатын ережелер мен жеке қалауларды сақтаңыз.",
+    btnClearMemory: "Жадты тазарту",
+    addRuleLabel: "Ереже немесе қалауыңызды қосыңыз:",
+    addRulePlaceholder: "Мысалы: Үй тапсырмасын әрдайым деңгейлеп, саралап құрастыр",
+    btnAddRule: "+ Ереже қосу",
+    refHeading: "Рефералдық бағдарлама",
+    refSubheading: "Әріптестеріңізді шақырып, Docura-мен бөлісіңіз.",
+    refBonusTag: "+5 құжат",
+    refCardTitle: "Әріптестерді шақырыңыз!",
+    refLinkLabel: "Сіздің сілтемеңіз:",
+    copyLinkBtn: "Сілтемені көшіру",
+    shareWaBtn: "WhatsApp арқылы бөлісу",
+    refCountLabel: "Шақырылды:",
+    refBonusDocsLabel: "Бонустық құжаттар:",
+    tariffsHeading: "Тарифтер мен жазылым",
+    tariffsSubheading: "Өзіңізге немесе бүкіл мекемеге арналған тарифті таңдаңыз.",
+    profileHeading: "Жеке профиль",
+    profileSubheading: "Педагог мәліметтері, мамандығы және жұмыс статистикасы.",
+    btnEditProfile: "✏️ Өңдеу",
+    profileStatsTitle: "📊 Белсенділік статистикасы",
+    profileOrgLabel: "Мекеме / Ұйым",
+    profileSpecLabel: "Мамандық / Топ",
+    profileClassLabel: "Сыныптар / Топтар",
+    profilePosLabel: "Лауазым",
+    profileDirLabel: "Директор / Меңгеруші",
+    settingsHeading: "Баптаулар",
+    settingsSubheading: "Интерфейс тілі, дизайн түсі және аккаунтты басқару.",
+    settingsLangTitle: "Сайт тілі",
+    settingsLangDesc: "Кабинет интерфейсінің тілін таңдаңыз. Қазақ, орыс және ағылшын тілдері қолжетімді.",
+    settingsThemeTitle: "Сайттың түс тақырыбы",
+    settingsThemeDesc: "Жарық ашық тақырып (Sky Blue) пен кешкі жұмысқа ыңғайлы күңгірт режим арасында ауысу.",
+    themeLightBtn: "☀️ Жарық (ашық)",
+    themeDarkBtn: "🌙 Күңгірт (түнгі режим)",
+    settingsResetTitle: "Аккаунтты тазарту",
+    settingsResetDesc: "Жұмыс кеңістігін тазарту: барлық оқушыларды, сабақ кестесін, AI жадын және құжаттарды жою.",
+    btnResetAccount: "⚠️ Аккаунт деректерін тазарту",
+    themeToggleLightLabel: "Жарық",
+    themeToggleDarkLabel: "Күңгірт"
+  },
+  en: {
+    topContext: "Workspace",
+    openBot: "Open Bot",
+    navHome: "Home",
+    navDocs: "Documents",
+    navStudents: "Students",
+    navStudentsKg: "Children",
+    navSchedule: "Schedule",
+    navScheduleKg: "Routine",
+    navMemory: "Memory",
+    navBonuses: "Bonuses",
+    navTariffs: "Plans",
+    navProfile: "Profile",
+    navSettings: "Settings",
+    welcomeTitle: "Welcome,",
+    welcomeSubtitle: "What shall we create today?",
+    newDocLabel: "New Document",
+    docPromptPlaceholderSchool: "Describe the document you need… For example: create a lesson plan for 8th grade math on quadratic equations.",
+    docPromptPlaceholderKg: "Describe the document you need… For example: create a weekly cyclogram for middle kindergarten group or early childhood speech development lesson plan.",
+    sendTelegram: "Continue in Telegram",
+    recentDocsHeading: "Recent Documents",
+    allDocsBtn: "All documents →",
+    statDocsLabel: "documents created",
+    statHoursLabel: "hours saved",
+    statStudentsLabel: "students in base",
+    statChildrenLabel: "children in base",
+    emptyRecentDocs: "No documents created yet. Start with a prompt above.",
+    docsHeading: "Documents",
+    docsSubheading: "History of created materials and fast search.",
+    createDocBtn: "Create document",
+    searchDocsPlaceholder: "Search documents…",
+    sortNewest: "Newest first",
+    sortOldest: "Oldest first",
+    emptyDocs: "Created documents will appear here after generation.",
+    studentsTabTitle: "Students",
+    studentsTabTitleKg: "Children",
+    studentsTabSubtitle: "List of students and classes connected to your Docura context.",
+    studentsTabSubtitleKg: "List of kindergarten children and developmental cards.",
+    btnAddStudent: "+ Add student",
+    btnAddStudentKg: "+ Add child",
+    studentsTotalLabel: "Total students",
+    studentsTotalLabelKg: "Total children",
+    studentsGroupsLabel: "Classes & grades",
+    studentsGroupsLabelKg: "Age groups",
+    scheduleTabTitle: "Lesson Schedule",
+    scheduleTabTitleKg: "Daily Routine & Activities",
+    scheduleTabSubtitle: "Weekly schedule grid with automated lesson plan generation.",
+    scheduleTabSubtitleKg: "Weekly activities, outdoor walks, and developmental routines.",
+    btnAddLesson: "+ Add lesson",
+    btnAddLessonKg: "+ Add activity",
+    btnScheduleText: "✍️ Enter as text",
+    btnScheduleUpload: "📸 Photo / file",
+    scheduleMonitoringActive: "Schedule monitoring active",
+    scheduleWeekBadge: "Week · Schedule",
+    scheduleWeekBadgeKg: "Week · Cyclogram",
+    memoryHeading: "Docura Memory",
+    memorySubheading: "Save personalized guidelines and preferences for AI to remember.",
+    btnClearMemory: "Clear memory",
+    addRuleLabel: "Add rule or preference:",
+    addRulePlaceholder: "For example: Always include differentiated homework tasks",
+    btnAddRule: "+ Add rule",
+    refHeading: "Referral Program",
+    refSubheading: "Invite colleagues and share Docura access.",
+    refBonusTag: "+5 documents",
+    refCardTitle: "Invite your colleagues!",
+    refLinkLabel: "Your referral link:",
+    copyLinkBtn: "Copy link",
+    shareWaBtn: "Share on WhatsApp",
+    refCountLabel: "Invited:",
+    refBonusDocsLabel: "Bonus documents:",
+    tariffsHeading: "Plans & Subscription",
+    tariffsSubheading: "Choose an access format for yourself or your entire school.",
+    profileHeading: "Personal Profile",
+    profileSubheading: "Educator details, specialization, and workspace metrics.",
+    btnEditProfile: "✏️ Edit Profile",
+    profileStatsTitle: "📊 Activity Statistics",
+    profileOrgLabel: "Organization",
+    profileSpecLabel: "Specialization",
+    profileClassLabel: "Classes / Groups",
+    profilePosLabel: "Position",
+    profileDirLabel: "Principal / Head",
+    settingsHeading: "Settings",
+    settingsSubheading: "Interface language, theme, and workspace account controls.",
+    settingsLangTitle: "Site Language",
+    settingsLangDesc: "Select your preferred workspace language. Russian, Kazakh, and English are supported.",
+    settingsThemeTitle: "Color Theme",
+    settingsThemeDesc: "Switch between bright Sky Blue glassmorphism and Dark mode for evening hours.",
+    themeLightBtn: "☀️ Light (Bright)",
+    themeDarkBtn: "🌙 Dark (Night mode)",
+    settingsResetTitle: "Reset Account",
+    settingsResetDesc: "Reset workspace: removes all students/children, saved schedules, AI memories, and documents.",
+    btnResetAccount: "⚠️ Reset Workspace Data",
+    themeToggleLightLabel: "Light",
+    themeToggleDarkLabel: "Dark"
+  }
 };
 
 // ── UTILS ──
@@ -1710,6 +2426,115 @@ function openBot() {
   }
 }
 
+// ── THEME SWITCHING ──
+function setTheme(theme) {
+  STATE.theme = theme;
+  localStorage.setItem('docura_theme', theme);
+  document.body.classList.toggle('theme-dark', theme === 'dark');
+
+  const lang = STATE.lang || 'ru';
+  const i18 = I18N[lang] || I18N.ru;
+  const isDark = theme === 'dark';
+
+  document.querySelectorAll('.theme-icon-el').forEach(el => el.textContent = isDark ? '☀️' : '🌙');
+  document.querySelectorAll('.theme-label-el').forEach(el => el.textContent = isDark ? i18.themeToggleLightLabel : i18.themeToggleDarkLabel);
+
+  const btnLight = document.getElementById('btnThemeLight');
+  const btnDark = document.getElementById('btnThemeDark');
+  if (btnLight && btnDark) {
+    btnLight.style.borderColor = !isDark ? 'var(--accent)' : 'var(--border-subtle)';
+    btnLight.style.background = !isDark ? 'rgba(2,132,199,0.15)' : 'transparent';
+    btnDark.style.borderColor = isDark ? 'var(--accent)' : 'var(--border-subtle)';
+    btnDark.style.background = isDark ? 'rgba(2,132,199,0.25)' : 'transparent';
+  }
+}
+
+function toggleTheme() {
+  setTheme(STATE.theme === 'dark' ? 'light' : 'dark');
+}
+
+// ── LANGUAGE SWITCHING ──
+function changeLang(lang) {
+  if (!I18N[lang]) lang = 'ru';
+  STATE.lang = lang;
+  localStorage.setItem('docura_lang', lang);
+  document.documentElement.lang = lang;
+
+  // Update active state on all language buttons
+  document.querySelectorAll('.lang-btn[data-lang]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === lang);
+  });
+
+  const i18 = I18N[lang];
+  const isKg = STATE.is_kg || STATE.user?.role === 'kindergarten';
+
+  // Sidebar & Bottom Nav
+  document.querySelectorAll('.nav-text-home').forEach(el => el.textContent = i18.navHome);
+  document.querySelectorAll('.nav-text-documents').forEach(el => el.textContent = i18.navDocs);
+  document.querySelectorAll('.nav-text-students').forEach(el => el.textContent = isKg ? i18.navStudentsKg : i18.navStudents);
+  document.querySelectorAll('.nav-text-schedule').forEach(el => el.textContent = isKg ? i18.navScheduleKg : i18.navSchedule);
+  document.querySelectorAll('.nav-text-memory').forEach(el => el.textContent = i18.navMemory);
+  document.querySelectorAll('.nav-text-referrals').forEach(el => el.textContent = i18.navBonuses);
+  document.querySelectorAll('.nav-text-tariffs').forEach(el => el.textContent = i18.navTariffs);
+  document.querySelectorAll('.nav-text-profile').forEach(el => el.textContent = i18.navProfile);
+  document.querySelectorAll('.nav-text-settings').forEach(el => el.textContent = i18.navSettings);
+
+  const quickBarSettings = document.getElementById('quickBarSettingsText');
+  if (quickBarSettings) quickBarSettings.textContent = i18.navSettings;
+
+  // Profile section translations
+  const profTitle = document.getElementById('profilePageTitle');
+  if (profTitle) profTitle.textContent = i18.profileHeading;
+  const profSubtitle = document.getElementById('profilePageSubtitle');
+  if (profSubtitle) profSubtitle.textContent = i18.profileSubheading;
+  const btnEditTop = document.getElementById('btnEditProfileTop');
+  if (btnEditTop) btnEditTop.textContent = i18.btnEditProfile;
+  const btnEditHero = document.getElementById('btnEditProfileHero');
+  if (btnEditHero) btnEditHero.textContent = i18.btnEditProfile;
+  const profStatsHeading = document.getElementById('profileStatsHeading');
+  if (profStatsHeading) profStatsHeading.textContent = i18.profileStatsTitle;
+  const lblSchool = document.getElementById('lblProfileSchool');
+  if (lblSchool) lblSchool.textContent = i18.profileOrgLabel;
+  const lblSubj = document.getElementById('lblProfileSubject');
+  if (lblSubj) lblSubj.textContent = i18.profileSpecLabel;
+  const lblClass = document.getElementById('lblProfileClasses');
+  if (lblClass) lblClass.textContent = i18.profileClassLabel;
+  const lblPos = document.getElementById('lblProfilePosition');
+  if (lblPos) lblPos.textContent = i18.profilePosLabel;
+  const lblDir = document.getElementById('lblProfileDirector');
+  if (lblDir) lblDir.textContent = i18.profileDirLabel;
+
+  // Settings section translations
+  const setHeading = document.getElementById('settingsPageTitle');
+  if (setHeading) setHeading.textContent = i18.settingsHeading;
+  const setSub = document.getElementById('settingsPageSubtitle');
+  if (setSub) setSub.textContent = i18.settingsSubheading;
+  const setLangTitle = document.getElementById('settingsLangTitle');
+  if (setLangTitle) setLangTitle.textContent = i18.settingsLangTitle;
+  const setLangDesc = document.getElementById('settingsLangDesc');
+  if (setLangDesc) setLangDesc.textContent = i18.settingsLangDesc;
+  const setThemeTitle = document.getElementById('settingsThemeTitle');
+  if (setThemeTitle) setThemeTitle.textContent = i18.settingsThemeTitle;
+  const setThemeDesc = document.getElementById('settingsThemeDesc');
+  if (setThemeDesc) setThemeDesc.textContent = i18.settingsThemeDesc;
+  const btnThmL = document.getElementById('btnThemeLight');
+  if (btnThmL) btnThmL.textContent = i18.themeLightBtn;
+  const btnThmD = document.getElementById('btnThemeDark');
+  if (btnThmD) btnThmD.textContent = i18.themeDarkBtn;
+  const setResetTitle = document.getElementById('settingsResetTitle');
+  if (setResetTitle) setResetTitle.textContent = i18.settingsResetTitle;
+  const setResetDesc = document.getElementById('settingsResetDesc');
+  if (setResetDesc) setResetDesc.textContent = i18.settingsResetDesc;
+  const btnReset = document.getElementById('btnResetAccount');
+  if (btnReset) btnReset.textContent = i18.btnResetAccount;
+
+  // Sync theme toggle label
+  setTheme(STATE.theme);
+
+  // Re-render UI with current language
+  renderUI();
+}
+
 function setComposerType(button, type) {
   document.querySelectorAll('.composer-chip').forEach(chip => chip.classList.toggle('active', chip === button));
   const input = document.getElementById('composerPrompt');
@@ -1722,26 +2547,29 @@ function setComposerType(button, type) {
 function renderComposerChips(isKg) {
   const container = document.getElementById('composerChipsContainer');
   const promptInput = document.getElementById('composerPrompt');
+  const lang = STATE.lang || 'ru';
+  const i18 = I18N[lang] || I18N.ru;
+
   if (isKg) {
-    promptInput.placeholder = 'Опишите, какой документ вам нужен… Например: составь циклограмму на неделю для средней группы «Балапан» или конспект ОУД по развитию речи.';
-    container.innerHTML = `
-      <button class="composer-chip active" type="button" onclick="setComposerType(this,'Циклограмма')">Циклограмма</button>
-      <button class="composer-chip" type="button" onclick="setComposerType(this,'ОУД конспект')">ОУД конспект</button>
-      <button class="composer-chip" type="button" onclick="setComposerType(this,'Режим дня')">Режим дня</button>
-      <button class="composer-chip" type="button" onclick="setComposerType(this,'Мониторинг развития')">Мониторинг развития</button>
-      <button class="composer-chip" type="button" onclick="setComposerType(this,'Карточка ребёнка')">Карточка ребёнка</button>
-      <button class="composer-chip" type="button" onclick="setComposerType(this,'Консультация родителям')">Консультация родителям</button>
-    `;
+    promptInput.placeholder = i18.docPromptPlaceholderKg;
+    const chipsKg = lang === 'kz' 
+      ? ['Циклограмма', 'ҰОҚ конспектісі', 'Күн тәртібі', 'Даму мониторингі', 'Бала картасы', 'Кеңес']
+      : lang === 'en'
+      ? ['Cyclogram', 'Activity Plan', 'Daily Routine', 'Monitoring', 'Child Card', 'Consultation']
+      : ['Циклограмма', 'ОУД конспект', 'Режим дня', 'Мониторинг развития', 'Карточка ребёнка', 'Консультация'];
+    container.innerHTML = chipsKg.map((c, i) => `
+      <button class="composer-chip ${i === 0 ? 'active' : ''}" type="button" onclick="setComposerType(this,'${c}')">${c}</button>
+    `).join('');
   } else {
-    promptInput.placeholder = 'Опишите, какой документ вам нужен… Например: составь план урока (КСП) математики для 8 класса по теме квадратных уравнений.';
-    container.innerHTML = `
-      <button class="composer-chip active" type="button" onclick="setComposerType(this,'КСП')">КСП</button>
-      <button class="composer-chip" type="button" onclick="setComposerType(this,'КТП')">КТП</button>
-      <button class="composer-chip" type="button" onclick="setComposerType(this,'СОР / СОЧ')">СОР / СОЧ</button>
-      <button class="composer-chip" type="button" onclick="setComposerType(this,'Конспект урока')">Конспект урока</button>
-      <button class="composer-chip" type="button" onclick="setComposerType(this,'Отчёт')">Отчёт</button>
-      <button class="composer-chip" type="button" onclick="setComposerType(this,'Характеристика')">Характеристика</button>
-    `;
+    promptInput.placeholder = i18.docPromptPlaceholderSchool;
+    const chipsSchool = lang === 'kz'
+      ? ['ҚМЖ', 'КТЖ', 'БЖБ / ТЖБ', 'Сабақ жоспары', 'Есеп', 'Мінездеме']
+      : lang === 'en'
+      ? ['Lesson Plan', 'Curriculum', 'Assessment', 'Outline', 'Report', 'Evaluation']
+      : ['КСП', 'КТП', 'СОР / СОЧ', 'Конспект урока', 'Отчёт', 'Характеристика'];
+    container.innerHTML = chipsSchool.map((c, i) => `
+      <button class="composer-chip ${i === 0 ? 'active' : ''}" type="button" onclick="setComposerType(this,'${c}')">${c}</button>
+    `).join('');
   }
 }
 
@@ -1750,14 +2578,14 @@ async function composeDocument() {
   const prompt = input.value.trim();
   if (!prompt) {
     input.focus();
-    showToast('Сначала опишите документ');
+    showToast(STATE.lang === 'kz' ? 'Алдымен құжатты сипаттаңыз' : STATE.lang === 'en' ? 'Describe the document first' : 'Сначала опишите документ');
     return;
   }
   try {
     await navigator.clipboard.writeText(prompt);
-    showToast('Запрос скопирован. Вставьте его в чате с Docura.');
+    showToast(STATE.lang === 'kz' ? 'Сұраныс көшірілді. Docura ботына қойыңыз.' : STATE.lang === 'en' ? 'Prompt copied. Paste it into Docura chat.' : 'Запрос скопирован. Вставьте его в чате с Docura.');
   } catch (e) {
-    showToast('Откроется Telegram-бот Docura');
+    showToast(STATE.lang === 'kz' ? 'Docura боты ашылады' : STATE.lang === 'en' ? 'Opening Docura bot' : 'Откроется Telegram-бот Docura');
   }
   setTimeout(openBot, 250);
 }
@@ -1766,17 +2594,23 @@ async function composeDocument() {
 function switchTab(name) {
   STATE.currentTab = name;
   const isKg = STATE.is_kg || STATE.user?.role === 'kindergarten';
+  const lang = STATE.lang || 'ru';
+  const i18 = I18N[lang] || I18N.ru;
+
   const sectionNames = {
-    home: 'Рабочее пространство',
-    documents: 'Документы',
-    students: isKg ? 'Воспитанники' : 'Ученики',
-    schedule: isKg ? 'Режим дня и ОУД' : 'Расписание',
-    memory: 'Память Docura',
-    referrals: 'Реферальная программа',
-    tariffs: 'Тарифы и подписка'
+    home: i18.topContext,
+    documents: i18.navDocs,
+    students: isKg ? i18.navStudentsKg : i18.navStudents,
+    schedule: isKg ? i18.navScheduleKg : i18.navSchedule,
+    memory: i18.navMemory,
+    referrals: i18.navBonuses,
+    tariffs: i18.navTariffs,
+    profile: i18.navProfile,
+    settings: i18.navSettings
   };
-  document.getElementById('topContext').textContent = sectionNames[name] || 'Рабочее пространство';
-  const tabs = ['home', 'documents', 'students', 'schedule', 'memory', 'referrals', 'tariffs'];
+  document.getElementById('topContext').textContent = sectionNames[name] || i18.topContext;
+
+  const tabs = ['home', 'documents', 'students', 'schedule', 'memory', 'referrals', 'tariffs', 'profile', 'settings'];
   tabs.forEach(t => {
     const panel = document.getElementById('tab-' + t);
     if (t === name) {
@@ -1785,60 +2619,87 @@ function switchTab(name) {
       panel?.classList.remove('active');
     }
   });
+
   document.querySelectorAll('.nav-item[data-tab]').forEach(button => button.classList.toggle('active', button.dataset.tab === name));
+
   if (name === 'documents') renderDocumentsList();
+  if (name === 'profile') renderProfileTab();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// ── RENDER UI ──
+// ── PROFILE TAB RENDER ──
+function renderProfileTab() {
+  const u = STATE.user || {};
+  const isKg = STATE.is_kg || (u.role === 'kindergarten');
+  const lang = STATE.lang || 'ru';
+  const i18 = I18N[lang] || I18N.ru;
+
+  document.getElementById('profileFullName').textContent = u.name || (isKg ? 'Воспитатель' : 'Педагог');
+  document.getElementById('profileAvatarBig').textContent = (u.name || (isKg ? 'В' : 'П')).trim().charAt(0).toLocaleUpperCase('ru');
+  document.getElementById('profileRoleBadge').textContent = isKg 
+    ? (lang === 'kz' ? 'Тәрбиеші' : lang === 'en' ? 'Kindergarten Educator' : 'Воспитатель детсада')
+    : (lang === 'kz' ? 'Мұғалім' : lang === 'en' ? 'School Teacher' : 'Педагог / Учитель');
+
+  document.getElementById('profileOrgSubtitle').textContent = `${u.school || (isKg ? 'Детский сад' : 'Школа')} · ${isKg ? (u.age_group || 'Группа') : (u.subject || 'Предмет')}`;
+
+  document.getElementById('valProfileSchool').textContent = u.school || '—';
+  document.getElementById('valProfileSubject').textContent = isKg ? (u.age_group || '—') : (u.subject || '—');
+  document.getElementById('valProfileClasses').textContent = isKg ? (u.age_group || '—') : (u.classes || '—');
+  document.getElementById('valProfilePosition').textContent = u.position || '—';
+  document.getElementById('valProfileDirector').textContent = u.director || '—';
+
+  // Stats
+  document.getElementById('profileStatDocs').textContent = u.free_used || 0;
+  const hours = ((u.free_used || 0) * 0.5).toFixed(1);
+  document.getElementById('profileStatHours').textContent = `${hours} ч`;
+  document.getElementById('profileStatStudents').textContent = STATE.students.length;
+}
+
+// ── RENDER MAIN UI ──
 function renderUI() {
   const u = STATE.user || {};
   const isKg = STATE.is_kg || (u.role === 'kindergarten');
   STATE.is_kg = isKg;
+  const lang = STATE.lang || 'ru';
+  const i18 = I18N[lang] || I18N.ru;
   const isSub = Boolean(u.subscribed);
   const tier = (u.tier || (isSub ? 'pro' : 'free')).toLowerCase();
-  
-  // Badge
+
+  // Tier Badge
   const badgeEl = document.getElementById('tierBadgeEl');
   badgeEl.className = 'tier-badge ' + tier;
   badgeEl.textContent = tier.toUpperCase();
 
   // Hero & Dual Sphere adaptivity
-  document.getElementById('heroRole').textContent = isKg ? 'Воспитатель детсада' : 'Педагог / Учитель';
+  document.getElementById('heroRole').textContent = isKg ? (lang === 'kz' ? 'Тәрбиеші' : lang === 'en' ? 'Educator' : 'Воспитатель детсада') : (lang === 'kz' ? 'Мұғалім' : lang === 'en' ? 'Teacher' : 'Педагог / Учитель');
   document.getElementById('heroName').textContent = u.name || (isKg ? 'Воспитатель' : 'Педагог');
   document.getElementById('heroOrg').textContent = `${u.school || (isKg ? 'Детский сад' : 'Школа')} · ${isKg ? (u.age_group || 'Группа') : (u.subject || 'Предмет')}`;
-  document.getElementById('heroAvatar').textContent = '';
   document.getElementById('sidebarProfileName').textContent = u.name || (isKg ? 'Профиль воспитателя' : 'Профиль педагога');
   document.getElementById('profileMark').textContent = (u.name || (isKg ? 'В' : 'П')).trim().charAt(0).toLocaleUpperCase('ru');
 
-  // Bottom nav & tab names adaptivity
-  const navStudents = document.querySelector('.nav-item[data-tab="students"] span:last-child');
-  if (navStudents) navStudents.textContent = isKg ? 'Воспитанники' : 'Ученики';
-  const navSchedule = document.querySelector('.nav-item[data-tab="schedule"] span:last-child');
-  if (navSchedule) navSchedule.textContent = isKg ? 'Режим' : 'План';
-
+  // Dynamic Tab Labels
   const studentsTitle = document.getElementById('studentsTabTitle');
-  if (studentsTitle) studentsTitle.textContent = isKg ? 'Воспитанники' : 'Ученики';
+  if (studentsTitle) studentsTitle.textContent = isKg ? i18.studentsTabTitleKg : i18.studentsTabTitle;
   const studentsSubtitle = document.getElementById('studentsTabSubtitle');
-  if (studentsSubtitle) studentsSubtitle.textContent = isKg ? 'Список воспитанников детского сада и карты развития.' : 'Список учеников и параллелей, связанный с вашим контекстом Docura.';
+  if (studentsSubtitle) studentsSubtitle.textContent = isKg ? i18.studentsTabSubtitleKg : i18.studentsTabSubtitle;
   const addStudentBtn = document.getElementById('addStudentBtn');
-  if (addStudentBtn) addStudentBtn.textContent = isKg ? '+ Добавить воспитанника' : '+ Добавить ученика';
+  if (addStudentBtn) addStudentBtn.textContent = isKg ? i18.btnAddStudentKg : i18.btnAddStudent;
   const studentsTotalLabel = document.getElementById('studentsTotalLabel');
-  if (studentsTotalLabel) studentsTotalLabel.textContent = isKg ? 'Всего воспитанников' : 'Всего учеников';
+  if (studentsTotalLabel) studentsTotalLabel.textContent = isKg ? i18.studentsTotalLabelKg : i18.studentsTotalLabel;
   const studentsGroupsLabel = document.getElementById('studentsGroupsLabel');
-  if (studentsGroupsLabel) studentsGroupsLabel.textContent = isKg ? 'Возрастных групп' : 'Классов и параллелей';
+  if (studentsGroupsLabel) studentsGroupsLabel.textContent = isKg ? i18.studentsGroupsLabelKg : i18.studentsGroupsLabel;
 
   const scheduleTitle = document.getElementById('scheduleTabTitle');
-  if (scheduleTitle) scheduleTitle.textContent = isKg ? 'Режим дня и ОУД' : 'Расписание уроков';
+  if (scheduleTitle) scheduleTitle.textContent = isKg ? i18.scheduleTabTitleKg : i18.scheduleTabTitle;
   const scheduleSubtitle = document.getElementById('scheduleTabSubtitle');
-  if (scheduleSubtitle) scheduleSubtitle.textContent = isKg ? 'Сетка занятий, прогулок и режимных моментов по дням недели.' : 'Занятия по дням недели и планы для подготовки.';
+  if (scheduleSubtitle) scheduleSubtitle.textContent = isKg ? i18.scheduleTabSubtitleKg : i18.scheduleTabSubtitle;
   const addLessonBtn = document.getElementById('addLessonBtn');
-  if (addLessonBtn) addLessonBtn.textContent = isKg ? '+ Добавить ОУД' : '+ Добавить урок';
+  if (addLessonBtn) addLessonBtn.textContent = isKg ? i18.btnAddLessonKg : i18.btnAddLesson;
   const scheduleWeekBadge = document.getElementById('scheduleWeekBadge');
-  if (scheduleWeekBadge) scheduleWeekBadge.textContent = isKg ? 'Неделя · Циклограмма' : 'Неделя · Расписание';
+  if (scheduleWeekBadge) scheduleWeekBadge.textContent = isKg ? i18.scheduleWeekBadgeKg : i18.scheduleWeekBadge;
 
   const metricStudentsLabel = document.getElementById('metricStudentsLabel');
-  if (metricStudentsLabel) metricStudentsLabel.textContent = isKg ? 'Воспитанников' : 'Учеников в базе';
+  if (metricStudentsLabel) metricStudentsLabel.textContent = isKg ? i18.statChildrenLabel : i18.statStudentsLabel;
 
   // Composer Chips
   renderComposerChips(isKg);
@@ -1859,18 +2720,13 @@ function renderUI() {
     tierProPrice.textContent = STATE.promo_available ? '2 490 ₸' : '4 990 ₸';
   }
 
-  // Recent Docs
+  // Render Sub-Views
   renderRecentDocuments();
   renderDocumentsList();
-
-  // Students list
   renderStudentsList();
-
-  // Schedule
   renderSchedule();
-
-  // Memory
   renderMemory();
+  renderProfileTab();
 
   // Referrals
   document.getElementById('refLinkBox').textContent = STATE.ref_link || 'https://t.me/docurakz_bot?start=ref_demo';
@@ -2033,7 +2889,7 @@ function renderMemory() {
 function openAddStudentModal() {
   document.getElementById('addStudentForm').reset();
   const isKg = STATE.is_kg || (STATE.user?.role === 'kindergarten');
-  
+
   if (isKg) {
     document.getElementById('studentModalTitle').textContent = 'Добавить воспитанника в группу';
     document.getElementById('studentNameLabel').textContent = 'ФИО ребёнка *';
@@ -2456,6 +3312,46 @@ async function clearMemory() {
   showToast('Память ИИ очищена');
 }
 
+// ── ACCOUNT RESET ──
+function confirmResetAccount() {
+  openModal('modalConfirmReset');
+}
+
+async function executeResetAccount() {
+  const btn = document.getElementById('modalResetConfirmBtn');
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Сброс...';
+
+  try {
+    const res = await fetch('/api/account/reset', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
+      },
+      body: JSON.stringify({ tg_id: STATE.tg_id })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      STATE.students = [];
+      STATE.schedule = {};
+      STATE.memory = null;
+      STATE.documents = [];
+      closeModal('modalConfirmReset');
+      renderUI();
+      showToast(STATE.lang === 'kz' ? 'Аккаунт деректері тазартылды' : STATE.lang === 'en' ? 'Workspace data reset' : 'Данные аккаунта успешно сброшены!', '✅');
+    } else {
+      showToast(data.error || 'Ошибка сброса', '❌');
+    }
+  } catch(err) {
+    showToast('Ошибка связи с сервером', '❌');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+}
+
 function copyRefLink() {
   const link = STATE.ref_link || 'https://t.me/docurakz_bot';
   if (navigator.clipboard) {
@@ -2473,6 +3369,9 @@ function shareWhatsApp() {
 
 // ── INITIAL BOOTSTRAP ──
 async function init() {
+  // Apply saved theme and language immediately
+  setTheme(STATE.theme);
+
   try {
     const urlParams = new URLSearchParams(window.location.search);
     const isDemo = urlParams.get('demo') === '1';
@@ -2532,7 +3431,8 @@ async function init() {
 
     document.getElementById('loadingView').style.display = 'none';
     document.getElementById('appView').style.display = 'block';
-    renderUI();
+
+    changeLang(STATE.lang);
 
   } catch(err) {
     console.warn('API init exception:', err);
@@ -2551,7 +3451,7 @@ async function init() {
       STATE.promo_available = true;
       document.getElementById('loadingView').style.display = 'none';
       document.getElementById('appView').style.display = 'block';
-      renderUI();
+      changeLang(STATE.lang);
     } else {
       document.getElementById('loadingView').style.display = 'none';
       document.getElementById('authRequiredView').style.display = 'block';
