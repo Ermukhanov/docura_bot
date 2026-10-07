@@ -52,8 +52,8 @@ class KundelikHandler:
         tier = (user.get("tier") or "").lower()
         is_admin = user_id in context.application.bot_data.get("admin_ids", [739268686])
 
-        # Проверка тарифа MAX
-        if tier != "max" and not is_admin:
+        # Проверка тарифа MAX или B2B MAX
+        if tier not in ("max", "b2b") and not is_admin:
             text = MAX_TIER_UPSELL_TEXT_RU if lang == "ru" else MAX_TIER_UPSELL_TEXT_KZ
             kb = [
                 [InlineKeyboardButton("⭐ " + ("Перейти к тарифам" if lang == "ru" else "Тарифтерге өту"), callback_data="prof_sub")],

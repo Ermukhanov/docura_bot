@@ -1589,19 +1589,23 @@
       </div>
 
       <!-- B2B -->
-      <div class="tier-card">
+      <div class="tier-card" style="border: 2px solid #059669; background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(209,250,229,0.5) 100%);">
+        <div class="tier-ribbon" style="background: linear-gradient(135deg, #10B981, #059669);">B2B MAX</div>
         <div class="tier-header">
           <div class="tier-name" id="tierB2bTitle">B2B Организация</div>
           <div class="tier-price">39 900 ₸</div>
           <div class="tier-period" id="tierB2bPeriod">/ год</div>
         </div>
-        <div style="font-size:12px; color:var(--text-muted)" id="tierB2bDesc">Для школ и детских садов (до 25 педагогов)</div>
+        <div style="font-size:12px; color:var(--text-muted)" id="tierB2bDesc">Тариф MAX для всей школы или садика (до 25 педагогов)</div>
         <ul class="tier-features" id="tierB2bFeatures">
-          <li><span>✓</span> Доступ для 25 учителей / воспитателей</li>
-          <li><span>✓</span> Корпоративные Word-шаблоны школы</li>
+          <li><span>✓</span> <b>Всё из тарифа MAX для 25 учителей / воспитателей</b></li>
+          <li><span>✓</span> 💎 <b>Kundelik.kz / BilimClass для всех педагогов</b></li>
+          <li><span>✓</span> 🎨 <b>Генератор презентаций PowerPoint (.pptx)</b></li>
+          <li><span>✓</span> 🤖 <b>ИИ-мониторинг расписания и Доклад завучу</b></li>
+          <li><span>✓</span> Корпоративные шаблоны школы и акты бухгалтерии</li>
           <li><span>✓</span> Приоритетная поддержка 24/7</li>
         </ul>
-        <button onclick="selectTier('b2b')" class="form-btn-submit" style="background:#0F172A" id="btnTierB2b">Подключить организацию</button>
+        <button onclick="selectTier('b2b')" class="form-btn-submit" style="background:linear-gradient(135deg, #10B981, #059669)" id="btnTierB2b">Подключить организацию</button>
       </div>
 
       <!-- Kaspi Direct Payment & Instant Receipt Verification -->
@@ -1639,6 +1643,7 @@
             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
               <h2 style="font-size:20px; font-weight:800; color:var(--text-main);" id="profileFullName">Ермуханов Мернар</h2>
               <span id="profileRoleBadge" class="tier-badge pro" style="font-size:11px; padding:3px 8px;">Педагог</span>
+              <span id="profileTierBadge" class="tier-badge pro" style="font-size:11px; padding:3px 8px;">PRO</span>
             </div>
             <div style="font-size:13px; color:var(--text-muted); margin-top:4px;" id="profileOrgSubtitle">№6 Хромтау гимназиясы · Математика</div>
           </div>
@@ -2302,12 +2307,15 @@ const I18N = {
       "Автопилот расписания каждые 6 часов"
     ],
     btnTierMax: "Оформить MAX",
-    tierB2bTitle: "B2B Организация",
+    tierB2bTitle: "B2B MAX Организация",
     tierB2bPeriod: "/ год",
-    tierB2bDesc: "Для школ и детских садов (до 25 педагогов)",
+    tierB2bDesc: "Тариф MAX для всей школы или детского сада (до 25 педагогов)",
     tierB2bFeatures: [
-      "Доступ для 25 учителей / воспитателей",
-      "Корпоративные Word-шаблоны школы",
+      "<b>Всё из тарифа MAX для 25 учителей / воспитателей</b>",
+      "💎 <b>Kundelik.kz / BilimClass для всех педагогов</b>",
+      "🎨 <b>Генератор презентаций PowerPoint (.pptx)</b>",
+      "🤖 <b>ИИ-мониторинг расписания и Доклад завучу</b>",
+      "Корпоративные шаблоны школы и акты бухгалтерии",
       "Приоритетная поддержка 24/7"
     ],
     btnTierB2b: "Подключить организацию",
@@ -2598,12 +2606,15 @@ const I18N = {
       "Әр 6 сағат сайын сабақ кестесінің автопилоты"
     ],
     btnTierMax: "MAX ресімдеу",
-    tierB2bTitle: "B2B Мекеме",
+    tierB2bTitle: "B2B MAX Мекеме",
     tierB2bPeriod: "/ жылына",
-    tierB2bDesc: "Мектептер мен балабақшалар үшін (25 педагогке дейін)",
+    tierB2bDesc: "Бүкіл мектеп немесе балабақшаға арналған MAX тарифі (25 педагогке дейін)",
     tierB2bFeatures: [
-      "25 мұғалім / тәрбиешіге арналған толық рұқсат",
-      "Мектептің корпоративтік Word-үлгілері",
+      "<b>25 мұғалім / тәрбиешіге арналған толық MAX мүмкіндіктері</b>",
+      "💎 <b>Барлық педагогтер үшін Kundelik.kz / BilimClass</b>",
+      "🎨 <b>PowerPoint (.pptx) презентациялар генераторы</b>",
+      "🤖 <b>ИИ-мониторинг және оқу ісі меңгерушісіне жиынтық есеп</b>",
+      "Мектептің корпоративтік үлгілері және бухгалтерлік актілер",
       "24/7 басымдықты қолдау"
     ],
     btnTierB2b: "Мекемені қосу",
@@ -2894,12 +2905,15 @@ const I18N = {
       "Schedule autopilot every 6 hours"
     ],
     btnTierMax: "Get MAX",
-    tierB2bTitle: "B2B Organization",
+    tierB2bTitle: "B2B MAX Organization",
     tierB2bPeriod: "/ year",
-    tierB2bDesc: "For schools and kindergartens (up to 25 staff)",
+    tierB2bDesc: "MAX tier for the entire school or kindergarten (up to 25 educators)",
     tierB2bFeatures: [
-      "Access for 25 teachers / educators",
-      "Corporate Word templates",
+      "<b>Full MAX features for 25 teachers / educators</b>",
+      "💎 <b>Kundelik.kz / BilimClass for all staff</b>",
+      "🎨 <b>PowerPoint (.pptx) presentation generator</b>",
+      "🤖 <b>AI schedule autopilot & admin reports</b>",
+      "Corporate templates & accounting invoices",
       "Priority 24/7 support"
     ],
     btnTierB2b: "Connect Organization",
@@ -3629,6 +3643,16 @@ function renderProfileTab() {
   document.getElementById('valProfileClasses').textContent = isKg ? (u.age_group || '—') : (u.classes || '—');
   document.getElementById('valProfilePosition').textContent = u.position || '—';
   document.getElementById('valProfileDirector').textContent = u.director || '—';
+
+  // Tier Badge in Profile Tab
+  const isSub = Boolean(u.subscribed);
+  const tier = (u.tier || (isSub ? 'pro' : 'free')).toLowerCase();
+  const profTierBadge = document.getElementById('profileTierBadge');
+  if (profTierBadge) {
+    profTierBadge.className = 'tier-badge ' + tier;
+    profTierBadge.textContent = tier.toUpperCase();
+    profTierBadge.style.display = isSub ? 'inline-block' : 'none';
+  }
 
   // Stats
   document.getElementById('profileStatDocs').textContent = u.free_used || 0;
@@ -4383,7 +4407,8 @@ function selectKdMark(val) {
 
 async function openKundelikModal() {
   openModal('modalKundelik');
-  const isMax = (STATE.user?.tier === 'max') || (window.location.search.includes('demo=1'));
+  const userTier = (STATE.user?.tier || '').toLowerCase();
+  const isMax = (userTier === 'max' || userTier === 'b2b') || (window.location.search.includes('demo=1'));
   
   if (!isMax) {
     document.getElementById('kdUpsellView').style.display = 'block';

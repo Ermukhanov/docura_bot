@@ -688,8 +688,8 @@ def api_kundelik_connect():
     with conn() as db:
         user = db.execute('SELECT tier, subscribed FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
         tier = (user['tier'] if user and user['tier'] else 'free').lower()
-        if tier != 'max':
-            return jsonify(error='Интеграция с Kundelik.kz доступна только на тарифе MAX (7 490 ₸/мес). Перейдите в раздел тарифов для подключения.'), 403
+        if tier not in ('max', 'b2b'):
+            return jsonify(error='Интеграция с Kundelik.kz доступна на тарифе MAX или B2B MAX. Перейдите в раздел тарифов для подключения.'), 403
 
     data = request.get_json(silent=True) or {}
     token = data.get('token', '').strip()
@@ -771,8 +771,8 @@ def api_kundelik_grade():
     with conn() as db:
         user = db.execute('SELECT tier FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
         tier = (user['tier'] if user and user['tier'] else 'free').lower()
-        if tier != 'max':
-            return jsonify(error='Выставление оценок доступно только на тарифе MAX.'), 403
+        if tier not in ('max', 'b2b'):
+            return jsonify(error='Выставление оценок доступно на тарифе MAX и B2B MAX.'), 403
 
         row = db.execute('SELECT token, provider FROM kundelik_integrations WHERE tg_id=?', (tg['id'],)).fetchone()
         if not row:

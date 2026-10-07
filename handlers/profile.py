@@ -54,8 +54,17 @@ class ProfileHandler:
         saved_hours = free_used * 0.5
         saved_hours_text = f"{saved_hours:g}"
 
+        tier = (user.get("tier") or ("pro" if is_pro else "free")).lower()
+        tier_title = TIER_NAMES.get(tier, "PRO")
+        tier_badge_icon = "💎" if tier == "max" else "🏢" if tier == "b2b" else "⭐"
+
         if is_pro:
-            sub_line = "⭐ *PRO* — безлимитный доступ активен" if lang == "ru" else "⭐ *PRO* — шексіз қол жеткізу белсенді"
+            if tier == "max":
+                sub_line = "💎 *MAX (Kundelik + Презентации + Автопилот)* активен" if lang == "ru" else "💎 *MAX (Kundelik + Презентация + Автопилот)* белсенді"
+            elif tier == "b2b":
+                sub_line = "🏢 *B2B Организация (Корпоративный MAX)* активен" if lang == "ru" else "🏢 *B2B Мекеме (Корпоративтік MAX)* белсенді"
+            else:
+                sub_line = "⭐ *PRO* — безлимитный доступ активен" if lang == "ru" else "⭐ *PRO* — шексіз қол жеткізу белсенді"
         else:
             sub_line = f"🆓 Бесплатно — осталось *{free_left}/{total_free}* документов" if lang == "ru" else f"🆓 Тегін — қалды *{free_left}/{total_free}* құжат"
             if bonus_docs:
@@ -64,11 +73,14 @@ class ProfileHandler:
                     else f"\n🎁 Оның ішінде {bonus_docs} шақырылған достар үшін бонус"
                 )
 
+        header_title_ru = f"{tier_badge_icon} {tier_title} ПРОФИЛЬ" if is_pro else "👤 МОЙ ПРОФИЛЬ"
+        header_title_kz = f"{tier_badge_icon} {tier_title} ПРОФИЛЬ" if is_pro else "👤 МЕНІҢ ПРОФИЛІМ"
+
         if is_kg:
             age_group = user.get("age_group", "—")
             if lang == "ru":
                 text = (
-                    f"{'⭐ PRO ПРОФИЛЬ' if is_pro else '👤 МОЙ ПРОФИЛЬ'}\n"
+                    f"{header_title_ru}\n"
                     f"{'━' * 28}\n\n"
                     f"📛 *ФИО:* {name}\n"
                     f"🏫 *Детский сад:* {school}\n"
@@ -82,7 +94,7 @@ class ProfileHandler:
                 )
             else:
                 text = (
-                    f"{'⭐ PRO ПРОФИЛЬ' if is_pro else '👤 МЕНІҢ ПРОФИЛІМ'}\n"
+                    f"{header_title_kz}\n"
                     f"{'━' * 28}\n\n"
                     f"📛 *Аты-жөні:* {name}\n"
                     f"🏫 *Балабақша:* {school}\n"
@@ -100,7 +112,7 @@ class ProfileHandler:
             is_ct    = "✅" if user.get("is_class_teacher") else "❌"
             if lang == "ru":
                 text = (
-                    f"{'⭐ PRO ПРОФИЛЬ' if is_pro else '👤 МОЙ ПРОФИЛЬ'}\n"
+                    f"{header_title_ru}\n"
                     f"{'━' * 28}\n\n"
                     f"📛 *ФИО:* {name}\n"
                     f"🏫 *Школа:* {school}\n"
@@ -116,7 +128,7 @@ class ProfileHandler:
                 )
             else:
                 text = (
-                    f"{'⭐ PRO ПРОФИЛЬ' if is_pro else '👤 МЕНІҢ ПРОФИЛІМ'}\n"
+                    f"{header_title_kz}\n"
                     f"{'━' * 28}\n\n"
                     f"📛 *Аты-жөні:* {name}\n"
                     f"🏫 *Мектеп:* {school}\n"
@@ -290,7 +302,7 @@ class ProfileHandler:
                 "pro": "Docura PRO",
                 "pro_promo": "Docura PRO (Акция)",
                 "max": "Docura MAX (Эксперт)",
-                "b2b": "Docura B2B (Школа/Садик)"
+                "b2b": "Docura B2B MAX (Корпоративный)"
             }.get(tier, "Docura PRO")
 
             promo_line_ru = f"\n🔥 Обычная цена {TIER_PRICES['pro']} тг — для вас первый месяц дешевле!\n" if tier == "pro_promo" else ""
@@ -589,8 +601,9 @@ class ProfileHandler:
                     f"• 🎨 Создание презентаций PowerPoint (.pptx) к урокам\n"
                     f"• 🤖 Умный ИИ-агент (мониторинг расписания каждые 6 ч)\n"
                     f"• 📊 Сводный «Доклад для завуча» из рабочих чатов\n\n"
-                    f"🏢 *3. Корпоративный B2B (Школа/Садик)* — {b2b_price:,} тг/мес\n"
-                    f"• До 25 учителей / воспитателей организации\n"
+                    f"🏢 *3. Корпоративный B2B MAX (Школа/Садик)* — {b2b_price:,} тг/мес\n"
+                    f"• Полный тариф MAX для 25 учителей / воспитателей\n"
+                    f"• Kundelik.kz / BilimClass, презентации PowerPoint, автопилот\n"
                     f"• Единая база, сводные отчёты, безналичный расчёт с актами\n\n"
                     f"👇 Выберите подходящий тариф для подключения:"
                 ).replace(",", " ")
@@ -605,11 +618,13 @@ class ProfileHandler:
                     f"• {db_line_kz} және дауыстық енгізу\n\n"
                     f"🚀 *2. MAX тарифі (Сарапшы)* — {max_price:,} тг/ай\n"
                     f"• PRO-дағы барлық мүмкіндіктер +\n"
+                    f"• 💎 Kundelik.kz / BilimClass интеграциясы\n"
                     f"• 🎨 Сабаққа арналған PowerPoint (.pptx) слайдтары\n"
                     f"• 🤖 Ақылды ЖИ-агент (кестені әр 6 сағат сайын тексеру)\n"
                     f"• 📊 Жұмыс чаттарынан меңгерушіге жиынтық баяндама\n\n"
-                    f"🏢 *3. Корпоративтік B2B (Мектеп/Сад)* — {b2b_price:,} тг/ай\n"
-                    f"• Ұйымның 25 ұстазына дейін\n"
+                    f"🏢 *3. Корпоративтік B2B MAX (Мектеп/Сад)* — {b2b_price:,} тг/ай\n"
+                    f"• Ұйымның 25 ұстазына толық MAX мүмкіндіктері\n"
+                    f"• Kundelik.kz / BilimClass, PowerPoint, ЖИ-агент барлығына\n"
                     f"• Бірыңғай база, тоқсандық есептер, ресми құжаттар\n\n"
                     f"👇 Қосылу үшін қажетті тарифті таңдаңыз:"
                 ).replace(",", " ")
@@ -623,7 +638,7 @@ class ProfileHandler:
         keyboard = [
             [InlineKeyboardButton(pro_btn_title, callback_data="prof_choose_pro_promo" if (promo_available and not is_sub) else "prof_choose_pro")],
             [InlineKeyboardButton(f"🚀 MAX с презентациями и агентом ({max_price:,} тг)".replace(",", " ") if lang == "ru" else f"🚀 MAX презентация және агентпен ({max_price:,} тг)".replace(",", " "), callback_data="prof_choose_max")],
-            [InlineKeyboardButton(f"🏢 B2B для школы/садика ({b2b_price:,} тг)".replace(",", " ") if lang == "ru" else f"🏢 Мектеп/бақшаға B2B ({b2b_price:,} тг)".replace(",", " "), callback_data="prof_choose_b2b")],
+            [InlineKeyboardButton(f"🏢 B2B MAX для школы/садика ({b2b_price:,} тг)".replace(",", " ") if lang == "ru" else f"🏢 Мектеп/бақшаға B2B MAX ({b2b_price:,} тг)".replace(",", " "), callback_data="prof_choose_b2b")],
             [BACK_BTN(lang, "menu_profile")],
             [MENU_BTN(lang)],
         ]
