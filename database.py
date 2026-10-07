@@ -1,6 +1,7 @@
 import aiosqlite
 import json
 import os
+from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 
 # ВАЖНО (Railway/деплой): по умолчанию база лежит рядом с кодом — это НЕ переживёт
@@ -124,6 +125,30 @@ class Database:
                     event TEXT NOT NULL,
                     doc_type TEXT DEFAULT '',
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS kundelik_integrations (
+                    tg_id INTEGER PRIMARY KEY,
+                    provider TEXT DEFAULT 'kundelik',
+                    token TEXT NOT NULL,
+                    school_id INTEGER,
+                    school_name TEXT,
+                    person_id INTEGER,
+                    synced_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (tg_id) REFERENCES users(tg_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS kundelik_marks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    teacher_id INTEGER NOT NULL,
+                    student_id INTEGER NOT NULL,
+                    student_name TEXT NOT NULL,
+                    class_name TEXT NOT NULL,
+                    mark INTEGER NOT NULL,
+                    mark_type TEXT DEFAULT 'ФО',
+                    descriptor TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (teacher_id) REFERENCES users(tg_id)
                 );
             """)
             await db.commit()
@@ -640,6 +665,55 @@ class Database:
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("UPDATE users SET promo_used=1 WHERE tg_id=?", (tg_id,))
             await db.commit()
+
+    # ===== KUNDELIK.KZ / BILIMCLASS ИНТЕГРАЦИЯ (ТАРИФ MAX) =====
+    async def set_kundelik_integration(self, tg_id: int, token: str, provider: str = "kundelik",
+                                      school_id: int = None, school_name: str = None, person_id: int = None):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                INSERT INTO kundelik_integrations (tg_id, provider, token, school_id, school_name, person_id, synced_at)
+                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(tg_id) DO UPDATE SET
+                    provider=excluded.provider,
+                    token=excluded.token,
+                    school_id=excluded.school_id,
+                    school_name=excluded.school_name,
+                    person_id=excluded.person_id,
+                    synced_at=CURRENT_TIMESTAMP
+            """, (tg_id, provider, token, school_id, school_name, person_id))
+            await db.commit()
+
+    async def get_kundelik_integration(self, tg_id: int) -> Optional[dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM kundelik_integrations WHERE tg_id=?", (tg_id,)) as cur:
+                row = await cur.fetchone()
+                return dict(row) if row else None
+
+    async def remove_kundelik_integration(self, tg_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("DELETE FROM kundelik_integrations WHERE tg_id=?", (tg_id,))
+            await db.commit()
+
+    async def save_kundelik_mark(self, teacher_id: int, student_id: int, student_name: str,
+                                 class_name: str, mark: int, mark_type: str = "ФО", descriptor: str = ""):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                INSERT INTO kundelik_marks (teacher_id, student_id, student_name, class_name, mark, mark_type, descriptor)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (teacher_id, student_id, student_name, class_name, mark, mark_type, descriptor))
+            await db.commit()
+
+    async def get_kundelik_marks(self, teacher_id: int, limit: int = 25) -> list:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM kundelik_marks WHERE teacher_id=? ORDER BY id DESC LIMIT ?",
+                (teacher_id, limit)
+            ) as cur:
+                rows = await cur.fetchall()
+                return [dict(r) for r in rows]
+
 
 
 # ===== Общие константы/хелперы для лимита бесплатных документов =====

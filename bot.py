@@ -20,6 +20,7 @@ from handlers.admin import AdminHandler, ADMIN_IDS
 from handlers.voice import VoiceHandler
 from handlers.agent import AgentHandler
 from handlers.concierge import ConciergeHandler
+from handlers.kundelik_handler import KundelikHandler
 from handlers.query_adapter import MessageQueryAdapter
 from handlers.notifications import send_reminders, check_subscription_expirations, monitor_schedules
 from security import create_auth_token
@@ -306,6 +307,8 @@ async def _route_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await DocumentHandler(db, key).handle_text(update, context)
     elif step.startswith("prof_") or step.startswith("student_"):
         await ProfileHandler(db).handle_text(update, context)
+    elif step.startswith("kd_"):
+        await KundelikHandler(db).handle_token_input(update, context)
     elif step.startswith("admin_"):
         await AdminHandler(db).handle_text(update, context)
     elif step.startswith("agent_"):
@@ -368,10 +371,11 @@ async def post_init(app: Application):
         BotCommand("profile", "👤 Мой профиль"),
         BotCommand("history", "📚 История документов"),
         BotCommand("invite",  "🎁 Пригласить и получить бонус"),
-        BotCommand("tariffs", "⭐ Тарифы и подписка"),
-        BotCommand("support", "💬 Связаться с поддержкой"),
-        BotCommand("cancel",  "❌ Отменить операцию"),
-        BotCommand("help",    "❓ Помощь и список команд"),
+        BotCommand("tariffs",  "⭐ Тарифы и подписка"),
+        BotCommand("kundelik", "💎 Kundelik / BilimClass (MAX)"),
+        BotCommand("support",  "💬 Связаться с поддержкой"),
+        BotCommand("cancel",   "❌ Отменить операцию"),
+        BotCommand("help",     "❓ Помощь и список команд"),
     ]
     await app.bot.set_my_commands(commands_ru)
     logger.info("✅ Меню команд установлено")
@@ -413,6 +417,7 @@ async def run():
     admin      = AdminHandler(db)
     voice      = VoiceHandler(db, ANTHROPIC_API_KEY)
     agent      = AgentHandler(db, ANTHROPIC_API_KEY)
+    kundelik   = KundelikHandler(db)
 
     # Команды
     app.add_handler(CommandHandler("start",   cmd_start))
@@ -427,6 +432,7 @@ async def run():
     app.add_handler(CommandHandler("history", cmd_history))
     app.add_handler(CommandHandler("invite",  cmd_invite))
     app.add_handler(CommandHandler("tariffs", cmd_tariffs))
+    app.add_handler(CommandHandler("kundelik", kundelik.show_menu))
     app.add_handler(CommandHandler("support", cmd_support))
     app.add_handler(CommandHandler("help",    cmd_help))
 
@@ -462,6 +468,7 @@ async def run():
     app.add_handler(CallbackQueryHandler(admin.callback,      pattern="^admin_"))
     app.add_handler(CallbackQueryHandler(agent.callback,      pattern="^agent_"))
     app.add_handler(CallbackQueryHandler(concierge.callback,  pattern="^cg_"))
+    app.add_handler(CallbackQueryHandler(kundelik.callback,   pattern="^kd_"))
 
     # Текст
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _route_text))

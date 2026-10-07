@@ -1431,7 +1431,10 @@
          ════════════════════════════════════════════════════ -->
     <section id="tab-students" class="tab-panel">
       <header class="page-heading"><div><h1 id="studentsTabTitle">Ученики</h1><p id="studentsTabSubtitle">Список учеников и воспитанников, связанный с вашим контекстом Docura.</p></div>
-        <button onclick="openAddStudentModal()" class="btn-pill" id="addStudentBtn">+ Добавить</button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button onclick="openKundelikModal()" class="btn-pill" id="btnKundelikSyncStudents" style="background:linear-gradient(135deg, #0284C7, #2563EB); color:#fff; border:none; box-shadow:0 4px 12px rgba(2,132,199,0.3);">💎 Kundelik.kz (MAX)</button>
+          <button onclick="openAddStudentModal()" class="btn-pill" id="addStudentBtn">+ Добавить</button>
+        </div>
       </header>
 
       <div class="directory-statbar"><div class="directory-stat"><strong id="studentsTotal">0</strong><span id="studentsTotalLabel">Всего учеников</span></div><div class="directory-stat"><strong id="studentsGroups">0</strong><span id="studentsGroupsLabel">Классов и групп</span></div></div>
@@ -1448,6 +1451,7 @@
     <section id="tab-schedule" class="tab-panel">
       <header class="page-heading"><div><h1 id="scheduleTabTitle">Расписание</h1><p id="scheduleTabSubtitle">Занятия по дням недели и планы для подготовки.</p></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button onclick="openKundelikModal()" class="btn-pill" id="btnKundelikSyncSchedule" style="background:linear-gradient(135deg, #0284C7, #2563EB); color:#fff; border:none; box-shadow:0 4px 12px rgba(2,132,199,0.3);">💎 Kundelik.kz (MAX)</button>
           <button onclick="openAddLessonModal()" class="btn-pill" id="addLessonBtn">+ Добавить</button>
           <button onclick="openScheduleTextModal()" class="btn-pill" id="btnScheduleText" style="background:#E0F2FE; color:#0284C7; border-color:#BAE6FD">✍️ Ввести текстом</button>
           <button onclick="openScheduleUploadModal()" class="btn-pill" id="btnScheduleUpload" style="background:#F0FDF4; color:#16A34A; border-color:#BBF7D0">📸 Фото / файл</button>
@@ -1998,6 +2002,101 @@
   </div>
 </div>
 
+<!-- MODAL: KUNDELIK.KZ / BILIMCLASS INTEGRATION (MAX TIER) -->
+<div id="modalKundelik" class="modal-overlay">
+  <div class="modal-card" style="max-width:540px;">
+    <div class="modal-header">
+      <div class="modal-title" style="display:flex; align-items:center; gap:8px;">
+        <span>💎</span> <span id="kdModalTitle">Интеграция с Kundelik.kz / BilimClass</span>
+        <span class="tier-badge max" style="font-size:10px; padding:2px 6px;">MAX</span>
+      </div>
+      <button onclick="closeModal('modalKundelik')" class="modal-close-btn">✕</button>
+    </div>
+
+    <!-- Upsell banner if not MAX tier -->
+    <div id="kdUpsellView" style="display:none; text-align:center; padding:16px 8px;">
+      <div style="font-size:42px; margin-bottom:8px;">🔒</div>
+      <h3 style="font-size:18px; font-weight:800; color:var(--text-main); margin-bottom:8px;" id="kdUpsellHeading">Функция доступна на тарифе MAX</h3>
+      <p style="font-size:13px; color:var(--text-muted); line-height:1.6; margin-bottom:16px;" id="kdUpsellDesc">
+        Синхронизация с Күнделік/BilimClass, импорт расписания и выставление оценок (1-10 ФО) прямо из бота доступны только для подписчиков тарифа MAX (7 490 ₸/мес).
+      </p>
+      <button onclick="closeModal('modalKundelik'); switchTab('tariffs');" class="form-btn-submit" style="background:linear-gradient(135deg, #0284C7, #2563EB); padding:12px;" id="kdUpsellBtn">
+        ⭐ Перейти к тарифу MAX (7 490 ₸)
+      </button>
+    </div>
+
+    <!-- Integration content for MAX tier -->
+    <div id="kdContentView" style="display:none;">
+      <div id="kdStatusCard" class="glass-card" style="background:#F0FDF4; border-color:#BBF7D0; margin-bottom:16px; padding:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <strong style="color:#166534; font-size:14px;" id="kdStatusTitle">Статус: Подключено</strong>
+          <span style="font-size:11px; color:#15803D;" id="kdSyncedAt"></span>
+        </div>
+        <div style="font-size:12px; color:#15803D;" id="kdSchoolName">Школа-гимназия №6 г. Хромтау</div>
+      </div>
+
+      <!-- Connect form (if not connected) -->
+      <div id="kdConnectForm" style="display:none;">
+        <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;" id="kdConnectHint">
+          Введите ваш токен Kundelik.kz или нажмите «Демо-школа» для моментального тестирования функционала.
+        </p>
+        <div class="form-group">
+          <label class="form-label" id="kdTokenLabel">Токен доступа / API Token *</label>
+          <input type="text" id="kdTokenInput" class="form-input" placeholder="demo_kundelik_token" value="demo_kundelik_token">
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button onclick="connectKundelik()" class="form-btn-submit" style="flex:1; background:linear-gradient(135deg, #0284C7, #2563EB);" id="btnKdConnect">
+            ⚡ Подключить Kundelik
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick grading section (if connected) -->
+      <div id="kdGradeSection" style="display:none;">
+        <h4 style="font-size:14px; font-weight:800; color:var(--text-main); margin-bottom:10px;" id="kdQuickGradeHeading">📝 Быстрое выставление оценки (ФО 1-10)</h4>
+        
+        <div class="form-group">
+          <label class="form-label" id="kdStudentSelectLabel">Ученик *</label>
+          <select id="kdStudentSelect" class="form-select">
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" id="kdMarkLabel">Балл формативного оценивания (ФО) *</label>
+          <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:6px;">
+            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(10)">🔟 10</button>
+            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(9)">9️⃣ 9</button>
+            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(8)">8️⃣ 8</button>
+            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(7)">7️⃣ 7</button>
+            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(6)">6️⃣ 6</button>
+            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(5)">5️⃣ 5</button>
+            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(4)">4️⃣ 4</button>
+            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(3)">3️⃣ 3</button>
+            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(2)">2️⃣ 2</button>
+            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(1)">1️⃣ 1</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" id="kdDescriptorLabel">Дескриптор / Комментарий учителя</label>
+          <textarea id="kdDescriptorInput" class="form-textarea" style="height:60px;" placeholder="Керемет нәтиже! Тақырыпты жақсы меңгердің."></textarea>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <button onclick="submitKundelikGrade()" class="form-btn-submit" style="flex:1; background:#059669;" id="btnKdPostMark">
+            ✅ Отправить оценку в журнал
+          </button>
+          <button onclick="disconnectKundelik()" class="btn-pill" style="color:#DC2626; border-color:#FECACA;" id="btnKdDisconnect">
+            🔌 Отключить
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div id="toast" class="toast">
   <span id="toastIcon" aria-hidden="true"></span>
@@ -2184,6 +2283,7 @@ const I18N = {
     tierMaxDesc: "Всё из PRO + презентации и автопилот",
     tierMaxFeatures: [
       "Всё, что входит в PRO без ограничений",
+      "💎 <b>Интеграция с Kundelik.kz / BilimClass (оценки и расписание)</b>",
       "<b>Генератор презентаций PowerPoint (.pptx)</b>",
       "<b>ИИ-мониторинг чатов и Доклад завучу</b>",
       "Автопилот расписания каждые 6 часов"
@@ -2479,6 +2579,7 @@ const I18N = {
     tierMaxDesc: "PRO-ның барлығы + презентациялар мен автопилот",
     tierMaxFeatures: [
       "PRO құрамындағы барлық мүмкіндіктер шектеусіз",
+      "💎 <b>Kundelik.kz / BilimClass интеграциясы (бағалар мен кесте)</b>",
       "<b>PowerPoint (.pptx) презентациялар генераторы</b>",
       "<b>ИИ-мониторинг және оқу ісі меңгерушісіне есеп</b>",
       "Әр 6 сағат сайын сабақ кестесінің автопилоты"
@@ -2774,6 +2875,7 @@ const I18N = {
     tierMaxDesc: "Everything in PRO + presentations & autopilot",
     tierMaxFeatures: [
       "Everything in PRO without restrictions",
+      "💎 <b>Kundelik.kz / BilimClass integration (grading & schedule)</b>",
       "<b>PowerPoint (.pptx) presentation generator</b>",
       "<b>AI chat monitoring & administrative reports</b>",
       "Schedule autopilot every 6 hours"
@@ -4247,6 +4349,167 @@ async function clearMemory() {
   STATE.memory = null;
   renderMemory();
   showToast(i18.toastMemoryCleared);
+}
+
+// ── KUNDELIK.KZ / BILIMCLASS CONTROLLER (MAX TIER) ──
+let selectedKdMarkVal = 9;
+
+function selectKdMark(val) {
+  selectedKdMarkVal = val;
+  document.querySelectorAll('.kd-mark-btn').forEach(btn => {
+    btn.style.background = btn.textContent.includes(String(val)) ? '#0284C7' : '';
+    btn.style.color = btn.textContent.includes(String(val)) ? '#fff' : '';
+  });
+  const descEl = document.getElementById('kdDescriptorInput');
+  if (descEl && !descEl.value) {
+    if (val >= 8) descEl.value = 'Керемет нәтиже! Тақырыпты жақсы меңгердің.';
+    else if (val >= 4) descEl.value = 'Жақсы жұмыс! Есептеу алгоритмін біледі, қайталау қажет.';
+    else descEl.value = 'Тақырып бойынша қосымша кеңес қажет.';
+  }
+}
+
+async function openKundelikModal() {
+  openModal('modalKundelik');
+  const isMax = (STATE.user?.tier === 'max') || (window.location.search.includes('demo=1'));
+  
+  if (!isMax) {
+    document.getElementById('kdUpsellView').style.display = 'block';
+    document.getElementById('kdContentView').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('kdUpsellView').style.display = 'none';
+  document.getElementById('kdContentView').style.display = 'block';
+
+  try {
+    const res = await fetch('/api/kundelik/status', {
+      headers: tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {}
+    });
+    const data = await res.json();
+    if (data.connected && data.integration) {
+      document.getElementById('kdStatusCard').style.display = 'block';
+      document.getElementById('kdConnectForm').style.display = 'none';
+      document.getElementById('kdGradeSection').style.display = 'block';
+      document.getElementById('kdSchoolName').textContent = data.integration.school_name || 'Мектеп-гимназия №6';
+      document.getElementById('kdSyncedAt').textContent = data.integration.synced_at ? data.integration.synced_at.slice(0, 16) : '';
+    } else {
+      document.getElementById('kdStatusCard').style.display = 'none';
+      document.getElementById('kdConnectForm').style.display = 'block';
+      document.getElementById('kdGradeSection').style.display = 'none';
+    }
+  } catch(e) {
+    document.getElementById('kdStatusCard').style.display = 'none';
+    document.getElementById('kdConnectForm').style.display = 'block';
+    document.getElementById('kdGradeSection').style.display = 'none';
+  }
+
+  // Заполняем учеников в select
+  const sel = document.getElementById('kdStudentSelect');
+  if (sel) {
+    sel.innerHTML = '';
+    const stList = STATE.students && STATE.students.length > 0 ? STATE.students : [
+      { id: 1001, name: 'Аманжолов Арман', class_name: '7 «А»' },
+      { id: 1002, name: 'Берік Аружан', class_name: '7 «А»' },
+      { id: 1003, name: 'Данияров Дамир', class_name: '7 «А»' },
+      { id: 1004, name: 'Жұмағали Дильназ', class_name: '7 «А»' }
+    ];
+    stList.forEach(st => {
+      const opt = document.createElement('option');
+      opt.value = st.id || st.name;
+      opt.dataset.name = st.name;
+      opt.dataset.className = st.class_name;
+      opt.textContent = `${st.name} (${st.class_name})`;
+      sel.appendChild(opt);
+    });
+  }
+  selectKdMark(9);
+}
+
+async function connectKundelik() {
+  const token = document.getElementById('kdTokenInput').value.trim() || 'demo_kundelik_token';
+  const btn = document.getElementById('btnKdConnect');
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Қосылуда...';
+
+  try {
+    const res = await fetch('/api/kundelik/connect', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
+      },
+      body: JSON.stringify({ token: token, provider: 'kundelik' })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(data.message || 'Kundelik.kz сәтті байланыстырылды!', '✅');
+      // Обновляем данные кабинета
+      if (typeof init === 'function') init();
+      openKundelikModal();
+    } else {
+      showToast(data.error || 'Қосылу қатесі', '❌');
+    }
+  } catch(e) {
+    showToast('Сервер байланыс қатесі', '❌');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+}
+
+async function submitKundelikGrade() {
+  const sel = document.getElementById('kdStudentSelect');
+  const opt = sel.options[sel.selectedIndex];
+  const studentName = opt?.dataset.name || opt?.textContent || 'Ученик';
+  const className = opt?.dataset.className || '7 «А»';
+  const descriptor = document.getElementById('kdDescriptorInput').value.trim();
+
+  const btn = document.getElementById('btnKdPostMark');
+  btn.disabled = true;
+  btn.textContent = 'Жіберілуде...';
+
+  try {
+    const res = await fetch('/api/kundelik/grade', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
+      },
+      body: JSON.stringify({
+        student_id: sel.value || 1001,
+        student_name: studentName,
+        class_name: className,
+        mark: selectedKdMarkVal,
+        mark_type: 'ФО',
+        descriptor: descriptor
+      })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(data.message || `Баға ${selectedKdMarkVal} қойылды!`, '✅');
+      closeModal('modalKundelik');
+    } else {
+      showToast(data.error || 'Қате шықты', '❌');
+    }
+  } catch(e) {
+    showToast('Сервер байланыс қатесі', '❌');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✅ Отправить оценку в журнал';
+  }
+}
+
+async function disconnectKundelik() {
+  if (!confirm('Kundelik байланысын ажыратуды растайсыз ба?')) return;
+  try {
+    await fetch('/api/kundelik/disconnect', {
+      method: 'POST',
+      headers: tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {}
+    });
+    showToast('Интеграция ажыратылды', 'ℹ️');
+    openKundelikModal();
+  } catch(e) {}
 }
 
 // ── ACCOUNT RESET ──

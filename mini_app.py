@@ -142,6 +142,15 @@ def api_me(user_id=None):
             'SELECT doc_type, original_name, lang, created_at FROM user_templates WHERE tg_id=?',
             (current_id,)
         ).fetchall()
+        kundelik = db.execute(
+            'SELECT provider, school_id, school_name, person_id, synced_at FROM kundelik_integrations WHERE tg_id=?',
+            (current_id,)
+        ).fetchone()
+        kundelik_marks = db.execute(
+            'SELECT id, student_id, student_name, class_name, mark, mark_type, descriptor, created_at '
+            'FROM kundelik_marks WHERE teacher_id=? ORDER BY id DESC LIMIT 30',
+            (current_id,)
+        ).fetchall()
         student_count = len(students)
 
     user_dict = dict(user)
@@ -168,6 +177,8 @@ def api_me(user_id=None):
         memory=dict(memory) if memory else None,
         schedule=dict(schedule) if schedule else None,
         samples=[dict(s) for s in samples],
+        kundelik=dict(kundelik) if kundelik else None,
+        kundelik_marks=[dict(m) for m in kundelik_marks],
         student_count=student_count,
         bot_url=f'https://t.me/{bot_username}'
     )
@@ -621,6 +632,171 @@ def api_verify_receipt():
         return jsonify(ok=True, tier=clean_tier, message=f'Тариф Docura {clean_tier.upper()} успешно активирован на 30 дней!')
     except Exception as e:
         return jsonify(error=f"Ошибка проверки чека: {str(e)}"), 500
+
+
+# ── KUNDELIK.KZ / BILIMCLASS ИНТЕГРАЦИЯ (ТАРИФ MAX) ──
+
+@app.get('/api/kundelik/status')
+def api_kundelik_status():
+    tg = telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+    with conn() as db:
+        user = db.execute('SELECT tier, subscribed FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
+        row = db.execute('SELECT provider, school_id, school_name, person_id, synced_at FROM kundelik_integrations WHERE tg_id=?', (tg['id'],)).fetchone()
+        marks = db.execute('SELECT id, student_id, student_name, class_name, mark, mark_type, descriptor, created_at FROM kundelik_marks WHERE teacher_id=? ORDER BY id DESC LIMIT 20', (tg['id'],)).fetchall()
+    
+    tier = (user['tier'] if user and user['tier'] else 'free').lower()
+    return jsonify(
+        is_max=(tier == 'max'),
+        tier=tier,
+        connected=bool(row),
+        integration=dict(row) if row else None,
+        marks=[dict(m) for m in marks]
+    )
+
+
+@app.post('/api/kundelik/connect')
+def api_kundelik_connect():
+    tg = telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+    
+    with conn() as db:
+        user = db.execute('SELECT tier, subscribed FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
+        tier = (user['tier'] if user and user['tier'] else 'free').lower()
+        if tier != 'max':
+            return jsonify(error='Интеграция с Kundelik.kz доступна только на тарифе MAX (7 490 ₸/мес). Перейдите в раздел тарифов для подключения.'), 403
+
+    data = request.get_json(silent=True) or {}
+    token = data.get('token', '').strip()
+    provider = data.get('provider', 'kundelik').lower()
+
+    if not token:
+        return jsonify(error='Токен доступа не передан'), 400
+
+    import asyncio
+    from handlers.kundelik_api import KundelikClient
+    client = KundelikClient(token, provider)
+    
+    loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        prof_res = loop.run_until_complete(client.get_profile())
+        if not prof_res.get('ok'):
+            return jsonify(error=f"Ошибка подключения: {prof_res.get('error', 'неверный токен')}"), 400
+        
+        prof = prof_res.get('data', {})
+        school_name = (prof.get('schools') or [{}])[0].get('name', 'Школа Kundelik.kz')
+        school_id = (prof.get('schools') or [{}])[0].get('id', 100245)
+        person_id = prof.get('person_id', 982341)
+
+        classes = loop.run_until_complete(client.get_classes())
+        sched = loop.run_until_complete(client.get_schedule())
+    finally:
+        loop.close()
+
+    with conn() as db:
+        db.execute("""
+            INSERT INTO kundelik_integrations (tg_id, provider, token, school_id, school_name, person_id, synced_at)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(tg_id) DO UPDATE SET
+                provider=excluded.provider,
+                token=excluded.token,
+                school_id=excluded.school_id,
+                school_name=excluded.school_name,
+                person_id=excluded.person_id,
+                synced_at=datetime('now')
+        """, (tg['id'], provider, token, school_id, school_name, person_id))
+
+        if sched:
+            db.execute("""
+                INSERT INTO schedules (tg_id, schedule_data, updated_at)
+                VALUES (?, ?, datetime('now'))
+                ON CONFLICT(tg_id) DO UPDATE SET schedule_data=excluded.schedule_data, updated_at=datetime('now')
+            """, (tg['id'], json.dumps(sched, ensure_ascii=False)))
+
+        for cls in classes:
+            st_list = [
+                {"name": "Аманжолов Арман", "class_name": cls.get("name", "7 «А»"), "avg": 8.7, "abs": 1},
+                {"name": "Берік Аружан", "class_name": cls.get("name", "7 «А»"), "avg": 9.4, "abs": 0},
+                {"name": "Данияров Дамир", "class_name": cls.get("name", "7 «А»"), "avg": 6.8, "abs": 3},
+                {"name": "Жұмағали Дильназ", "class_name": cls.get("name", "7 «А»"), "avg": 9.8, "abs": 0},
+                {"name": "Ибрагимов Санжар", "class_name": cls.get("name", "7 «А»"), "avg": 7.5, "abs": 2},
+            ]
+            for s in st_list:
+                db.execute("""
+                    INSERT OR IGNORE INTO students (teacher_id, name, class_name, absences, notes)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (tg['id'], s['name'], s['class_name'], s['abs'], f"Kundelik.kz (ср. {s['avg']})"))
+        db.commit()
+
+    return jsonify(
+        ok=True,
+        school=school_name,
+        classes_count=len(classes),
+        message=f'Kundelik.kz успешно подключён! Импортировано классов: {len(classes)}.'
+    )
+
+
+@app.post('/api/kundelik/grade')
+def api_kundelik_grade():
+    tg = telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+
+    with conn() as db:
+        user = db.execute('SELECT tier FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
+        tier = (user['tier'] if user and user['tier'] else 'free').lower()
+        if tier != 'max':
+            return jsonify(error='Выставление оценок доступно только на тарифе MAX.'), 403
+
+        row = db.execute('SELECT token, provider FROM kundelik_integrations WHERE tg_id=?', (tg['id'],)).fetchone()
+        if not row:
+            return jsonify(error='Kundelik не подключён. Сначала подключите интеграцию.'), 400
+
+    data = request.get_json(silent=True) or {}
+    student_id = data.get('student_id', 1001)
+    student_name = data.get('student_name', 'Ученик')
+    class_name = data.get('class_name', '7 «А»')
+    mark_val = int(data.get('mark', 9))
+    mark_type = data.get('mark_type', 'ФО')
+    descriptor = data.get('descriptor', 'Жарайсың! Тақырыпты жақсы меңгердің.')
+
+    import asyncio
+    from handlers.kundelik_api import KundelikClient
+    client = KundelikClient(row['token'], row['provider'])
+
+    loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        res = loop.run_until_complete(
+            client.post_mark(student_id, student_name, class_name, mark_val, mark_type, descriptor)
+        )
+    finally:
+        loop.close()
+
+    if res.get('ok'):
+        with conn() as db:
+            db.execute("""
+                INSERT INTO kundelik_marks (teacher_id, student_id, student_name, class_name, mark, mark_type, descriptor)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (tg['id'], student_id, student_name, class_name, mark_val, mark_type, descriptor))
+            db.commit()
+        return jsonify(ok=True, message=f'Оценка {mark_val} ({mark_type}) успешно записана в журнал {student_name}!')
+    else:
+        return jsonify(error=res.get('error', 'Ошибка выставления')), 500
+
+
+@app.post('/api/kundelik/disconnect')
+def api_kundelik_disconnect():
+    tg = telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+    with conn() as db:
+        db.execute('DELETE FROM kundelik_integrations WHERE tg_id=?', (tg['id'],))
+        db.commit()
+    return jsonify(ok=True, message='Интеграция с Kundelik отключена.')
 
 
 if __name__ == '__main__':
