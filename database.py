@@ -368,16 +368,40 @@ class Database:
                 row = await cur.fetchone()
                 return dict(row) if row else None
 
-    async def add_student(self, teacher_id: int, data: dict):
+    async def add_student(self, teacher_id: int, data: dict | str = None, class_name: str = "", **kwargs):
+        """Добавить ученика. Поддерживает как передачу словаря data, так и именованные аргументы:
+        add_student(user_id, data={...})
+        add_student(user_id, name="Арман", class_name="7А", notes="...", absences=0)
+        """
         async with aiosqlite.connect(self.db_path) as db:
+            if isinstance(data, dict):
+                st_dict = data
+            elif isinstance(data, str):
+                st_dict = {"name": data, "class_name": class_name, **kwargs}
+            else:
+                st_dict = kwargs
+
+            name = st_dict.get("name", "")
+            cls_name = st_dict.get("class_name", "")
+            grades = st_dict.get("grades", {})
+            achievements = st_dict.get("achievements", [])
+            absences = st_dict.get("absences", 0)
+            behavior = st_dict.get("behavior", "хорошее")
+            notes = st_dict.get("notes", "")
+
             await db.execute(
                 """INSERT INTO students (teacher_id, name, class_name, grades, achievements, absences, behavior, notes)
                    VALUES (?,?,?,?,?,?,?,?)""",
-                (teacher_id, data["name"], data["class_name"],
-                 json.dumps(data.get("grades", {}), ensure_ascii=False),
-                 json.dumps(data.get("achievements", []), ensure_ascii=False),
-                 data.get("absences", 0), data.get("behavior", "хорошее"),
-                 data.get("notes", ""))
+                (
+                    teacher_id,
+                    name,
+                    cls_name,
+                    json.dumps(grades, ensure_ascii=False) if isinstance(grades, (dict, list)) else str(grades),
+                    json.dumps(achievements, ensure_ascii=False) if isinstance(achievements, list) else str(achievements),
+                    absences,
+                    behavior,
+                    notes
+                )
             )
             await db.commit()
 

@@ -4624,11 +4624,16 @@ async function init() {
     }
     STATE.tg_id = tgId;
 
+    const authToken = urlParams.get('token');
+
     let apiUrl = '/api/me';
     if (profileId && !isNaN(profileId)) {
       apiUrl = '/api/profile/' + profileId;
     } else if (tgId && !isNaN(tgId)) {
       apiUrl = '/api/me?tg_id=' + tgId;
+    }
+    if (authToken) {
+      apiUrl += (apiUrl.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(authToken);
     }
 
     const headers = {};

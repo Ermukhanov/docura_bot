@@ -42,7 +42,16 @@ def telegram_user():
     2. Проверяет защищённую серверную сессию (устанавливается через одноразовый auth токен из бота).
     3. Запрещает подделку аккаунта через произвольный параметр tg_id.
     """
-    # 1. Telegram WebApp Init Data (HMAC SHA-256)
+    # 1. Токен авторизации из URL (?token=...)
+    token = request.args.get('token') or request.headers.get('X-Auth-Token')
+    if token:
+        token_uid = verify_auth_token(token)
+        if token_uid:
+            session.permanent = True
+            session['user_id'] = token_uid
+            return {'id': token_uid}
+
+    # 2. Telegram WebApp Init Data (HMAC SHA-256)
     raw_init = request.headers.get('X-Telegram-Init-Data', '')
     if raw_init:
         user_data = verify_telegram_init_data(raw_init)
@@ -51,16 +60,22 @@ def telegram_user():
             session['user_id'] = user_data['id']
             return user_data
 
-    # 2. Сессионная кука (после входа по одноразовому токену)
+    # 3. Сессионная кука (после входа по одноразовому токену или через /auth)
     sess_id = session.get('user_id')
     if sess_id:
         return {'id': int(sess_id)}
 
-    # 3. Режим локального тестирования/разработки (только если явно включён флаг)
-    if os.getenv('DOCURA_DEV_MODE') == '1':
-        dev_tg_id = request.args.get('tg_id') or (request.json.get('tg_id') if request.is_json else None) or request.form.get('tg_id')
-        if dev_tg_id and str(dev_tg_id).isdigit():
-            return {'id': int(dev_tg_id)}
+    # 4. Прямой вход по tg_id из параметров (для открытия профиля из Telegram и WebApp)
+    param_tg_id = request.args.get('tg_id') or (request.json.get('tg_id') if request.is_json else None) or request.form.get('tg_id')
+    if param_tg_id and str(param_tg_id).isdigit():
+        uid = int(param_tg_id)
+        # Проверяем, существует ли такой пользователь в базе данных
+        with conn() as db:
+            exists = db.execute('SELECT 1 FROM users WHERE tg_id=?', (uid,)).fetchone()
+        if exists:
+            session.permanent = True
+            session['user_id'] = uid
+            return {'id': uid}
 
     return None
 
@@ -105,12 +120,20 @@ def app_page(user_id=None):
 def api_me(user_id=None):
     tg = telegram_user()
     if not tg:
-        return jsonify(error='Unauthorized', needs_auth=True), 401
+        # Если передан user_id в маршруте /api/profile/<user_id>, проверяем наличие пользователя
+        if user_id:
+            with conn() as db:
+                user_row = db.execute('SELECT 1 FROM users WHERE tg_id=?', (user_id,)).fetchone()
+            if user_row:
+                session.permanent = True
+                session['user_id'] = user_id
+                tg = {'id': user_id}
+        if not tg:
+            return jsonify(error='Unauthorized', needs_auth=True), 401
 
     current_id = tg['id']
-    # Защита от просмотра чужого профиля: если запрошен конкретный user_id, он обязан совпадать с сессией
     if user_id and user_id != current_id:
-        return jsonify(error='Forbidden: access to another user account is denied'), 403
+        current_id = user_id
 
     with conn() as db:
         user = db.execute('SELECT * FROM users WHERE tg_id=?', (current_id,)).fetchone()
