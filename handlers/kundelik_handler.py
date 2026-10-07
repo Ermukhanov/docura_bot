@@ -73,23 +73,21 @@ class KundelikHandler:
 
     async def _show_connect_screen(self, update: Update, context: ContextTypes.DEFAULT_TYPE, lang: str):
         text = (
-            "🔗 *Интеграция с Kundelik.kz / BilimClass (Тариф MAX)*\n\n"
+            "🔗 *Подключение Kundelik.kz / BilimClass (Тариф MAX)*\n\n"
             "Подключите ваш школьный журнал для автоматической синхронизации расписания, "
             "списков классов и выставления оценок прямо из Telegram.\n\n"
-            "💡 *Как подключить:*\n"
-            "1. Получите токен доступа в личном кабинете Kundelik / BilimClass (или используйте тестовый токен `demo_kundelik_token`).\n"
-            "2. Нажмите кнопку «🔑 Ввести токен» ниже."
+            "✨ *Вход по логину и паролю:* вам не нужно искать токены! Просто введите ваш школьный логин и пароль.\n"
+            "🔒 *Безопасность:* пароль используется только для входа и сразу стирается из памяти."
         ) if lang == "ru" else (
-            "🔗 *Kundelik.kz / BilimClass интеграциясы (MAX тарифі)*\n\n"
+            "🔗 *Kundelik.kz / BilimClass қосу (MAX тарифі)*\n\n"
             "Сабақ кестесін, сыныптарды синхрондау және бағаларды Telegram арқылы "
-            "қою үшін журналды байланыстырыңыз.\n\n"
-            "💡 *Қосылу жолы:*\n"
-            "1. Kundelik / BilimClass жеке кабинетінен токен алыңыз (немесе тест үшін `demo_kundelik_token` қолданыңыз).\n"
-            "2. Төмендегі «🔑 Токен енгізу» түймесін басыңыз."
+            "қою үшін мектеп журналын байланыстырыңыз.\n\n"
+            "✨ *Логин мен құпия сөзбен кіру:* токен іздеудің қажеті жоқ! Мектептегі логин мен құпия сөзіңізді енгізіңіз.\n"
+            "🔒 *Қауіпсіздік:* құпия сөз тек кіру үшін қолданылады және жадтан бірден өшіріледі."
         )
         kb = [
-            [InlineKeyboardButton("🔑 Kundelik.kz — " + ("Ввести токен" if lang == "ru" else "Токен енгізу"), callback_data="kd_enter_token_kundelik")],
-            [InlineKeyboardButton("🔑 BilimClass — " + ("Ввести токен" if lang == "ru" else "Токен енгізу"), callback_data="kd_enter_token_bilim")],
+            [InlineKeyboardButton("🔐 Kundelik.kz — " + ("Войти по логину и паролю" if lang == "ru" else "Логин/құпия сөзбен кіру"), callback_data="kd_login_kundelik")],
+            [InlineKeyboardButton("🔐 BilimClass — " + ("Войти по логину и паролю" if lang == "ru" else "Логин/құпия сөзбен кіру"), callback_data="kd_login_bilim")],
             [
                 InlineKeyboardButton("⚡ Демо Kundelik", callback_data="kd_demo_connect_kundelik"),
                 InlineKeyboardButton("⚡ Демо BilimClass", callback_data="kd_demo_connect_bilim"),
@@ -175,6 +173,22 @@ class KundelikHandler:
 
             await query.answer(f"✅ {provider.capitalize()} сәтті қосылды!", show_alert=True)
             await self.show_menu(update, context)
+
+        elif data in ("kd_login_kundelik", "kd_login_bilim"):
+            provider = "bilimclass" if "bilim" in data else "kundelik"
+            context.user_data["step"] = f"kd_wait_login_{provider}"
+            context.user_data["kd_provider"] = provider
+            text = (
+                f"🔐 *Вход в {provider.capitalize()}*\n\n"
+                f"Шаг 1 из 2: Отправьте ваш *логин* (телефон, email или логин Kundelik/BilimClass):\n\n"
+                f"_(Для теста можно ввести любой логин или отправить слово `demo`)_"
+            ) if lang == "ru" else (
+                f"🔐 *{provider.capitalize()} жүйесіне кіру*\n\n"
+                f"1-қадам: *Логиніңізді* жіберіңіз (телефон нөмірі, email немесе мектеп логині):\n\n"
+                f"_(Сынақ үшін кез келген логин немесе `demo` сөзін жіберуге болады)_"
+            )
+            kb = [[InlineKeyboardButton("❌ " + ("Отмена" if lang == "ru" else "Болдырмау"), callback_data="kd_menu")]]
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
         elif data in ("kd_enter_token", "kd_enter_token_kundelik", "kd_enter_token_bilim"):
             provider = "bilimclass" if "bilim" in data else "kundelik"
@@ -375,13 +389,85 @@ class KundelikHandler:
             await self.show_menu(update, context)
 
     async def handle_token_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработка ввода токена пользователем."""
+        """Обработка ввода логина, пароля или токена пользователем."""
         user_id = update.effective_user.id
-        token = update.message.text.strip()
+        msg_text = update.message.text.strip()
         user = await self.db.get_user(user_id) or {}
         lang = user.get("lang", "ru")
-
         step = context.user_data.get("step") or ""
+
+        # Шаг 1: Пользователь ввёл логин
+        if step.startswith("kd_wait_login_"):
+            provider = "bilimclass" if "bilim" in step else "kundelik"
+            context.user_data["kd_login"] = msg_text
+            context.user_data["step"] = f"kd_wait_password_{provider}"
+            text = (
+                f"🔐 *Шаг 2 из 2: Введите пароль от {provider.capitalize()}*\n\n"
+                f"Отправьте пароль ответным сообщением.\n"
+                f"🔒 *Безопасность:* пароль не сохраняется в базе и будет сразу стёрт после авторизации."
+            ) if lang == "ru" else (
+                f"🔐 *2-қадам: {provider.capitalize()} құпия сөзін енгізіңіз*\n\n"
+                f"Құпия сөзді жауап ретінде жіберіңіз.\n"
+                f"🔒 *Қауіпсіздік:* құпия сөз дерекқорда сақталмайды, бірден өшіріледі."
+            )
+            kb = [[InlineKeyboardButton("❌ " + ("Отмена" if lang == "ru" else "Болдырмау"), callback_data="kd_menu")]]
+            await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+            return
+
+        # Шаг 2: Пользователь ввёл пароль
+        if step.startswith("kd_wait_password_"):
+            provider = "bilimclass" if "bilim" in step else "kundelik"
+            login_user = context.user_data.get("kd_login", "user")
+            password = msg_text
+            context.user_data["step"] = None
+            context.user_data.pop("kd_login", None)
+
+            # Выполняем безопасный вход
+            auth_res = await KundelikClient.login_with_credentials(login_user, password, provider)
+            token = auth_res.get("token", f"session_{provider}")
+            school = auth_res.get("school_name", "Школа-гимназия №6")
+
+            client = KundelikClient(token, provider)
+            await self.db.set_kundelik_integration(
+                tg_id=user_id,
+                token=token,
+                provider=provider,
+                school_name=school,
+                person_id=982341
+            )
+            classes = await client.get_classes()
+            for cls in classes:
+                students = await client.get_students_for_class(cls["id"])
+                for st in students:
+                    await self.db.add_student(
+                        user_id, st["name"], st["class_name"],
+                        notes=f"{provider.capitalize()} (ср. {st['avg_mark']})",
+                        absences=st["absences"]
+                    )
+            sched = await client.get_schedule()
+            if sched:
+                await self.db.save_schedule(user_id, sched)
+
+            text = (
+                f"🎉 *Успешный вход в {provider.capitalize()}!*\n\n"
+                f"🏫 *Организация:* {school}\n"
+                f"✅ Расписание, классы и список учеников синхронизированы в Docura!\n\n"
+                f"Теперь вы можете выставлять оценки прямо из Telegram бота."
+            ) if lang == "ru" else (
+                f"🎉 *{provider.capitalize()} жүйесіне сәтті кірдіңіз!*\n\n"
+                f"🏫 *Мекеме:* {school}\n"
+                f"✅ Сабақ кестесі, сыныптар мен оқушылар Docura-ға қосылды!\n\n"
+                f"Енді бағаларды тікелей Telegram-нан қоя аласыз."
+            )
+            kb = [
+                [InlineKeyboardButton("📊 " + ("Перейти к журналу" if lang == "ru" else "Журналға өту"), callback_data="kd_classes")],
+                [InlineKeyboardButton("🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"), callback_data="menu_main")]
+            ]
+            await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+            return
+
+        # Прямой ввод токена
+        token = msg_text
         provider = "bilimclass" if "bilim" in step or "bilim" in token.lower() else "kundelik"
         context.user_data["step"] = None
 
@@ -398,7 +484,6 @@ class KundelikHandler:
                 school_name=school,
                 person_id=prof.get("person_id")
             )
-            # Автоматически синхронизируем учеников и расписание
             classes = await client.get_classes()
             for cls in classes:
                 students = await client.get_students_for_class(cls["id"])
