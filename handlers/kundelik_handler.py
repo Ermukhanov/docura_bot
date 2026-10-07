@@ -88,8 +88,12 @@ class KundelikHandler:
             "2. Төмендегі «🔑 Токен енгізу» түймесін басыңыз."
         )
         kb = [
-            [InlineKeyboardButton("🔑 " + ("Ввести токен доступа" if lang == "ru" else "Қолжетімділік токенін енгізу"), callback_data="kd_enter_token")],
-            [InlineKeyboardButton("⚡ " + ("Демо-подключение (Тестовая школа)" if lang == "ru" else "Демо қосылу (Сынақ мектебі)"), callback_data="kd_demo_connect")],
+            [InlineKeyboardButton("🔑 Kundelik.kz — " + ("Ввести токен" if lang == "ru" else "Токен енгізу"), callback_data="kd_enter_token_kundelik")],
+            [InlineKeyboardButton("🔑 BilimClass — " + ("Ввести токен" if lang == "ru" else "Токен енгізу"), callback_data="kd_enter_token_bilim")],
+            [
+                InlineKeyboardButton("⚡ Демо Kundelik", callback_data="kd_demo_connect_kundelik"),
+                InlineKeyboardButton("⚡ Демо BilimClass", callback_data="kd_demo_connect_bilim"),
+            ],
             [InlineKeyboardButton("🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"), callback_data="menu_main")]
         ]
         if update.callback_query:
@@ -142,44 +146,47 @@ class KundelikHandler:
         if data == "kd_menu":
             await self.show_menu(update, context)
 
-        elif data == "kd_demo_connect":
-            # Быстрое подключение демо-школы
+        elif data in ("kd_demo_connect", "kd_demo_connect_kundelik", "kd_demo_connect_bilim"):
+            provider = "bilimclass" if "bilim" in data else "kundelik"
+            school_name = "BilimClass · Школа-гимназия №6" if provider == "bilimclass" else "Школа-гимназия №6 г. Хромтау"
+            token = f"demo_{provider}_token"
+
             await self.db.set_kundelik_integration(
                 tg_id=user_id,
-                token="demo_kundelik_token",
-                provider="kundelik",
+                token=token,
+                provider=provider,
                 school_id=100245,
-                school_name="Школа-гимназия №6 г. Хромтау",
+                school_name=school_name,
                 person_id=982341
             )
-            # Синхронизируем базовые данные
-            client = KundelikClient("demo_kundelik_token")
+            client = KundelikClient(token, provider)
             classes = await client.get_classes()
             for cls in classes:
                 students = await client.get_students_for_class(cls["id"])
                 for st in students:
                     await self.db.add_student(
                         user_id, st["name"], st["class_name"],
-                        notes=f"Синхронизировано из Kundelik.kz (avg: {st['avg_mark']})",
+                        notes=f"{provider.capitalize()} (avg: {st['avg_mark']})",
                         absences=st["absences"]
                     )
             schedule = await client.get_schedule()
             if schedule:
                 await self.db.save_schedule(user_id, schedule)
 
-            await query.answer("✅ Kundelik успешно подключён!", show_alert=True)
+            await query.answer(f"✅ {provider.capitalize()} сәтті қосылды!", show_alert=True)
             await self.show_menu(update, context)
 
-        elif data == "kd_enter_token":
-            context.user_data["step"] = "kd_wait_token"
+        elif data in ("kd_enter_token", "kd_enter_token_kundelik", "kd_enter_token_bilim"):
+            provider = "bilimclass" if "bilim" in data else "kundelik"
+            context.user_data["step"] = f"kd_wait_token_{provider}"
             text = (
-                "🔑 *Введите токен доступа Kundelik.kz или BilimClass*\n\n"
-                "Отправьте токен в ответном сообщении.\n"
-                "Если у вас пока нет боевого токена школы, отправьте `demo_kundelik_token` для демонстрационного режима."
+                f"🔑 *Введите токен доступа {provider.capitalize()}*\n\n"
+                f"Отправьте токен в ответном сообщении.\n"
+                f"Если у вас пока нет боевого токена школы, отправьте `demo_{provider}_token` для демонстрационного режима."
             ) if lang == "ru" else (
-                "🔑 *Kundelik.kz немесе BilimClass токенін енгізіңіз*\n\n"
-                "Токенді жауап ретінде жіберіңіз.\n"
-                "Егер мектеп токені әзірге болмаса, сынақ режимі үшін `demo_kundelik_token` жібере аласыз."
+                f"🔑 *{provider.capitalize()} токенін енгізіңіз*\n\n"
+                f"Токенді жауап ретінде жіберіңіз.\n"
+                f"Егер мектеп токені әзірге болмаса, сынақ режимі үшін `demo_{provider}_token` жібере аласыз."
             )
             kb = [[InlineKeyboardButton("❌ " + ("Отмена" if lang == "ru" else "Болдырмау"), callback_data="kd_menu")]]
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
@@ -374,18 +381,20 @@ class KundelikHandler:
         user = await self.db.get_user(user_id) or {}
         lang = user.get("lang", "ru")
 
+        step = context.user_data.get("step") or ""
+        provider = "bilimclass" if "bilim" in step or "bilim" in token.lower() else "kundelik"
         context.user_data["step"] = None
 
-        client = KundelikClient(token)
+        client = KundelikClient(token, provider)
         prof_res = await client.get_profile()
 
         if prof_res.get("ok"):
             prof = prof_res.get("data", {})
-            school = (prof.get("schools") or [{}])[0].get("name", "Школа Kundelik.kz")
+            school = (prof.get("schools") or [{}])[0].get("name", f"Школа {provider.capitalize()}")
             await self.db.set_kundelik_integration(
                 tg_id=user_id,
                 token=token,
-                provider="kundelik",
+                provider=provider,
                 school_name=school,
                 person_id=prof.get("person_id")
             )
@@ -396,7 +405,7 @@ class KundelikHandler:
                 for st in students:
                     await self.db.add_student(
                         user_id, st["name"], st["class_name"],
-                        notes=f"Kundelik.kz (ср. {st['avg_mark']})",
+                        notes=f"{provider.capitalize()} (ср. {st['avg_mark']})",
                         absences=st["absences"]
                     )
             sched = await client.get_schedule()
@@ -404,11 +413,11 @@ class KundelikHandler:
                 await self.db.save_schedule(user_id, sched)
 
             text = (
-                f"🎉 *Kundelik.kz успешно подключён!*\n\n"
+                f"🎉 *{provider.capitalize()} успешно подключён!*\n\n"
                 f"🏫 Школа: {school}\n"
                 f"Расписание и списки учеников автоматически синхронизированы."
             ) if lang == "ru" else (
-                f"🎉 *Kundelik.kz сәтті байланыстырылды!*\n\n"
+                f"🎉 *{provider.capitalize()} сәтті байланыстырылды!*\n\n"
                 f"🏫 Мектеп: {school}\n"
                 f"Кесте және оқушылар тізімі автоматты түрде қосылды."
             )
@@ -419,5 +428,5 @@ class KundelikHandler:
             await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
         else:
             await update.message.reply_text(
-                f"❌ Не удалось подключить токен: {prof_res.get('error')}. Попробуйте ещё раз или выберите «Демо-подключение» в меню /kundelik."
+                f"❌ Не удалось подключить токен: {prof_res.get('error')}. Попробуйте ещё раз или выберите «Демо» в меню /kundelik."
             )

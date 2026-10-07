@@ -2038,15 +2038,28 @@
       <!-- Connect form (if not connected) -->
       <div id="kdConnectForm" style="display:none;">
         <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;" id="kdConnectHint">
-          Введите ваш токен Kundelik.kz или нажмите «Демо-школа» для моментального тестирования функционала.
+          Выберите электронный журнал вашей школы (Kundelik.kz или BilimClass) и введите токен доступа.
         </p>
+
+        <div class="form-group">
+          <label class="form-label" id="kdProviderSelectLabel">Платформа электронного журнала *</label>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn-pill kd-provider-tab active" id="btnChooseKundelik" onclick="setKdProvider('kundelik')" style="flex:1; background:#0284C7; color:#fff; padding:10px; font-weight:700;">
+              📘 Kundelik.kz
+            </button>
+            <button type="button" class="btn-pill kd-provider-tab" id="btnChooseBilim" onclick="setKdProvider('bilimclass')" style="flex:1; background:#F1F5F9; color:#475569; padding:10px; font-weight:700;">
+              📗 BilimClass
+            </button>
+          </div>
+        </div>
+
         <div class="form-group">
           <label class="form-label" id="kdTokenLabel">Токен доступа / API Token *</label>
           <input type="text" id="kdTokenInput" class="form-input" placeholder="demo_kundelik_token" value="demo_kundelik_token">
         </div>
         <div style="display:flex; gap:8px;">
           <button onclick="connectKundelik()" class="form-btn-submit" style="flex:1; background:linear-gradient(135deg, #0284C7, #2563EB);" id="btnKdConnect">
-            ⚡ Подключить Kundelik
+            ⚡ Подключить к Docura
           </button>
         </div>
       </div>
@@ -4425,8 +4438,26 @@ async function openKundelikModal() {
   selectKdMark(9);
 }
 
+let activeKdProvider = 'kundelik';
+
+function setKdProvider(prov) {
+  activeKdProvider = prov;
+  const btnK = document.getElementById('btnChooseKundelik');
+  const btnB = document.getElementById('btnChooseBilim');
+  const inp = document.getElementById('kdTokenInput');
+  if (prov === 'kundelik') {
+    if (btnK) { btnK.style.background = '#0284C7'; btnK.style.color = '#fff'; }
+    if (btnB) { btnB.style.background = '#F1F5F9'; btnB.style.color = '#475569'; }
+    if (inp && (inp.value === 'demo_bilimclass_token' || inp.value === '')) inp.value = 'demo_kundelik_token';
+  } else {
+    if (btnB) { btnB.style.background = '#059669'; btnB.style.color = '#fff'; }
+    if (btnK) { btnK.style.background = '#F1F5F9'; btnK.style.color = '#475569'; }
+    if (inp && (inp.value === 'demo_kundelik_token' || inp.value === '')) inp.value = 'demo_bilimclass_token';
+  }
+}
+
 async function connectKundelik() {
-  const token = document.getElementById('kdTokenInput').value.trim() || 'demo_kundelik_token';
+  const token = document.getElementById('kdTokenInput').value.trim() || `demo_${activeKdProvider}_token`;
   const btn = document.getElementById('btnKdConnect');
   const oldText = btn.textContent;
   btn.disabled = true;
@@ -4439,7 +4470,7 @@ async function connectKundelik() {
         'Content-Type': 'application/json',
         ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
       },
-      body: JSON.stringify({ token: token, provider: 'kundelik' })
+      body: JSON.stringify({ token: token, provider: activeKdProvider })
     });
     const data = await res.json();
     if (data.ok) {

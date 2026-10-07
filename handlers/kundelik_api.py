@@ -42,6 +42,23 @@ MOCK_KUNDELIK_DATA = {
         {"id": 501, "name": "8 «А»", "subject": "Геометрия", "students_count": 25},
         {"id": 502, "name": "9 «В»", "subject": "Алгебра", "students_count": 20}
     ],
+}
+
+MOCK_BILIMCLASS_DATA = {
+    "profile": {
+        "person_id": 982342,
+        "first_name": "Мернар",
+        "last_name": "Ермуханов",
+        "middle_name": "Серикович",
+        "roles": ["Teacher", "BilimClass Educator"],
+        "schools": [{"id": 100245, "name": "BilimClass · Школа-гимназия №6", "type": "school"}]
+    },
+    "classes": [
+        {"id": 601, "name": "5 «А»", "subject": "Математика (BilimLand)", "students_count": 25},
+        {"id": 602, "name": "6 «Ә»", "subject": "Математика (BilimLand)", "students_count": 23},
+        {"id": 701, "name": "10 «А»", "subject": "Алгебра және анализ бастамалары", "students_count": 21}
+    ]
+}
     "students": {
         401: [
             {"id": 1001, "name": "Аманжолов Арман", "class_name": "7 «А»", "avg_mark": 8.7, "absences": 1, "recent_marks": [8, 9, 9, 10]},
@@ -106,10 +123,11 @@ class KundelikClient:
     async def get_profile(self) -> Dict[str, Any]:
         """Получение профиля учителя и информации о школе."""
         if self.is_mock:
+            mock_data = MOCK_BILIMCLASS_DATA if self.provider == "bilimclass" else MOCK_KUNDELIK_DATA
             return {
                 "ok": True,
                 "provider": self.provider,
-                "data": MOCK_KUNDELIK_DATA["profile"]
+                "data": mock_data["profile"]
             }
 
         url = f"{self.base_url}/users/me"
@@ -130,7 +148,8 @@ class KundelikClient:
     async def get_classes(self) -> List[Dict[str, Any]]:
         """Получение списка классов учителя."""
         if self.is_mock:
-            return MOCK_KUNDELIK_DATA["classes"]
+            mock_data = MOCK_BILIMCLASS_DATA if self.provider == "bilimclass" else MOCK_KUNDELIK_DATA
+            return mock_data["classes"]
 
         url = f"{self.base_url}/edu-groups"
         try:
