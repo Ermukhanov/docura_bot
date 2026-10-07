@@ -84,13 +84,13 @@ class AdminHandler:
         await query.answer()
         data  = query.data
 
-        TIER_NAMES = {"pro": "PRO"}
+        TIER_NAMES = {"pro": "PRO", "max": "MAX", "b2b": "B2B"}
 
         if not is_admin(update.effective_user.id):
             await query.answer("⛔ Нет доступа", show_alert=True)
             return
 
-        if data.startswith("admin_activate_") and data != "admin_activate_btn":
+        if data.startswith("admin_activate_") and data != "admin_activate_btn" and data != "admin_activate_max_btn":
             rest = data[len("admin_activate_"):]
             try:
                 if rest.startswith("id_"):
@@ -115,9 +115,10 @@ class AdminHandler:
             except BadRequest as e:
                 logger.warning("admin activate: cannot annotate message: %s", e)
             try:
+                extra_perks = "\n💎 Включает интеграцию с Kundelik.kz / BilimClass, презентации и автопилот!" if tier == "max" else ""
                 await context.bot.send_message(
                     chat_id=tg_id,
-                    text=f"🎉 *Поздравляем! Подписка {t_name} активирована.*\n\nТеперь у вас безлимитная генерация документов!",
+                    text=f"🎉 *Поздравляем! Подписка {t_name} активирована.*\n\nТеперь у вас безлимитный доступ к документам!{extra_perks}",
                     parse_mode=ParseMode.MARKDOWN
                 )
             except Exception:
@@ -130,6 +131,8 @@ class AdminHandler:
             await self._show_users(query, filt="all")
         elif data == "admin_users_pro":
             await self._show_users(query, filt="pro")
+        elif data == "admin_users_max":
+            await self._show_users(query, filt="max")
         elif data == "admin_users_free":
             await self._show_users(query, filt="free")
         elif data == "admin_users_kg":
@@ -144,6 +147,10 @@ class AdminHandler:
             context.user_data["step"] = "admin_activate"
             kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
             await _safe_edit(query, "💳 Введите Telegram ID для активации PRO:", reply_markup=InlineKeyboardMarkup(kb))
+        elif data == "admin_activate_max_btn":
+            context.user_data["step"] = "admin_activate_max"
+            kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
+            await _safe_edit(query, "💎 Введите Telegram ID для активации MAX (Kundelik + BilimClass + Автопилот):", reply_markup=InlineKeyboardMarkup(kb))
         elif data == "admin_deactivate_btn":
             context.user_data["step"] = "admin_deactivate"
             kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
@@ -237,8 +244,40 @@ class AdminHandler:
         elif step == "admin_activate":
             try:
                 tg_id = int(text.strip())
-                await self.db.activate_subscription(tg_id)
-                await update.message.reply_text(f"✅ Подписка активирована для {tg_id}")
+                await self.db.activate_subscription(tg_id, tier="pro")
+                await update.message.reply_text(f"✅ Подписка PRO активирована для {tg_id}")
+                try:
+                    await context.bot.send_message(
+                        chat_id=tg_id,
+                        text="🎉 *Поздравляем! Подписка PRO активирована.*\n\nТеперь у вас безлимитный доступ к документам!",
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                except Exception:
+                    pass
+            except Exception:
+                await update.message.reply_text("❌ Неверный ID.")
+            context.user_data["step"] = "admin_panel"
+            await self._send_menu(update.message.chat_id, context)
+
+        elif step == "admin_activate_max":
+            try:
+                tg_id = int(text.strip())
+                await self.db.activate_subscription(tg_id, tier="max")
+                await update.message.reply_text(f"💎 Подписка MAX активирована для {tg_id}!\nВключено: Kundelik.kz, BilimClass, презентации, автопилот.")
+                try:
+                    await context.bot.send_message(
+                        chat_id=tg_id,
+                        text=(
+                            "🎉 *Поздравляем! Вам активирован тариф MAX!*\n\n"
+                            "💎 *Все премиальные функции доступны:*\n"
+                            "• Интеграция с Kundelik.kz и BilimClass (выставление оценок и расписание)\n"
+                            "• Безлимитная генерация документов и презентаций PowerPoint\n"
+                            "• Автопилот расписания и мониторинг"
+                        ),
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                except Exception:
+                    pass
             except Exception:
                 await update.message.reply_text("❌ Неверный ID.")
             context.user_data["step"] = "admin_panel"
@@ -348,8 +387,9 @@ class AdminHandler:
             [InlineKeyboardButton("🎓 Обучить бота (образцы)", callback_data="admin_samples")],
             [InlineKeyboardButton("📢 Рассылка", callback_data="admin_broadcast")],
             [InlineKeyboardButton("💳 Активировать PRO", callback_data="admin_activate_btn"),
-             InlineKeyboardButton("🔓 Снять PRO", callback_data="admin_deactivate_btn")],
-            [InlineKeyboardButton("♻️ Сбросить аккаунт", callback_data="admin_reset_btn")],
+             InlineKeyboardButton("💎 Активировать MAX", callback_data="admin_activate_max_btn")],
+            [InlineKeyboardButton("🔓 Снять подписку", callback_data="admin_deactivate_btn"),
+             InlineKeyboardButton("♻️ Сбросить аккаунт", callback_data="admin_reset_btn")],
         ]
 
     async def _show_stats(self, query):
@@ -373,8 +413,11 @@ class AdminHandler:
     async def _show_users(self, query, filt="all"):
         users = await self.db.get_all_users(limit=500)
         if filt == "pro":
-            users = [u for u in users if u.get("subscribed")]
+            users = [u for u in users if u.get("subscribed") and (u.get("tier") == "pro" or not u.get("tier"))]
             title = "⭐ PRO пользователи"
+        elif filt == "max":
+            users = [u for u in users if u.get("subscribed") and u.get("tier") == "max"]
+            title = "💎 MAX пользователи"
         elif filt == "free":
             users = [u for u in users if not u.get("subscribed")]
             title = "🆓 Бесплатные пользователи"
@@ -390,19 +433,22 @@ class AdminHandler:
         else:
             lines = [f"*{title}* ({len(users)})\n"]
             for u in users:
-                sub = "⭐" if u.get("subscribed") else "🆓"
+                tier = (u.get("tier") or "pro").upper() if u.get("subscribed") else ""
+                sub = f"💎{tier}" if tier == "MAX" else "⭐PRO" if tier == "PRO" else "🆓"
                 role_emoji = "🧸" if u.get("role") == "kindergarten" else "🏫"
                 lines.append(
-                    f"{sub}{role_emoji} `{u['tg_id']}` — {_esc(u.get('name') or 'без имени')}\n"
+                    f"{sub} {role_emoji} `{u['tg_id']}` — {_esc(u.get('name') or 'без имени')}\n"
                     f"   {_esc(u.get('school') or '—')} | докум: {u.get('free_used', 0)}"
                 )
 
         kb = [
             [InlineKeyboardButton("⭐ PRO", callback_data="admin_users_pro"),
+             InlineKeyboardButton("💎 MAX", callback_data="admin_users_max"),
              InlineKeyboardButton("🆓 Free", callback_data="admin_users_free")],
             [InlineKeyboardButton("🧸 Садики", callback_data="admin_users_kg"),
              InlineKeyboardButton("👥 Все", callback_data="admin_users")],
-            [InlineKeyboardButton("💳 Активировать PRO", callback_data="admin_activate_btn")],
+            [InlineKeyboardButton("💳 Активировать PRO", callback_data="admin_activate_btn"),
+             InlineKeyboardButton("💎 Активировать MAX", callback_data="admin_activate_max_btn")],
             [InlineKeyboardButton("← Назад", callback_data="admin_menu")],
         ]
         text = "\n".join(lines)
