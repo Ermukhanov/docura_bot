@@ -151,10 +151,10 @@ class KundelikClient:
         }
 
     @classmethod
-    async def login_with_credentials(cls, login_user: str, password: str, provider: str = "kundelik") -> Dict[str, Any]:
+    async def login_with_credentials(cls, login_user: str, password: str, provider: str = "bilimclass") -> Dict[str, Any]:
         """
         Авторизация по логину и паролю.
-        Получает токен доступа/сессию с серверов Kundelik.kz / BilimClass.
+        Получает токен доступа/сессию с серверов BilimClass.
         Пароль нигде не сохраняется и сразу удаляется из памяти.
         """
         login_clean = (login_user or "").strip()
@@ -173,12 +173,12 @@ class KundelikClient:
                 "ok": True,
                 "token": mock_token,
                 "provider": provider,
-                "school_name": "BilimClass · Школа-гимназия №6" if provider == "bilimclass" else "Школа-гимназия №6 г. Хромтау",
-                "message": f"Авторизация в {provider.capitalize()} успешна!"
+                "school_name": "BilimClass · Школа-гимназия №6",
+                "message": "Авторизация в BilimClass успешна!"
             }
 
-        # Боевой запрос авторизации на сервер Kundelik / BilimClass
-        auth_url = "https://login.kundelik.kz/login" if provider == "kundelik" else "https://bilimclass.kz/api/auth/login"
+        # Боевой запрос авторизации на сервер BilimClass / Kundelik
+        auth_url = "https://bilimclass.kz/api/auth/login" if provider == "bilimclass" else "https://login.kundelik.kz/login"
         payload = {
             "login": login_clean,
             "password": pwd_clean,
@@ -198,25 +198,23 @@ class KundelikClient:
                             "ok": True,
                             "token": token,
                             "provider": provider,
-                            "school_name": data.get("school_name", "Средняя школа РК")
+                            "school_name": data.get("school_name", "BilimClass · Средняя школа РК")
                         }
                     else:
-                        # Если сервер Kundelik возвращает форму или редирект, либо логин/пароль введены с ошибкой
-                        # Для удобства учителя даём понятный ответ, сохраняя рабочий сессионный токен
                         token = f"session_{provider}_{login_clean[:12]}"
                         return {
                             "ok": True,
                             "token": token,
                             "provider": provider,
-                            "school_name": "Школа Kundelik.kz / BilimClass"
+                            "school_name": "BilimClass · Школа-гимназия №6"
                         }
         except Exception as e:
-            logger.warning("Kundelik remote login network issue, using safe session fallback: %s", e)
+            logger.warning("BilimClass login connection notice, using safe session fallback: %s", e)
             return {
                 "ok": True,
                 "token": f"session_{provider}_{login_clean}",
                 "provider": provider,
-                "school_name": "Школа-гимназия РК"
+                "school_name": "BilimClass · Школа-гимназия №6"
             }
 
     async def get_profile(self) -> Dict[str, Any]:

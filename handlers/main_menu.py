@@ -103,7 +103,7 @@ class MainMenuHandler:
             ],
             [
                 InlineKeyboardButton("⭐ " + ("Подписка и PRO" if lang == "ru" else "Жазылым және PRO"), callback_data="prof_sub"),
-                InlineKeyboardButton("💎 Kundelik / BilimClass", callback_data="kd_menu"),
+                InlineKeyboardButton("💎 BilimClass (MAX)", callback_data="kd_menu"),
             ],
             [
                 InlineKeyboardButton("🎁 " + ("Рефералы (+5 док)" if lang == "ru" else "Рефералдар (+5 құжат)"), callback_data="menu_invite"),

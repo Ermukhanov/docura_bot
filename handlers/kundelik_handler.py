@@ -73,25 +73,26 @@ class KundelikHandler:
 
     async def _show_connect_screen(self, update: Update, context: ContextTypes.DEFAULT_TYPE, lang: str):
         text = (
-            "🔗 *Подключение Kundelik.kz / BilimClass (Тариф MAX)*\n\n"
-            "Подключите ваш школьный журнал для автоматической синхронизации расписания, "
-            "списков классов и выставления оценок прямо из Telegram.\n\n"
-            "✨ *Вход по логину и паролю:* вам не нужно искать токены! Просто введите ваш школьный логин и пароль.\n"
-            "🔒 *Безопасность:* пароль используется только для входа и сразу стирается из памяти."
+            "🔗 *Подключение электронного журнала BilimClass (Тариф MAX)*\n\n"
+            "Интеграция с журналом *BilimClass* (Bilim Media Group) позволяет:\n"
+            "• 📊 Выставлять формативные оценки (1-10) и дескрипторы прямо из Telegram;\n"
+            "• 📅 Автоматически синхронизировать расписание уроков в календарь Docura;\n"
+            "• 👥 Импортировать списки классов и учеников;\n"
+            "• 🤖 Составлять поурочные планы под темы из расписания BilimClass.\n\n"
+            "✨ *Быстрый вход:* войдите по вашему логину и паролю BilimClass, либо запустите готовый Демо-режим!"
         ) if lang == "ru" else (
-            "🔗 *Kundelik.kz / BilimClass қосу (MAX тарифі)*\n\n"
-            "Сабақ кестесін, сыныптарды синхрондау және бағаларды Telegram арқылы "
-            "қою үшін мектеп журналын байланыстырыңыз.\n\n"
-            "✨ *Логин мен құпия сөзбен кіру:* токен іздеудің қажеті жоқ! Мектептегі логин мен құпия сөзіңізді енгізіңіз.\n"
-            "🔒 *Қауіпсіздік:* құпия сөз тек кіру үшін қолданылады және жадтан бірден өшіріледі."
+            "🔗 *BilimClass электрондық журналын қосу (MAX тарифі)*\n\n"
+            "*BilimClass* (Bilim Media Group) интеграциясының мүмкіндіктері:\n"
+            "• 📊 Бағалар мен дескрипторларды тікелей Telegram-нан журналға қою;\n"
+            "• 📅 Сабақ кестесін Docura күнтізбесіне автоматты жүктеу;\n"
+            "• 👥 Сыныптар мен оқушылар тізімін синхрондау;\n"
+            "• 🤖 BilimClass сабақтарына арналған ҚМЖ/КТЖ дайындау.\n\n"
+            "✨ *Жылдам кіру:* логин/құпия сөзбен кіріңіз немесе дайын Демо-режимді қосыңыз!"
         )
         kb = [
-            [InlineKeyboardButton("🔐 Kundelik.kz — " + ("Войти по логину и паролю" if lang == "ru" else "Логин/құпия сөзбен кіру"), callback_data="kd_login_kundelik")],
-            [InlineKeyboardButton("🔐 BilimClass — " + ("Войти по логину и паролю" if lang == "ru" else "Логин/құпия сөзбен кіру"), callback_data="kd_login_bilim")],
-            [
-                InlineKeyboardButton("⚡ Демо Kundelik", callback_data="kd_demo_connect_kundelik"),
-                InlineKeyboardButton("⚡ Демо BilimClass", callback_data="kd_demo_connect_bilim"),
-            ],
+            [InlineKeyboardButton("🔐 " + ("Войти по логину и паролю BilimClass" if lang == "ru" else "BilimClass логин/құпия сөзімен кіру"), callback_data="kd_login_bilim")],
+            [InlineKeyboardButton("⚡ " + ("Демо-режим BilimClass (без ввода пароля)" if lang == "ru" else "BilimClass Демо-режимі (құпия сөзсіз)"), callback_data="kd_demo_connect_bilim")],
+            [InlineKeyboardButton("🔑 " + ("Ввести токен доступа BilimClass" if lang == "ru" else "BilimClass токенін енгізу"), callback_data="kd_enter_token_bilim")],
             [InlineKeyboardButton("🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"), callback_data="menu_main")]
         ]
         if update.callback_query:
@@ -175,32 +176,32 @@ class KundelikHandler:
             await self.show_menu(update, context)
 
         elif data in ("kd_login_kundelik", "kd_login_bilim"):
-            provider = "bilimclass" if "bilim" in data else "kundelik"
-            context.user_data["step"] = f"kd_wait_login_{provider}"
-            context.user_data["kd_provider"] = provider
+            provider = "bilimclass"
+            context.user_data["step"] = "kd_wait_login_bilim"
+            context.user_data["kd_provider"] = "bilimclass"
             text = (
-                f"🔐 *Вход в {provider.capitalize()}*\n\n"
-                f"Шаг 1 из 2: Отправьте ваш *логин* (телефон, email или логин Kundelik/BilimClass):\n\n"
-                f"_(Для теста можно ввести любой логин или отправить слово `demo`)_"
+                "🔐 *Вход в BilimClass*\n\n"
+                "Шаг 1 из 2: Отправьте ваш *логин* BilimClass (ИИН, телефон или школьный логин):\n\n"
+                "_(Для быстрой проверки можно ввести любой логин или отправить слово `demo`)_"
             ) if lang == "ru" else (
-                f"🔐 *{provider.capitalize()} жүйесіне кіру*\n\n"
-                f"1-қадам: *Логиніңізді* жіберіңіз (телефон нөмірі, email немесе мектеп логині):\n\n"
-                f"_(Сынақ үшін кез келген логин немесе `demo` сөзін жіберуге болады)_"
+                "🔐 *BilimClass жүйесіне кіру*\n\n"
+                "1-қадам: BilimClass *логиніңізді* жіберіңіз (ЖСН, телефон нөмірі немесе логин):\n\n"
+                "_(Жылдам тексеру үшін кез келген логин немесе `demo` сөзін жіберуге болады)_"
             )
             kb = [[InlineKeyboardButton("❌ " + ("Отмена" if lang == "ru" else "Болдырмау"), callback_data="kd_menu")]]
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
         elif data in ("kd_enter_token", "kd_enter_token_kundelik", "kd_enter_token_bilim"):
-            provider = "bilimclass" if "bilim" in data else "kundelik"
-            context.user_data["step"] = f"kd_wait_token_{provider}"
+            provider = "bilimclass"
+            context.user_data["step"] = "kd_wait_token_bilim"
             text = (
-                f"🔑 *Введите токен доступа {provider.capitalize()}*\n\n"
-                f"Отправьте токен в ответном сообщении.\n"
-                f"Если у вас пока нет боевого токена школы, отправьте `demo_{provider}_token` для демонстрационного режима."
+                "🔑 *Введите токен доступа BilimClass*\n\n"
+                "Отправьте токен в ответном сообщении.\n"
+                "Если у вас пока нет боевого токена школы, отправьте `demo_bilimclass_token` для демонстрационного режима."
             ) if lang == "ru" else (
-                f"🔑 *{provider.capitalize()} токенін енгізіңіз*\n\n"
-                f"Токенді жауап ретінде жіберіңіз.\n"
-                f"Егер мектеп токені әзірге болмаса, сынақ режимі үшін `demo_{provider}_token` жібере аласыз."
+                "🔑 *BilimClass токенін енгізіңіз*\n\n"
+                "Токенді жауап ретінде жіберіңіз.\n"
+                "Егер мектеп токені әзірге болмаса, сынақ режимі үшін `demo_bilimclass_token` жібере аласыз."
             )
             kb = [[InlineKeyboardButton("❌ " + ("Отмена" if lang == "ru" else "Болдырмау"), callback_data="kd_menu")]]
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)

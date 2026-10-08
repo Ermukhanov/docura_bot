@@ -371,8 +371,8 @@ async def post_init(app: Application):
         BotCommand("profile", "👤 Мой профиль"),
         BotCommand("history", "📚 История документов"),
         BotCommand("invite",  "🎁 Пригласить и получить бонус"),
+        BotCommand("bilimclass", "💎 BilimClass (MAX)"),
         BotCommand("tariffs",  "⭐ Тарифы и подписка"),
-        BotCommand("kundelik", "💎 Kundelik / BilimClass (MAX)"),
         BotCommand("support",  "💬 Связаться с поддержкой"),
         BotCommand("cancel",   "❌ Отменить операцию"),
         BotCommand("help",     "❓ Помощь и список команд"),
@@ -432,6 +432,7 @@ async def run():
     app.add_handler(CommandHandler("history", cmd_history))
     app.add_handler(CommandHandler("invite",  cmd_invite))
     app.add_handler(CommandHandler("tariffs", cmd_tariffs))
+    app.add_handler(CommandHandler("bilimclass", kundelik.show_menu))
     app.add_handler(CommandHandler("kundelik", kundelik.show_menu))
     app.add_handler(CommandHandler("support", cmd_support))
     app.add_handler(CommandHandler("help",    cmd_help))

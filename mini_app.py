@@ -796,11 +796,11 @@ def api_kundelik_connect():
         user = db.execute('SELECT tier, subscribed FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
         tier = (user['tier'] if user and user['tier'] else 'free').lower()
         if tier not in ('max', 'b2b'):
-            return jsonify(error='Интеграция с Kundelik.kz доступна на тарифе MAX или B2B MAX. Перейдите в раздел тарифов для подключения.'), 403
+            return jsonify(error='Интеграция с BilimClass доступна на тарифе MAX или B2B MAX. Перейдите в раздел тарифов для подключения.'), 403
 
     data = request.get_json(silent=True) or {}
     token = data.get('token', '').strip()
-    provider = data.get('provider', 'kundelik').lower()
+    provider = data.get('provider', 'bilimclass').lower()
 
     if not token:
         return jsonify(error='Токен доступа не передан'), 400
@@ -858,14 +858,14 @@ def api_kundelik_connect():
                 db.execute("""
                     INSERT OR IGNORE INTO students (teacher_id, name, class_name, absences, notes)
                     VALUES (?, ?, ?, ?, ?)
-                """, (tg['id'], s['name'], s['class_name'], s['abs'], f"Kundelik.kz (ср. {s['avg']})"))
+                """, (tg['id'], s['name'], s['class_name'], s['abs'], f"BilimClass (ср. {s['avg']})"))
         db.commit()
 
     return jsonify(
         ok=True,
         school=school_name,
         classes_count=len(classes),
-        message=f'Kundelik.kz успешно подключён! Импортировано классов: {len(classes)}.'
+        message=f'BilimClass успешно подключён! Импортировано классов: {len(classes)}.'
     )
 
 

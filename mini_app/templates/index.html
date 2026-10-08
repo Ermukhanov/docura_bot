@@ -1432,7 +1432,7 @@
     <section id="tab-students" class="tab-panel">
       <header class="page-heading"><div><h1 id="studentsTabTitle">Ученики</h1><p id="studentsTabSubtitle">Список учеников и воспитанников, связанный с вашим контекстом Docura.</p></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button onclick="openKundelikModal()" class="btn-pill" id="btnKundelikSyncStudents" style="background:linear-gradient(135deg, #0284C7, #2563EB); color:#fff; border:none; box-shadow:0 4px 12px rgba(2,132,199,0.3);">💎 Kundelik.kz (MAX)</button>
+          <button onclick="openKundelikModal()" class="btn-pill" id="btnKundelikSyncStudents" style="background:linear-gradient(135deg, #059669, #0284C7); color:#fff; border:none; box-shadow:0 4px 12px rgba(5,150,105,0.3);">💎 BilimClass (MAX)</button>
           <button onclick="openAddStudentModal()" class="btn-pill" id="addStudentBtn">+ Добавить</button>
         </div>
       </header>
@@ -1451,7 +1451,7 @@
     <section id="tab-schedule" class="tab-panel">
       <header class="page-heading"><div><h1 id="scheduleTabTitle">Расписание</h1><p id="scheduleTabSubtitle">Занятия по дням недели и планы для подготовки.</p></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button onclick="openKundelikModal()" class="btn-pill" id="btnKundelikSyncSchedule" style="background:linear-gradient(135deg, #0284C7, #2563EB); color:#fff; border:none; box-shadow:0 4px 12px rgba(2,132,199,0.3);">💎 Kundelik.kz (MAX)</button>
+          <button onclick="openKundelikModal()" class="btn-pill" id="btnKundelikSyncSchedule" style="background:linear-gradient(135deg, #059669, #0284C7); color:#fff; border:none; box-shadow:0 4px 12px rgba(5,150,105,0.3);">💎 BilimClass (MAX)</button>
           <button onclick="openAddLessonModal()" class="btn-pill" id="addLessonBtn">+ Добавить</button>
           <button onclick="openScheduleTextModal()" class="btn-pill" id="btnScheduleText" style="background:#E0F2FE; color:#0284C7; border-color:#BAE6FD">✍️ Ввести текстом</button>
           <button onclick="openScheduleUploadModal()" class="btn-pill" id="btnScheduleUpload" style="background:#F0FDF4; color:#16A34A; border-color:#BBF7D0">📸 Фото / файл</button>
@@ -1599,7 +1599,7 @@
         <div style="font-size:12px; color:var(--text-muted)" id="tierB2bDesc">Тариф MAX для всей школы или садика (до 25 педагогов)</div>
         <ul class="tier-features" id="tierB2bFeatures">
           <li><span>✓</span> <b>Всё из тарифа MAX для 25 учителей / воспитателей</b></li>
-          <li><span>✓</span> 💎 <b>Kundelik.kz / BilimClass для всех педагогов</b></li>
+          <li><span>✓</span> 💎 <b>BilimClass для всех педагогов школы</b></li>
           <li><span>✓</span> 🎨 <b>Генератор презентаций PowerPoint (.pptx)</b></li>
           <li><span>✓</span> 🤖 <b>ИИ-мониторинг расписания и Доклад завучу</b></li>
           <li><span>✓</span> Корпоративные шаблоны школы и акты бухгалтерии</li>
@@ -2007,12 +2007,12 @@
   </div>
 </div>
 
-<!-- MODAL: KUNDELIK.KZ / BILIMCLASS INTEGRATION (MAX TIER) -->
+<!-- MODAL: BILIMCLASS INTEGRATION (MAX TIER) -->
 <div id="modalKundelik" class="modal-overlay">
   <div class="modal-card" style="max-width:540px;">
     <div class="modal-header">
       <div class="modal-title" style="display:flex; align-items:center; gap:8px;">
-        <span>💎</span> <span id="kdModalTitle">Интеграция с Kundelik.kz / BilimClass</span>
+        <span>💎</span> <span id="kdModalTitle">Интеграция с BilimClass</span>
         <span class="tier-badge max" style="font-size:10px; padding:2px 6px;">MAX</span>
       </div>
       <button onclick="closeModal('modalKundelik')" class="modal-close-btn">✕</button>
@@ -2023,9 +2023,9 @@
       <div style="font-size:42px; margin-bottom:8px;">🔒</div>
       <h3 style="font-size:18px; font-weight:800; color:var(--text-main); margin-bottom:8px;" id="kdUpsellHeading">Функция доступна на тарифе MAX</h3>
       <p style="font-size:13px; color:var(--text-muted); line-height:1.6; margin-bottom:16px;" id="kdUpsellDesc">
-        Синхронизация с Күнделік/BilimClass, импорт расписания и выставление оценок (1-10 ФО) прямо из бота доступны только для подписчиков тарифа MAX (7 490 ₸/мес).
+        Синхронизация с журналом BilimClass (Bilim Media Group), импорт расписания и выставление оценок (1-10 ФО) прямо из бота доступны для подписчиков тарифа MAX (7 490 ₸/мес).
       </p>
-      <button onclick="closeModal('modalKundelik'); switchTab('tariffs');" class="form-btn-submit" style="background:linear-gradient(135deg, #0284C7, #2563EB); padding:12px;" id="kdUpsellBtn">
+      <button onclick="closeModal('modalKundelik'); switchTab('tariffs');" class="form-btn-submit" style="background:linear-gradient(135deg, #059669, #0284C7); padding:12px;" id="kdUpsellBtn">
         ⭐ Перейти к тарифу MAX (7 490 ₸)
       </button>
     </div>
@@ -2037,34 +2037,32 @@
           <strong style="color:#166534; font-size:14px;" id="kdStatusTitle">Статус: Подключено</strong>
           <span style="font-size:11px; color:#15803D;" id="kdSyncedAt"></span>
         </div>
-        <div style="font-size:12px; color:#15803D;" id="kdSchoolName">Школа-гимназия №6 г. Хромтау</div>
+        <div style="font-size:12px; color:#15803D;" id="kdSchoolName">BilimClass · Школа-гимназия №6</div>
       </div>
 
       <!-- Connect form (if not connected) -->
       <div id="kdConnectForm" style="display:none;">
         <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;" id="kdConnectHint">
-          Выберите электронный журнал вашей школы (Kundelik.kz или BilimClass) и введите токен доступа.
+          Подключите электронный журнал BilimClass вашей школы. Для демонстрационного режима оставьте <code>demo_bilimclass_token</code>.
         </p>
 
-        <div class="form-group">
-          <label class="form-label" id="kdProviderSelectLabel">Платформа электронного журнала *</label>
-          <div style="display:flex; gap:8px;">
-            <button type="button" class="btn-pill kd-provider-tab active" id="btnChooseKundelik" onclick="setKdProvider('kundelik')" style="flex:1; background:#0284C7; color:#fff; padding:10px; font-weight:700;">
-              📘 Kundelik.kz
-            </button>
-            <button type="button" class="btn-pill kd-provider-tab" id="btnChooseBilim" onclick="setKdProvider('bilimclass')" style="flex:1; background:#F1F5F9; color:#475569; padding:10px; font-weight:700;">
-              📗 BilimClass
-            </button>
+        <div class="form-group" style="margin-bottom:14px;">
+          <div style="display:inline-flex; align-items:center; gap:8px; background:#ECFDF5; border:1px solid #A7F3D0; padding:8px 14px; border-radius:10px;">
+            <span style="font-size:18px;">📗</span>
+            <div>
+              <div style="font-size:13px; font-weight:800; color:#065F46;">BilimClass (Bilim Media Group)</div>
+              <div style="font-size:11px; color:#047857;">Электронный школьный журнал Казахстана</div>
+            </div>
           </div>
         </div>
 
         <div class="form-group">
           <label class="form-label" id="kdTokenLabel">Токен доступа / API Token *</label>
-          <input type="text" id="kdTokenInput" class="form-input" placeholder="demo_kundelik_token" value="demo_kundelik_token">
+          <input type="text" id="kdTokenInput" class="form-input" placeholder="demo_bilimclass_token" value="demo_bilimclass_token">
         </div>
         <div style="display:flex; gap:8px;">
-          <button onclick="connectKundelik()" class="form-btn-submit" style="flex:1; background:linear-gradient(135deg, #0284C7, #2563EB);" id="btnKdConnect">
-            ⚡ Подключить к Docura
+          <button onclick="connectKundelik()" class="form-btn-submit" style="flex:1; background:linear-gradient(135deg, #059669, #0284C7);" id="btnKdConnect">
+            ⚡ Подключить BilimClass
           </button>
         </div>
       </div>
@@ -2301,7 +2299,7 @@ const I18N = {
     tierMaxDesc: "Всё из PRO + презентации и автопилот",
     tierMaxFeatures: [
       "Всё, что входит в PRO без ограничений",
-      "💎 <b>Интеграция с Kundelik.kz / BilimClass (оценки и расписание)</b>",
+      "💎 <b>Интеграция с электронным журналом BilimClass (оценки и расписание)</b>",
       "<b>Генератор презентаций PowerPoint (.pptx)</b>",
       "<b>ИИ-мониторинг чатов и Доклад завучу</b>",
       "Автопилот расписания каждые 6 часов"
@@ -2312,7 +2310,7 @@ const I18N = {
     tierB2bDesc: "Тариф MAX для всей школы или детского сада (до 25 педагогов)",
     tierB2bFeatures: [
       "<b>Всё из тарифа MAX для 25 учителей / воспитателей</b>",
-      "💎 <b>Kundelik.kz / BilimClass для всех педагогов</b>",
+      "💎 <b>BilimClass для всех педагогов школы</b>",
       "🎨 <b>Генератор презентаций PowerPoint (.pptx)</b>",
       "🤖 <b>ИИ-мониторинг расписания и Доклад завучу</b>",
       "Корпоративные шаблоны школы и акты бухгалтерии",
@@ -2600,7 +2598,7 @@ const I18N = {
     tierMaxDesc: "PRO-ның барлығы + презентациялар мен автопилот",
     tierMaxFeatures: [
       "PRO құрамындағы барлық мүмкіндіктер шектеусіз",
-      "💎 <b>Kundelik.kz / BilimClass интеграциясы (бағалар мен кесте)</b>",
+      "💎 <b>BilimClass электрондық журналымен интеграция (бағалар мен кесте)</b>",
       "<b>PowerPoint (.pptx) презентациялар генераторы</b>",
       "<b>ИИ-мониторинг және оқу ісі меңгерушісіне есеп</b>",
       "Әр 6 сағат сайын сабақ кестесінің автопилоты"
@@ -2611,7 +2609,7 @@ const I18N = {
     tierB2bDesc: "Бүкіл мектеп немесе балабақшаға арналған MAX тарифі (25 педагогке дейін)",
     tierB2bFeatures: [
       "<b>25 мұғалім / тәрбиешіге арналған толық MAX мүмкіндіктері</b>",
-      "💎 <b>Барлық педагогтер үшін Kundelik.kz / BilimClass</b>",
+      "💎 <b>Мектептің барлық ұстаздары үшін BilimClass</b>",
       "🎨 <b>PowerPoint (.pptx) презентациялар генераторы</b>",
       "🤖 <b>ИИ-мониторинг және оқу ісі меңгерушісіне жиынтық есеп</b>",
       "Мектептің корпоративтік үлгілері және бухгалтерлік актілер",
@@ -2899,7 +2897,7 @@ const I18N = {
     tierMaxDesc: "Everything in PRO + presentations & autopilot",
     tierMaxFeatures: [
       "Everything in PRO without restrictions",
-      "💎 <b>Kundelik.kz / BilimClass integration (grading & schedule)</b>",
+      "💎 <b>BilimClass journal integration (grading & schedule)</b>",
       "<b>PowerPoint (.pptx) presentation generator</b>",
       "<b>AI chat monitoring & administrative reports</b>",
       "Schedule autopilot every 6 hours"
@@ -2910,7 +2908,7 @@ const I18N = {
     tierB2bDesc: "MAX tier for the entire school or kindergarten (up to 25 educators)",
     tierB2bFeatures: [
       "<b>Full MAX features for 25 teachers / educators</b>",
-      "💎 <b>Kundelik.kz / BilimClass for all staff</b>",
+      "💎 <b>BilimClass for all school educators</b>",
       "🎨 <b>PowerPoint (.pptx) presentation generator</b>",
       "🤖 <b>AI schedule autopilot & admin reports</b>",
       "Corporate templates & accounting invoices",
@@ -4461,26 +4459,16 @@ async function openKundelikModal() {
   selectKdMark(9);
 }
 
-let activeKdProvider = 'kundelik';
+let activeKdProvider = 'bilimclass';
 
 function setKdProvider(prov) {
-  activeKdProvider = prov;
-  const btnK = document.getElementById('btnChooseKundelik');
-  const btnB = document.getElementById('btnChooseBilim');
+  activeKdProvider = 'bilimclass';
   const inp = document.getElementById('kdTokenInput');
-  if (prov === 'kundelik') {
-    if (btnK) { btnK.style.background = '#0284C7'; btnK.style.color = '#fff'; }
-    if (btnB) { btnB.style.background = '#F1F5F9'; btnB.style.color = '#475569'; }
-    if (inp && (inp.value === 'demo_bilimclass_token' || inp.value === '')) inp.value = 'demo_kundelik_token';
-  } else {
-    if (btnB) { btnB.style.background = '#059669'; btnB.style.color = '#fff'; }
-    if (btnK) { btnK.style.background = '#F1F5F9'; btnK.style.color = '#475569'; }
-    if (inp && (inp.value === 'demo_kundelik_token' || inp.value === '')) inp.value = 'demo_bilimclass_token';
-  }
+  if (inp && (inp.value === '' || inp.value === 'demo_kundelik_token')) inp.value = 'demo_bilimclass_token';
 }
 
 async function connectKundelik() {
-  const token = document.getElementById('kdTokenInput').value.trim() || `demo_${activeKdProvider}_token`;
+  const token = document.getElementById('kdTokenInput').value.trim() || 'demo_bilimclass_token';
   const btn = document.getElementById('btnKdConnect');
   const oldText = btn.textContent;
   btn.disabled = true;
@@ -4493,11 +4481,11 @@ async function connectKundelik() {
         'Content-Type': 'application/json',
         ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
       },
-      body: JSON.stringify({ token: token, provider: activeKdProvider })
+      body: JSON.stringify({ token: token, provider: 'bilimclass' })
     });
     const data = await res.json();
     if (data.ok) {
-      showToast(data.message || 'Kundelik.kz сәтті байланыстырылды!', '✅');
+      showToast(data.message || 'BilimClass сәтті байланыстырылды!', '✅');
       // Обновляем данные кабинета
       if (typeof init === 'function') init();
       openKundelikModal();
