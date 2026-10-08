@@ -240,19 +240,25 @@ class Database:
         await self.upsert_user(tg_id, {"seen_sections": json.dumps(seen)})
 
     async def upsert_user(self, tg_id: int, data: dict):
+        sanitized = {}
+        for k, v in data.items():
+            if isinstance(v, (dict, list)):
+                sanitized[k] = json.dumps(v, ensure_ascii=False)
+            else:
+                sanitized[k] = v
         user = await self.get_user(tg_id)
         if user:
-            sets = ", ".join(f"{k}=?" for k in data)
-            vals = list(data.values()) + [tg_id]
+            sets = ", ".join(f"{k}=?" for k in sanitized)
+            vals = list(sanitized.values()) + [tg_id]
             async with aiosqlite.connect(self.db_path) as db:
                 await db.execute(f"UPDATE users SET {sets} WHERE tg_id=?", vals)
                 await db.commit()
         else:
-            data["tg_id"] = tg_id
-            cols = ", ".join(data.keys())
-            qs   = ", ".join("?" * len(data))
+            sanitized["tg_id"] = tg_id
+            cols = ", ".join(sanitized.keys())
+            qs   = ", ".join("?" * len(sanitized))
             async with aiosqlite.connect(self.db_path) as db:
-                await db.execute(f"INSERT INTO users ({cols}) VALUES ({qs})", list(data.values()))
+                await db.execute(f"INSERT INTO users ({cols}) VALUES ({qs})", list(sanitized.values()))
                 await db.commit()
 
     async def increment_free(self, tg_id: int):
@@ -406,12 +412,14 @@ class Database:
             await db.commit()
 
     async def update_student(self, student_id: int, data: dict):
-        if "grades" in data and isinstance(data["grades"], dict):
-            data["grades"] = json.dumps(data["grades"], ensure_ascii=False)
-        if "achievements" in data and isinstance(data["achievements"], list):
-            data["achievements"] = json.dumps(data["achievements"], ensure_ascii=False)
-        sets = ", ".join(f"{k}=?" for k in data)
-        vals = list(data.values()) + [student_id]
+        sanitized = {}
+        for k, v in data.items():
+            if isinstance(v, (dict, list)):
+                sanitized[k] = json.dumps(v, ensure_ascii=False)
+            else:
+                sanitized[k] = v
+        sets = ", ".join(f"{k}=?" for k in sanitized)
+        vals = list(sanitized.values()) + [student_id]
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(f"UPDATE students SET {sets} WHERE id=?", vals)
             await db.commit()
@@ -529,13 +537,17 @@ class Database:
             await db.commit()
 
     # ===== SCHEDULE (Расписание / режим дня) =====
-    async def save_schedule(self, tg_id: int, schedule_json: str):
+    async def save_schedule(self, tg_id: int, schedule_data: Any):
+        if isinstance(schedule_data, (dict, list)):
+            schedule_str = json.dumps(schedule_data, ensure_ascii=False)
+        else:
+            schedule_str = str(schedule_data) if schedule_data is not None else "[]"
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("""
                 INSERT INTO schedules (tg_id, schedule_data)
                 VALUES (?, ?)
                 ON CONFLICT(tg_id) DO UPDATE SET schedule_data=excluded.schedule_data, updated_at=CURRENT_TIMESTAMP
-            """, (tg_id, schedule_json))
+            """, (tg_id, schedule_str))
             await db.commit()
 
     async def get_schedule(self, tg_id: int):
@@ -559,13 +571,17 @@ class Database:
                 return [dict(r) for r in rows]
 
     # ===== AGENT MEMORY (Контекст агента) =====
-    async def save_agent_context(self, tg_id: int, context_json: str):
+    async def save_agent_context(self, tg_id: int, context_data: Any):
+        if isinstance(context_data, (dict, list)):
+            ctx_str = json.dumps(context_data, ensure_ascii=False)
+        else:
+            ctx_str = str(context_data) if context_data is not None else "{}"
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("""
                 INSERT INTO agent_memory (tg_id, context_data)
                 VALUES (?, ?)
                 ON CONFLICT(tg_id) DO UPDATE SET context_data=excluded.context_data, updated_at=CURRENT_TIMESTAMP
-            """, (tg_id, context_json))
+            """, (tg_id, ctx_str))
             await db.commit()
 
     async def get_agent_context(self, tg_id: int) -> dict:

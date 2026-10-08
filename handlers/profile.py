@@ -145,7 +145,7 @@ class ProfileHandler:
         site_url = get_site_url()
         token = create_auth_token(user_id)
         browser_url = f"{site_url}/auth?token={token}"
-        webapp_url = f"{site_url}/"
+        webapp_url = f"{site_url}/?tg_id={user_id}&token={token}"
         cab_label = "🌐 Личный веб-кабинет (сайт):" if lang == "ru" else "🌐 Жеке веб-кабинет (сайт):"
         text += f"\n\n{cab_label}\n`{browser_url}`"
 
@@ -244,7 +244,7 @@ class ProfileHandler:
             site_url = get_site_url()
             token = create_auth_token(user_id)
             browser_url = f"{site_url}/auth?token={token}"
-            webapp_url = f"{site_url}/"
+            webapp_url = f"{site_url}/?tg_id={user_id}&token={token}"
             text = (
                 f"💻 *Ваш персональный веб-кабинет Docura*\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"

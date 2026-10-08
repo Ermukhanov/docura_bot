@@ -30,9 +30,116 @@ DB_PATH = os.getenv('DB_PATH', os.path.join(os.path.dirname(__file__), 'docura.d
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
 
 
+_schema_initialized = False
+
+def ensure_schema(c):
+    global _schema_initialized
+    if _schema_initialized:
+        return
+    try:
+        c.executescript("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY,
+                tg_id INTEGER UNIQUE NOT NULL,
+                lang TEXT DEFAULT 'ru',
+                name TEXT,
+                school TEXT,
+                position TEXT,
+                subject TEXT,
+                classes TEXT,
+                age_group TEXT,
+                is_class_teacher INTEGER DEFAULT 0,
+                director TEXT,
+                role TEXT DEFAULT 'teacher',
+                subscribed INTEGER DEFAULT 0,
+                tier TEXT,
+                free_used INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                notified_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS students (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                teacher_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                class_name TEXT NOT NULL,
+                grades TEXT DEFAULT '{}',
+                achievements TEXT DEFAULT '[]',
+                absences INTEGER DEFAULT 0,
+                behavior TEXT DEFAULT 'хорошее',
+                notes TEXT,
+                parents TEXT,
+                parent_phone TEXT,
+                address TEXT,
+                birth_date TEXT
+            );
+            CREATE TABLE IF NOT EXISTS documents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                teacher_id INTEGER NOT NULL,
+                doc_type TEXT NOT NULL,
+                doc_name TEXT NOT NULL,
+                content TEXT NOT NULL,
+                score INTEGER DEFAULT 0,
+                feedback TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS schedules (
+                tg_id INTEGER PRIMARY KEY,
+                schedule_data TEXT NOT NULL,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS agent_memory (
+                tg_id INTEGER PRIMARY KEY,
+                context_data TEXT DEFAULT '{}',
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS receipts (
+                hash TEXT PRIMARY KEY,
+                tg_id INTEGER NOT NULL,
+                tier TEXT,
+                amount INTEGER,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS user_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tg_id INTEGER NOT NULL,
+                doc_type TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                original_name TEXT NOT NULL,
+                lang TEXT DEFAULT 'ru',
+                scope TEXT NOT NULL DEFAULT 'personal',
+                metadata TEXT DEFAULT '{}',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS kundelik_integrations (
+                tg_id INTEGER PRIMARY KEY,
+                provider TEXT DEFAULT 'kundelik',
+                token TEXT NOT NULL,
+                school_id INTEGER,
+                school_name TEXT,
+                person_id INTEGER,
+                synced_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS kundelik_marks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                teacher_id INTEGER NOT NULL,
+                student_id INTEGER NOT NULL,
+                student_name TEXT NOT NULL,
+                class_name TEXT NOT NULL,
+                mark INTEGER NOT NULL,
+                mark_type TEXT DEFAULT 'ФО',
+                descriptor TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        c.commit()
+    except Exception:
+        pass
+    _schema_initialized = True
+
 def conn():
     c = sqlite3.connect(DB_PATH)
     c.row_factory = sqlite3.Row
+    ensure_schema(c)
     return c
 
 
