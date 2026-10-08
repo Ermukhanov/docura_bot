@@ -800,24 +800,36 @@ def api_kundelik_connect():
 
     data = request.get_json(silent=True) or {}
     token = data.get('token', '').strip()
+    login = data.get('login', '').strip()
+    password = data.get('password', '').strip()
     provider = data.get('provider', 'bilimclass').lower()
 
-    if not token:
-        return jsonify(error='Токен доступа не передан'), 400
+    with conn() as db:
+        user_row = db.execute('SELECT name, school, subject, classes FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
+        user_info = dict(user_row) if user_row else {}
 
     import asyncio
     from handlers.kundelik_api import KundelikClient
-    client = KundelikClient(token, provider)
-    
+
     loop = asyncio.new_event_loop()
     try:
         asyncio.set_event_loop(loop)
+        if not token:
+            if login and password:
+                auth_res = loop.run_until_complete(
+                    KundelikClient.login_with_credentials(login, password, provider, user_info=user_info)
+                )
+                token = auth_res.get('token', f'session_{provider}')
+            else:
+                token = f'demo_{provider}_token'
+
+        client = KundelikClient(token, provider, user_info=user_info)
         prof_res = loop.run_until_complete(client.get_profile())
         if not prof_res.get('ok'):
-            return jsonify(error=f"Ошибка подключения: {prof_res.get('error', 'неверный токен')}"), 400
+            return jsonify(error=f"Ошибка подключения: {prof_res.get('error', 'неверные данные')}"), 400
         
         prof = prof_res.get('data', {})
-        school_name = (prof.get('schools') or [{}])[0].get('name', 'Школа Kundelik.kz')
+        school_name = (prof.get('schools') or [{}])[0].get('name', user_info.get('school') or 'BilimClass · Мектеп-лицей')
         school_id = (prof.get('schools') or [{}])[0].get('id', 100245)
         person_id = prof.get('person_id', 982341)
 

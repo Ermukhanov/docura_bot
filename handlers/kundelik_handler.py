@@ -146,8 +146,8 @@ class KundelikHandler:
             await self.show_menu(update, context)
 
         elif data in ("kd_demo_connect", "kd_demo_connect_kundelik", "kd_demo_connect_bilim"):
-            provider = "bilimclass" if "bilim" in data else "kundelik"
-            school_name = "BilimClass · Школа-гимназия №6" if provider == "bilimclass" else "Школа-гимназия №6 г. Хромтау"
+            provider = "bilimclass"
+            school_name = user.get("school") or "BilimClass · Школа-гимназия №6"
             token = f"demo_{provider}_token"
 
             await self.db.set_kundelik_integration(
@@ -158,21 +158,25 @@ class KundelikHandler:
                 school_name=school_name,
                 person_id=982341
             )
-            client = KundelikClient(token, provider)
+            client = KundelikClient(token, provider, user_info=user)
             classes = await client.get_classes()
+            existing_students = await self.db.get_students(user_id) or []
+            existing_names = {s.get("name") for s in existing_students if s.get("name")}
             for cls in classes:
                 students = await client.get_students_for_class(cls["id"])
                 for st in students:
-                    await self.db.add_student(
-                        user_id, st["name"], st["class_name"],
-                        notes=f"{provider.capitalize()} (avg: {st['avg_mark']})",
-                        absences=st["absences"]
-                    )
+                    if st["name"] not in existing_names:
+                        await self.db.add_student(
+                            user_id, st["name"], st["class_name"],
+                            notes=f"{provider.capitalize()} (avg: {st['avg_mark']})",
+                            absences=st["absences"]
+                        )
+                        existing_names.add(st["name"])
             schedule = await client.get_schedule()
             if schedule:
                 await self.db.save_schedule(user_id, schedule)
 
-            await query.answer(f"✅ {provider.capitalize()} сәтті қосылды!", show_alert=True)
+            await query.answer(f"✅ BilimClass сәтті қосылды!", show_alert=True)
             await self.show_menu(update, context)
 
         elif data in ("kd_login_kundelik", "kd_login_bilim"):
@@ -423,12 +427,12 @@ class KundelikHandler:
             context.user_data["step"] = None
             context.user_data.pop("kd_login", None)
 
-            # Выполняем безопасный вход
-            auth_res = await KundelikClient.login_with_credentials(login_user, password, provider)
+            # Выполняем безопасный вход с привязкой к профилю учителя
+            auth_res = await KundelikClient.login_with_credentials(login_user, password, provider, user_info=user)
             token = auth_res.get("token", f"session_{provider}")
-            school = auth_res.get("school_name", "Школа-гимназия №6")
+            school = auth_res.get("school_name") or user.get("school") or "BilimClass · Мектеп-лицей"
 
-            client = KundelikClient(token, provider)
+            client = KundelikClient(token, provider, user_info=user)
             await self.db.set_kundelik_integration(
                 tg_id=user_id,
                 token=token,
@@ -437,26 +441,37 @@ class KundelikHandler:
                 person_id=982341
             )
             classes = await client.get_classes()
+            existing_students = await self.db.get_students(user_id) or []
+            existing_names = {s.get("name") for s in existing_students if s.get("name")}
             for cls in classes:
                 students = await client.get_students_for_class(cls["id"])
                 for st in students:
-                    await self.db.add_student(
-                        user_id, st["name"], st["class_name"],
-                        notes=f"{provider.capitalize()} (ср. {st['avg_mark']})",
-                        absences=st["absences"]
-                    )
+                    if st["name"] not in existing_names:
+                        await self.db.add_student(
+                            user_id, st["name"], st["class_name"],
+                            notes=f"{provider.capitalize()} (ср. {st['avg_mark']})",
+                            absences=st["absences"]
+                        )
+                        existing_names.add(st["name"])
             sched = await client.get_schedule()
             if sched:
                 await self.db.save_schedule(user_id, sched)
 
+            teacher_name = user.get("name") or login_user
+            subject_name = user.get("subject") or "Предмет учителя"
+
             text = (
-                f"🎉 *Успешный вход в {provider.capitalize()}!*\n\n"
+                f"🎉 *Успешный вход в BilimClass!*\n\n"
                 f"🏫 *Организация:* {school}\n"
+                f"👤 *Педагог:* {teacher_name}\n"
+                f"📖 *Предмет:* {subject_name}\n\n"
                 f"✅ Расписание, классы и список учеников синхронизированы в Docura!\n\n"
                 f"Теперь вы можете выставлять оценки прямо из Telegram бота."
             ) if lang == "ru" else (
-                f"🎉 *{provider.capitalize()} жүйесіне сәтті кірдіңіз!*\n\n"
+                f"🎉 *BilimClass жүйесіне сәтті кірдіңіз!*\n\n"
                 f"🏫 *Мекеме:* {school}\n"
+                f"👤 *Мұғалім:* {teacher_name}\n"
+                f"📖 *Пән:* {subject_name}\n\n"
                 f"✅ Сабақ кестесі, сыныптар мен оқушылар Docura-ға қосылды!\n\n"
                 f"Енді бағаларды тікелей Telegram-нан қоя аласыз."
             )
@@ -472,12 +487,12 @@ class KundelikHandler:
         provider = "bilimclass" if "bilim" in step or "bilim" in token.lower() else "kundelik"
         context.user_data["step"] = None
 
-        client = KundelikClient(token, provider)
+        client = KundelikClient(token, provider, user_info=user)
         prof_res = await client.get_profile()
 
         if prof_res.get("ok"):
             prof = prof_res.get("data", {})
-            school = (prof.get("schools") or [{}])[0].get("name", f"Школа {provider.capitalize()}")
+            school = (prof.get("schools") or [{}])[0].get("name", user.get("school") or f"Школа {provider.capitalize()}")
             await self.db.set_kundelik_integration(
                 tg_id=user_id,
                 token=token,
@@ -486,14 +501,18 @@ class KundelikHandler:
                 person_id=prof.get("person_id")
             )
             classes = await client.get_classes()
+            existing_students = await self.db.get_students(user_id) or []
+            existing_names = {s.get("name") for s in existing_students if s.get("name")}
             for cls in classes:
                 students = await client.get_students_for_class(cls["id"])
                 for st in students:
-                    await self.db.add_student(
-                        user_id, st["name"], st["class_name"],
-                        notes=f"{provider.capitalize()} (ср. {st['avg_mark']})",
-                        absences=st["absences"]
-                    )
+                    if st["name"] not in existing_names:
+                        await self.db.add_student(
+                            user_id, st["name"], st["class_name"],
+                            notes=f"{provider.capitalize()} (ср. {st['avg_mark']})",
+                            absences=st["absences"]
+                        )
+                        existing_names.add(st["name"])
             sched = await client.get_schedule()
             if sched:
                 await self.db.save_schedule(user_id, sched)
