@@ -795,7 +795,7 @@ def api_kundelik_connect():
     with conn() as db:
         user = db.execute('SELECT tier, subscribed FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
         tier = (user['tier'] if user and user['tier'] else 'free').lower()
-        if tier not in ('max', 'b2b'):
+        if tier not in ('max', 'b2b') and tg['id'] not in (6561112046, 739268686):
             return jsonify(error='Интеграция с BilimClass доступна на тарифе MAX или B2B MAX. Перейдите в раздел тарифов для подключения.'), 403
 
     data = request.get_json(silent=True) or {}

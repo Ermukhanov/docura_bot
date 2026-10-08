@@ -9,6 +9,7 @@ from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
 from database import Database
+from handlers.admin import ADMIN_IDS
 from handlers.kundelik_api import (
     KundelikClient,
     CRITERIA_DESCRIPTORS_RU,
@@ -50,7 +51,7 @@ class KundelikHandler:
         user = await self.db.get_user(user_id) or {}
         lang = user.get("lang", "ru")
         tier = (user.get("tier") or "").lower()
-        is_admin = user_id in context.application.bot_data.get("admin_ids", [739268686])
+        is_admin = (user_id in ADMIN_IDS) or (user_id in (6561112046, 739268686))
 
         # Проверка тарифа MAX или B2B MAX
         if tier not in ("max", "b2b") and not is_admin:
