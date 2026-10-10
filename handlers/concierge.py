@@ -205,7 +205,8 @@ def _detect_lang(text: str, default: str) -> str:
 
 def _field_label(question: str) -> str:
     """Короткая подпись поля из текста вопроса: без эмодзи, примеров и markdown."""
-    first = question.split("\n")[0]
+    q_parts = (question or "").split("\n")
+    first = q_parts[0] if q_parts else ""
     first = re.sub(r"[_*`]", "", first)
     first = re.sub(r"^[^\wА-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүҺһІіA-Za-z0-9]+", "", first)
     return first.strip().rstrip("?").strip()
@@ -327,7 +328,7 @@ class ConciergeHandler:
                 system=system_prompt,
                 messages=claude_messages,
             )
-            raw = msg.content[0].text.strip()
+            raw = msg.content[0].text.strip() if msg.content else ""
             parsed = _extract_json(raw)
             if parsed is None:
                 return {"reply": raw, "action": "none", "doc_type": None}
@@ -352,7 +353,7 @@ class ConciergeHandler:
                 model="claude-haiku-4-5", max_tokens=max_tokens,
                 messages=[{"role": "user", "content": prompt}],
             )
-            return _extract_json(msg.content[0].text)
+            return _extract_json(msg.content[0].text if msg.content else "")
         except Exception as e:
             logger.error("Concierge Claude error (%s): %s", type(e).__name__, e)
             return None

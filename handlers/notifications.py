@@ -86,6 +86,7 @@ async def send_reminders(app: Application, db: Database, concierge=None):
                 try:
                     tg_id = user["tg_id"]
                     lang  = user.get("lang", "ru")
+                    keyboard = None
                     memory = await db.get_agent_context(tg_id)
                     # Пустая память сохраняет прежнее поведение; отключение действует
                     # только после явного выбора пользователя.
@@ -319,7 +320,7 @@ async def monitor_schedules(app: Application, db: Database, anthropic_key: str):
                             max_tokens=2500,
                             messages=[{"role": "user", "content": prompt}]
                         )
-                        content = msg.content[0].text
+                        content = msg.content[0].text if msg.content else ""
 
                         from handlers.word_generator import generate_word
                         word_path = generate_word(

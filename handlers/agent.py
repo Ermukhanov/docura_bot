@@ -480,7 +480,7 @@ class AgentHandler:
             )
 
             import re
-            raw = response.content[0].text.strip()
+            raw = response.content[0].text.strip() if response.content else "{}"
             raw = re.sub(r"```[a-z]*", "", raw).strip("` \n")
             schedule = json.loads(raw)
 
@@ -567,7 +567,7 @@ class AgentHandler:
             )
 
             import re
-            raw = response.content[0].text.strip()
+            raw = response.content[0].text.strip() if response.content else "{}"
             raw = re.sub(r"```[a-z]*", "", raw).strip("` \n")
             schedule = json.loads(raw)
 

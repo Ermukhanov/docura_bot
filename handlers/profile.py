@@ -733,7 +733,7 @@ class ProfileHandler:
             )
 
             import re as re_mod
-            raw = response.content[0].text.strip()
+            raw = response.content[0].text.strip() if response.content else ""
             raw = re_mod.sub(r"```[a-z]*", "", raw).strip("` \n")
             result = json.loads(raw)
 
@@ -1087,7 +1087,8 @@ class ProfileHandler:
             client = anthropic.AsyncAnthropic(api_key=self.api_key)
             response = await client.messages.create(model="claude-haiku-4-5", max_tokens=1200,
                                               messages=[{"role": "user", "content": content + [{"type": "text", "text": prompt}]}])
-            raw = re.sub(r"```[a-z]*", "", response.content[0].text.strip()).strip("` \n")
+            raw_text = response.content[0].text.strip() if response.content else ""
+            raw = re.sub(r"```[a-z]*", "", raw_text).strip("` \n")
             match = re.search(r"\[.*\]", raw, re.DOTALL)
             parsed = json.loads(match.group(0) if match else raw)
             students = [item for item in parsed if isinstance(item, dict) and str(item.get("name", "")).strip()]

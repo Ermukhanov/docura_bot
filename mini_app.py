@@ -460,7 +460,7 @@ def api_parse_schedule_text():
             max_tokens=1500,
             messages=[{"role": "user", "content": prompt + "\n\n" + text}]
         )
-        raw = response.content[0].text.strip()
+        raw = response.content[0].text.strip() if response.content else "{}"
         raw = re.sub(r"```[a-z]*", "", raw).strip("` \n")
         parsed = json.loads(raw)
 
@@ -524,7 +524,7 @@ def api_upload_schedule_file():
                     ]
                 }]
             )
-            raw = response.content[0].text.strip()
+            raw = response.content[0].text.strip() if response.content else "{}"
         elif filename.endswith('.docx'):
             import docx
             doc = docx.Document(io.BytesIO(file_bytes))
@@ -541,7 +541,7 @@ def api_upload_schedule_file():
                 max_tokens=1500,
                 messages=[{"role": "user", "content": prompt}]
             )
-            raw = response.content[0].text.strip()
+            raw = response.content[0].text.strip() if response.content else "{}"
         elif filename.endswith('.pdf'):
             import pypdf
             reader = pypdf.PdfReader(io.BytesIO(file_bytes))
@@ -552,7 +552,7 @@ def api_upload_schedule_file():
                 max_tokens=1500,
                 messages=[{"role": "user", "content": prompt}]
             )
-            raw = response.content[0].text.strip()
+            raw = response.content[0].text.strip() if response.content else "{}"
         else:
             return jsonify(error='Поддерживаются форматы: JPG, PNG, PDF, DOCX'), 400
 
@@ -738,7 +738,7 @@ def api_verify_receipt():
                 "content": [content_block, {"type": "text", "text": prompt}]
             }]
         )
-        raw = response.content[0].text.strip()
+        raw = response.content[0].text.strip() if response.content else "{}"
         raw = re.sub(r"```[a-z]*", "", raw).strip("` \n")
         res_data = json.loads(raw)
 

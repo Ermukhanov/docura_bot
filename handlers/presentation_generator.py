@@ -80,7 +80,7 @@ class PresentationGenerator:
                 max_tokens=1500,
                 messages=[{"role": "user", "content": prompt}]
             )
-            raw = resp.content[0].text.strip()
+            raw = resp.content[0].text.strip() if resp.content else ""
             import re
             raw = re.sub(r"^```[a-z]*", "", raw, flags=re.MULTILINE)
             raw = re.sub(r"```$", "", raw, flags=re.MULTILINE).strip()

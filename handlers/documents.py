@@ -1370,7 +1370,7 @@ class DocumentHandler:
                     {"type": "text", "text": "Распознай весь текст документа. Сохрани заголовки, разделы и таблицы в понятном текстовом виде. Не добавляй комментарии."},
                 ]}],
             )
-            content = response.content[0].text
+            content = response.content[0].text if response.content else ""
             await self.db.add_sample(context.user_data.get("template_doc_type", ""), lang, content, "Фото-образец", update.effective_user.id)
             context.user_data.clear()
             await wait.delete()
@@ -1443,9 +1443,10 @@ class DocumentHandler:
         answers = context.user_data.get("doc_answers", {})
         doc_lang = context.user_data.get("doc_lang", lang)
         topic = answers.get("topic") or "Тема урока"
-        subj_raw = answers.get("subject_class", "")
-        subject = subj_raw.split(",")[0].strip() if "," in subj_raw else (user.get("subject") or "Предмет")
-        grade = subj_raw.split(",")[-1].strip() if "," in subj_raw else (user.get("classes") or "Класс")
+        subj_raw = (answers.get("subject_class") or "").strip()
+        subj_parts = [p.strip() for p in subj_raw.split(",") if p.strip()]
+        subject = subj_parts[0] if subj_parts else (user.get("subject") or "Предмет")
+        grade = subj_parts[-1] if len(subj_parts) > 1 else (user.get("classes") or "Класс")
 
         wait_msg = await message.reply_text(
             "🎨 *Генерирую интерактивную презентацию PowerPoint (.pptx)...*\n\n"
@@ -1626,7 +1627,7 @@ class DocumentHandler:
             max_tokens=400,
             messages=[{"role": "user", "content": prompt}]
         )
-        result = msg.content[0].text
+        result = msg.content[0].text if msg.content else ""
         context.user_data["step"] = "waiting_answer"
         help_title = "✍️ *Варианты текста:*" if lang == "ru" else "✍️ *Мәтін нұсқалары:*"
         help_sub = "_Скопируйте нужный вариант и отправьте_" if lang == "ru" else "_Қажетті нұсқаны көшіріп алып жіберіңіз_"
@@ -1768,7 +1769,7 @@ class DocumentHandler:
                     system=system_prompt,
                     messages=[{"role": "user", "content": user_prompt}]
                 )
-            result = msg.content[0].text
+            result = msg.content[0].text if msg.content else ""
             # Страховка: если модель всё же оставила русские подписи структуры
             # (шапка таблицы, заголовки, «Предмет:») в казахском/английском документе —
             # заменяем их детерминированно. Содержимое документа не затрагивается.
@@ -1780,7 +1781,8 @@ class DocumentHandler:
                 messages=[{"role": "user", "content": SELF_EVAL_PROMPT.format(document=result[:3000])}]
             )
             try:
-                score = int("".join(filter(str.isdigit, eval_msg.content[0].text.strip()[:5])))
+                eval_text = eval_msg.content[0].text if eval_msg.content else ""
+                score = int("".join(filter(str.isdigit, eval_text.strip()[:5])))
             except:
                 score = 88
 

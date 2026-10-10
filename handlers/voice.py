@@ -186,7 +186,7 @@ class VoiceHandler:
                 messages=[{"role": "user", "content": prompt}]
             )
 
-            raw = msg.content[0].text.strip()
+            raw = msg.content[0].text.strip() if msg.content else ""
             raw = raw.replace("```json", "").replace("```", "").strip()
 
             try:
