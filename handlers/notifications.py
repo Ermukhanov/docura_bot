@@ -135,7 +135,8 @@ async def send_reminders(app: Application, db: Database, concierge=None):
                             state["pending"] = pending
                             await concierge._save_state(tg_id, state)
                     else:
-                        name = (user.get("name") or "").split()[0]
+                        name_parts = (user.get("name") or "").split()
+                        name = name_parts[0] if name_parts else ("коллега" if lang == "ru" else "әріптес")
                         variants = {
                             "ru": [
                                 f"{name}, на этой неделе ещё не создавали документы. Нужна помощь? 📄",

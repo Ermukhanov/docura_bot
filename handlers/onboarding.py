@@ -194,6 +194,10 @@ class OnboardingHandler:
     async def _show_registration_question(self, query, context, lang, idx):
         role = context.user_data.get("onboard_role", "teacher")
         fields = self._registration_fields(lang, role)
+        if idx >= len(fields):
+            user_id = query.from_user.id if getattr(query, "from_user", None) else 0
+            await self._show_profile_confirmation(query, context, user_id, lang, edit=True)
+            return
         context.user_data["onboard_reg_index"] = idx
         context.user_data["onboard_step"] = 3 + idx
         context.user_data["step"] = "onboard_registration"
@@ -225,8 +229,9 @@ class OnboardingHandler:
             await message_or_query.reply_text(text, reply_markup=markup, parse_mode=ParseMode.MARKDOWN)
 
     async def _finish_new_onboarding(self, query, context, user_id, lang):
-        user = await self.db.get_user(user_id)
-        name = (user.get("name") or "").split()[0]
+        user = await self.db.get_user(user_id) or {}
+        name_parts = (user.get("name") or "").split()
+        name = name_parts[0] if name_parts else ("коллега" if lang == "ru" else "әріптес")
         context.user_data.clear()
         text = (f"🎉 *Добро пожаловать, {name}!*\n\nЯ — ваш AI-ассистент. Давайте прямо сейчас создадим ваш первый документ!\n\nПросто напишите мне, например:\n• «Сделай КСП по математике для 7 класса»\n• «Нужна характеристика на ученика»\n• «Создай циклограмму на эту неделю»\n\nИли выберите из меню 👇" if lang == "ru" else f"🎉 *Қош келдіңіз, {name}!*\n\nМен сіздің AI-көмекшіңізмін. Бірінші құжатты қазір жасайық!\n\nМаған жай жазыңыз, мысалы:\n• «7 сынып математикасына ҚМЖ жаса»\n• «Оқушыға мінездеме керек»\n• «Осы аптаға циклограмма жаса»\n\nНемесе мәзірден таңдаңыз 👇")
         await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN)
@@ -250,6 +255,9 @@ class OnboardingHandler:
             role = context.user_data.get("onboard_role", role)
             fields = self._registration_fields(lang, role)
             idx = context.user_data.get("onboard_reg_index", 0)
+            if idx >= len(fields):
+                await self._show_profile_confirmation(update.message, context, user_id, lang)
+                return
             field = fields[idx][0]
             values = {field: text}
             # В существующей модели classes также используется как название группы.

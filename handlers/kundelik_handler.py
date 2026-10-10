@@ -256,6 +256,9 @@ class KundelikHandler:
 
         elif data.startswith("kd_st_"):
             parts = data.split("_")
+            if len(parts) < 4:
+                await self.show_menu(update, context)
+                return
             class_id = int(parts[2])
             student_id = int(parts[3])
 

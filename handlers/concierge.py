@@ -449,7 +449,8 @@ class ConciergeHandler:
         state = state or {}
         is_pro = bool(user.get("subscribed"))
         is_kg = user.get("role") == "kindergarten"
-        name = (user.get("name") or "").split()[0] or ("коллега" if lang == "ru" else "әріптес")
+        name_parts = (user.get("name") or "").split()
+        name = name_parts[0] if name_parts else ("коллега" if lang == "ru" else "әріптес")
         free_left = max(0, free_limit_for(user) - user.get("free_used", 0))
 
         now = now_local()
@@ -871,7 +872,8 @@ class ConciergeHandler:
             return
 
         if data.startswith("cg_lang_"):
-            code = data.split("_")[2]
+            parts = data.split("_")
+            code = parts[2] if len(parts) > 2 else "ru"
             if code not in ("ru", "kz", "en"):
                 return
             try:
@@ -1011,7 +1013,8 @@ class ConciergeHandler:
 
         def _static():
             from handlers.texts import t
-            name = (user.get("name") or "").split()[0]
+            name_parts = (user.get("name") or "").split()
+            name = name_parts[0] if name_parts else ("коллега" if lang == "ru" else "әріптес")
             key = "notif_reminder_kg" if role == "kindergarten" else "notif_reminder"
             return t(lang, key, name=name), None
 

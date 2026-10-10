@@ -26,7 +26,8 @@ class MainMenuHandler:
         await self._send_main_menu(update.message.chat_id, context, user_id, lang)
 
     def _build_menu_text(self, user: dict, lang: str) -> str:
-        name = (user.get("name") or "").split()[0] or ("коллега" if lang == "ru" else "әріптес")
+        name_parts = (user.get("name") or "").split()
+        name = name_parts[0] if name_parts else ("коллега" if lang == "ru" else "әріптес")
         is_kg = user.get("role") == "kindergarten"
         subscribed = bool(user.get("subscribed"))
         free_used  = user.get("free_used", 0)
