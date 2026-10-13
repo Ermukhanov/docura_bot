@@ -128,6 +128,7 @@ def _add_signature_block(doc, teacher_name: str, director_name: str, lang: str =
     _para(doc, f"{labels['head']}: {director_name} ____________________")
     _para(doc, f"{labels['date']}: ____________________")
     _para(doc, labels["seal"])
+    _para(doc, "⚠️ Составлено с помощью ИИ. Проверено учителем: ____________________ (подпись/дата)", italic=True, size=9, space_before=8)
 
 def validate_cycle_schedule_data(data: dict) -> list[str]:
     """Проверяет обязательные поля до создания циклограммы."""
