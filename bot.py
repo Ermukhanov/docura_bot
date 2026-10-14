@@ -271,6 +271,45 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
 
 
+async def cmd_off(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Отключение уведомлений"""
+    db = context.application.bot_data["db"]
+    user_id = update.effective_user.id
+    user = await db.get_user(user_id)
+    lang = user.get("lang", "ru") if user else "ru"
+    await db.set_notifications_enabled(user_id, False)
+    await db.update_agent_context(user_id, {"reminders_enabled": False})
+    text = (
+        "🔕 Уведомления и напоминания отключены.\nВключить их снова можно в любой момент командой /on. Желаете что-нибудь создать сейчас?"
+        if lang == "ru" else
+        "🔕 Хабарламалар мен еске салғыштар өшірілді.\nОларды қайта қосу үшін кез келген уақытта /on жазыңыз. Қазір құжат дайындаймыз ба?"
+    )
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    kb = [[InlineKeyboardButton("📄 Создать документ" if lang == "ru" else "📄 Құжат жасау", callback_data="menu_create")]]
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
+
+
+async def cmd_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Включение уведомлений"""
+    db = context.application.bot_data["db"]
+    user_id = update.effective_user.id
+    user = await db.get_user(user_id)
+    lang = user.get("lang", "ru") if user else "ru"
+    await db.set_notifications_enabled(user_id, True)
+    await db.update_agent_context(user_id, {"reminders_enabled": True})
+    text = (
+        "🔔 Уведомления успешно включены!\nЯ буду вовремя напоминать о важных уроках и документах. Посмотрим расписание или подготовим КСП?"
+        if lang == "ru" else
+        "🔔 Хабарламалар сәтті қосылды!\nМаңызды сабақтар мен құжаттарды дер кезінде еске салып тұрамын. Кестені көреміз бе, әлде ҚМЖ дайындаймыз ба?"
+    )
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    kb = [
+        [InlineKeyboardButton("📅 Расписание" if lang == "ru" else "📅 Сабақ кестесі", callback_data="agent_schedule")],
+        [InlineKeyboardButton("📄 Создать КСП" if lang == "ru" else "📄 ҚМЖ жасау", callback_data="doc_lesson_plan")]
+    ]
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
+
+
 async def _start_after_account_reset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Возвращает пользователя к выбору учреждения после сброса из админки."""
     db = context.application.bot_data["db"]
@@ -374,6 +413,8 @@ async def post_init(app: Application):
         BotCommand("bilimclass", "💎 BilimClass (MAX)"),
         BotCommand("tariffs",  "⭐ Тарифы и подписка"),
         BotCommand("support",  "💬 Связаться с поддержкой"),
+        BotCommand("off",      "🔕 Отключить уведомления"),
+        BotCommand("on",       "🔔 Включить уведомления"),
         BotCommand("cancel",   "❌ Отменить операцию"),
         BotCommand("help",     "❓ Помощь и список команд"),
     ]
@@ -433,9 +474,10 @@ async def run():
     app.add_handler(CommandHandler("invite",  cmd_invite))
     app.add_handler(CommandHandler("tariffs", cmd_tariffs))
     app.add_handler(CommandHandler("bilimclass", kundelik.show_menu))
-    app.add_handler(CommandHandler("kundelik", kundelik.show_menu))
     app.add_handler(CommandHandler("support", cmd_support))
     app.add_handler(CommandHandler("help",    cmd_help))
+    app.add_handler(CommandHandler("off",     cmd_off))
+    app.add_handler(CommandHandler("on",      cmd_on))
 
     # Голос
     app.add_handler(MessageHandler(filters.VOICE, voice.handle))

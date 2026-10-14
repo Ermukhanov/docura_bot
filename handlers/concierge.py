@@ -896,6 +896,7 @@ class ConciergeHandler:
         ui_lang = _detect_lang(text, user.get("lang", "ru"))
         message = update.message
         state = await self._load_state(user_id)
+        await self.db.update_last_active(user_id)
 
         # 1) Идёт подготовка документа — это, скорее всего, ответ на мой вопрос.
         task = state.get("doc_task")

@@ -36,148 +36,207 @@ def _smart_reminder(user: dict, lang: str):
     return None
 
 
-SEND_WINDOW_START, SEND_WINDOW_END = 10, 19  # местное время, часы
+TARGET_HOUR = 18  # Каждый день ровно в 18:00 по местному времени
 
 
-def _seconds_until_send_window() -> float:
-    """0, если сейчас окно отправки; иначе секунд до его начала (с запасом до 10:00)."""
+def _seconds_until_daily_18():
+    """Вычисляет количество секунд до ближайших 18:00 по местному времени (UTC+5)."""
     now = now_local()
-    if SEND_WINDOW_START <= now.hour < SEND_WINDOW_END:
-        return 0
-    start = now.replace(hour=SEND_WINDOW_START, minute=0, second=0, microsecond=0)
-    if now.hour >= SEND_WINDOW_END:
-        start += timedelta(days=1)
-    return max(60.0, (start - now).total_seconds())
+    target = now.replace(hour=TARGET_HOUR, minute=0, second=0, microsecond=0)
+    if now >= target:
+        target += timedelta(days=1)
+    return max(1.0, (target - now).total_seconds())
 
 
-def _due_since_last_document(user: dict, days: int) -> bool:
-    value = user.get("last_doc_date")
-    if not value:
+def _due_since_last_active_or_notified(user: dict, min_days: int = 3) -> bool:
+    """Проверяет, что пользователь не проявлял активности 3+ дней и ему не слали напоминание 3+ дней."""
+    now = now_local()
+    notified_str = user.get("notified_at")
+    if notified_str:
+        try:
+            last_n = datetime.fromisoformat(notified_str)
+            if last_n.tzinfo is None:
+                last_n = last_n.replace(tzinfo=LOCAL_TZ)
+            if (now - last_n).total_seconds() < min_days * 86400:
+                return False
+        except Exception:
+            pass
+
+    active_str = user.get("last_active_at") or user.get("last_doc_date") or user.get("created_at")
+    if not active_str:
         return True
     try:
-        last = datetime.fromisoformat(value)
-        if last.tzinfo is None:
-            last = last.replace(tzinfo=LOCAL_TZ)
-        return (now_local() - last).total_seconds() >= days * 86400
-    except (TypeError, ValueError):
+        last_a = datetime.fromisoformat(active_str)
+        if last_a.tzinfo is None:
+            last_a = last_a.replace(tzinfo=LOCAL_TZ)
+        return (now - last_a).total_seconds() >= min_days * 86400
+    except Exception:
         return True
 
 
-def _monday_lessons(schedule_json: str):
+def _tomorrow_event_info(schedule_json: str, is_kg: bool):
+    """Возвращает информацию о первом занятии/событии на завтрашний день."""
     try:
         schedule = json.loads(schedule_json) if schedule_json else {}
-        lessons = schedule.get("Понедельник", []) if isinstance(schedule, dict) else []
-        return [lesson for lesson in lessons if isinstance(lesson, dict)]
-    except (TypeError, ValueError):
-        return []
+        if not isinstance(schedule, dict):
+            return None
+        days_ru = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+        now = now_local()
+        tomorrow_idx = (now.weekday() + 1) % 7
+        tomorrow_day = days_ru[tomorrow_idx]
+
+        items = schedule.get(tomorrow_day, [])
+        if not items and tomorrow_idx in (5, 6):
+            tomorrow_day = "Понедельник"
+            items = schedule.get("Понедельник", [])
+        if not items or not isinstance(items, list):
+            return None
+
+        first = next((x for x in items if isinstance(x, dict)), None)
+        if not first:
+            return None
+
+        subject = first.get("subject", "")
+        class_name = first.get("class", "")
+        if not subject and not class_name:
+            return None
+        event_str = f"{subject} ({class_name})".strip(" ()")
+        return {"event": event_str, "day": tomorrow_day, "subject": subject, "class": class_name}
+    except Exception:
+        return None
+
 
 async def send_reminders(app: Application, db: Database, concierge=None):
-    """Отправляет напоминания пользователям которые давно не создавали документы.
-    Текст теперь пишет разговорный агент (приветствие, мягкое напоминание, и — для
-    PRO — проактивное предложение по завтрашнему расписанию). Если агент не настроен
-    (нет CONCIERGE_API_KEY), используется прежний статичный текст — бот не ломается."""
+    """
+    Ежедневный планировщик удержания и уведомлений (18:00 по местному времени):
+    1. Проверяет пользователей со включёнными уведомлениями (notifications_enabled).
+    2. Если у пользователя завтра событие по расписанию:
+       «Завтра у вас [событие]. Подготовить черновики документов?» с кнопками «Да / Нет».
+    3. Если пользователь не писал боту 3+ дней:
+       «Не заходили неделю. Сделать отчёт за 1 минуту?» (не чаще 1 раза в 3 дня).
+    4. Раз в 2 недели: рассылка новостей и обновлений шаблонов.
+    Все сообщения тёплые, короткие, на казахском/русском, заканчиваются вопросом.
+    """
+    logger.info("🔔 Ежедневный планировщик уведомлений (18:00) активен")
     while True:
-        # Напоминания только днём по местному времени: раньше цикл стартовал в момент
-        # запуска бота (деплой ночью => сообщения в 3 часа ночи) и шёл по UTC.
-        await asyncio.sleep(_seconds_until_send_window())
+        wait_seconds = _seconds_until_daily_18()
+        await asyncio.sleep(wait_seconds)
+
         try:
+            logger.info("⏰ Запуск ежедневного сканирования базы в 18:00")
             users = await db.get_users_for_notification()
+
             for user in users:
                 try:
                     tg_id = user["tg_id"]
-                    lang  = user.get("lang", "ru")
-                    keyboard = None
+                    if user.get("notifications_enabled") == 0:
+                        continue
+
                     memory = await db.get_agent_context(tg_id)
-                    # Пустая память сохраняет прежнее поведение; отключение действует
-                    # только после явного выбора пользователя.
-                    if memory.get("reminders_enabled") is False and "reminders_enabled" in memory:
+                    if memory.get("reminders_enabled") is False:
                         continue
 
-                    # Бесплатный план сохраняет прежние универсальные напоминания.
-                    # Персональные сценарии доступны пользователям PRO.
-                    smart = _smart_reminder(user, lang) if user.get("subscribed") else None
-                    if smart and not _due_since_last_document(user, smart[1]):
-                        continue
+                    lang = user.get("lang", "ru")
+                    is_kg = user.get("role") == "kindergarten"
+                    name_parts = (user.get("name") or "").split()
+                    name = name_parts[0] if name_parts else ("коллега" if lang == "ru" else "әріптес")
 
-                    # PRO-предложение автогенерации: один раз в воскресный вечер,
-                    # только при включённой настройке и сохранённом расписании.
-                    is_sunday_evening = now_local().weekday() == 6 and 18 <= now_local().hour < 21
-                    auto_week = now_local().strftime("%G-W%V")
-                    if (is_sunday_evening and user.get("subscribed") and user.get("auto_generate")
-                            and memory.get("auto_generation_prompt_week") != auto_week):
-                        schedule_json = await db.get_schedule(tg_id)
-                        if user.get("role") == "kindergarten" and schedule_json:
-                            text = ("Новая неделя начинается.\nСоздать циклограмму автоматически?" if lang == "ru"
-                                    else "Жаңа апта басталады.\nЦиклограмманы автоматты түрде жасау керек пе?")
-                            keyboard = [[InlineKeyboardButton("Да, создать" if lang == "ru" else "Иә, жасау", callback_data="agent_auto_generate_cycle")],
-                                        [InlineKeyboardButton("Нет спасибо" if lang == "ru" else "Жоқ, рақмет", callback_data="agent_skip")]]
-                        else:
-                            lessons = _monday_lessons(schedule_json)
-                            if not lessons:
-                                continue
-                            first = lessons[0]
-                            subject, class_name = first.get("subject", ""), first.get("class", "")
-                            text = (f"Завтра у вас {subject} в {class_name}.\nСоздать КСП автоматически?" if lang == "ru"
-                                    else f"Ертең сізде {subject}, {class_name}.\nҚМЖ-ны автоматты түрде жасау керек пе?")
-                            keyboard = [[InlineKeyboardButton("Да, создать" if lang == "ru" else "Иә, жасау", callback_data="agent_auto_generate_ksp")],
-                                        [InlineKeyboardButton("Нет спасибо" if lang == "ru" else "Жоқ, рақмет", callback_data="agent_skip")]]
-                        await app.bot.send_message(chat_id=tg_id, text=text, reply_markup=InlineKeyboardMarkup(keyboard))
-                        await db.update_agent_context(tg_id, {"auto_generation_prompt_week": auto_week})
-                        await asyncio.sleep(0.5)
-                        continue
+                    # 1. Проверяем расписание на завтра
+                    schedule_json = await db.get_schedule(tg_id)
+                    event_info = _tomorrow_event_info(schedule_json, is_kg)
 
-                    if smart:
-                        text, _, buttons = smart
-                        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(label, callback_data=callback)] for label, callback in buttons])
-                    elif concierge is not None:
-                        text, pending = await concierge.build_reminder(user, lang)
-                        if pending:
-                            state = await concierge._load_state(tg_id)
-                            state["pending"] = pending
-                            await concierge._save_state(tg_id, state)
-                    else:
-                        name_parts = (user.get("name") or "").split()
-                        name = name_parts[0] if name_parts else ("коллега" if lang == "ru" else "әріптес")
-                        variants = {
-                            "ru": [
-                                f"{name}, на этой неделе ещё не создавали документы. Нужна помощь? 📄",
-                                f"{name}, быстро создайте нужный документ — это займёт меньше минуты 🚀",
-                                f"{name}, не забудьте про документы! Я помогу сделать всё быстро ✅",
-                            ],
-                            "kz": [
-                                f"{name}, осы аптада әлі құжат жасамадыңыз. Көмек керек пе? 📄",
-                                f"{name}, қажетті құжатты жылдам жасаңыз — бір минуттан аз уақыт кетеді 🚀",
-                                f"{name}, құжаттарды ұмытпаңыз! Мен жылдам көмектесемін ✅",
-                            ],
-                        }
-                        text = random.choice(variants.get(lang, variants["ru"]))
-
-                    try:
+                    if event_info:
+                        event_text = event_info["event"]
+                        text = (
+                            f"Сәлеметсіз бе, {name}! Ертең сізде {event_text}. Құжаттардың жобасын алдын ала дайындап қояйық па?"
+                            if lang == "kz" else
+                            f"Здравствуйте, {name}! Завтра у вас {event_text}. Подготовить черновики документов?"
+                        )
+                        call_key = "agent_auto_generate_cycle" if is_kg else "agent_auto_generate_ksp"
+                        keyboard = InlineKeyboardMarkup([
+                            [
+                                InlineKeyboardButton("Да" if lang == "ru" else "Иә", callback_data=call_key),
+                                InlineKeyboardButton("Нет" if lang == "ru" else "Жоқ", callback_data="agent_skip")
+                            ]
+                        ])
                         await app.bot.send_message(
                             chat_id=tg_id,
                             text=text,
-                            parse_mode=ParseMode.MARKDOWN,
                             reply_markup=keyboard,
                         )
-                    except Exception as parse_err:
-                        if "parse entities" in str(parse_err).lower() or "can't parse entities" in str(parse_err).lower():
-                            await app.bot.send_message(
-                                chat_id=tg_id,
-                                text=text,
-                                reply_markup=keyboard,
-                            )
-                        else:
-                            raise
-                    await db.update_notified(tg_id)
-                    await asyncio.sleep(0.5)
-                except Exception as e:
-                    logger.warning(f"Reminder error for {user['tg_id']}: {e}")
-        except Exception as e:
-            logger.error(f"Reminder scheduler error: {e}")
+                        await db.update_notified(tg_id)
+                        await asyncio.sleep(0.3)
+                        continue
 
-        # Следующая проверка — завтра в начале окна отправки
-        tomorrow = (now_local() + timedelta(days=1)).replace(hour=SEND_WINDOW_START, minute=0, second=0, microsecond=0)
-        await asyncio.sleep(max(3600.0, (tomorrow - now_local()).total_seconds()))
+                    # 2. Если не заходил 3+ дней — сообщение с выгодой
+                    if _due_since_last_active_or_notified(user, min_days=3):
+                        text = (
+                            f"Сәлеметсіз бе, {name}! Біраз уақыт кірмедіңіз. 1 минутта есеп немесе жоспар дайындап берейін бе?"
+                            if lang == "kz" else
+                            f"Здравствуйте, {name}! Не заходили неделю. Сделать отчёт за 1 минуту?"
+                        )
+                        keyboard = InlineKeyboardMarkup([
+                            [
+                                InlineKeyboardButton("Да, сделать" if lang == "ru" else "Иә, жасау", callback_data="menu_create"),
+                                InlineKeyboardButton("Позже" if lang == "ru" else "Кейінірек", callback_data="agent_remind_later")
+                            ]
+                        ])
+                        await app.bot.send_message(
+                            chat_id=tg_id,
+                            text=text,
+                            reply_markup=keyboard,
+                        )
+                        await db.update_notified(tg_id)
+                        await asyncio.sleep(0.3)
+                        continue
+
+                except Exception as user_err:
+                    logger.warning(f"Error notifying user {user.get('tg_id')}: {user_err}")
+
+            # 3. Раз в 2 недели: полезная рассылка новостей и шаблонов (только тем, кто не отключал)
+            try:
+                broadcast_users = await db.get_users_for_broadcast(days=14)
+                for b_user in broadcast_users:
+                    try:
+                        b_id = b_user["tg_id"]
+                        b_lang = b_user.get("lang", "ru")
+                        b_name_parts = (b_user.get("name") or "").split()
+                        b_name = b_name_parts[0] if b_name_parts else ("коллега" if b_lang == "ru" else "әріптес")
+                        is_kg = b_user.get("role") == "kindergarten"
+
+                        if b_lang == "kz":
+                            news_text = (
+                                f"Қайырлы күн, {b_name}! Бізде жаңа мүмкіндіктер мен жаңартылған шаблондар қосылды:\n"
+                                f"• BilimClass журналымен ыңғайлы жұмыс\n"
+                                f"• Презентациялар мен жаңа үлгідегі құжаттар\n\n"
+                                f"Жаңа шаблондарды байқап көреміз бе?"
+                            )
+                            btn_text = "✨ Жаңа шаблондарды ашу"
+                        else:
+                            news_text = (
+                                f"Добрый день, {b_name}! Мы обновили шаблоны и добавили полезные функции:\n"
+                                f"• Улучшенная интеграция с BilimClass\n"
+                                f"• Готовые интерактивные презентации и отчёты\n\n"
+                                f"Хотите посмотреть новые шаблоны?"
+                            )
+                            btn_text = "✨ Посмотреть шаблоны"
+
+                        kb = InlineKeyboardMarkup([
+                            [InlineKeyboardButton(btn_text, callback_data="menu_create")]
+                        ])
+                        await app.bot.send_message(chat_id=b_id, text=news_text, reply_markup=kb)
+                        await db.update_broadcast_sent(b_id)
+                        await asyncio.sleep(0.3)
+                    except Exception as b_err:
+                        logger.warning(f"Broadcast error for {b_user.get('tg_id')}: {b_err}")
+            except Exception as bc_err:
+                logger.error(f"Broadcast check error: {bc_err}")
+
+        except Exception as e:
+            logger.error(f"Daily scheduler error: {e}")
+
+        # Небольшая пауза (60 секунд), чтобы не сработать повторно в ту же минуту
+        await asyncio.sleep(60)
 
 
 async def check_subscription_expirations(app: Application, db: Database):

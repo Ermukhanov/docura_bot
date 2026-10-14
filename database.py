@@ -183,10 +183,12 @@ class Database:
             await self._ensure_column(db, "students", "health_group", "TEXT")
             await self._ensure_column(db, "students", "notes_extended", "TEXT")
             await self._ensure_column(db, "analytics", "rating", "INTEGER")
-            # Оценка пользователя хранится у конкретного созданного документа.
             await self._ensure_column(db, "documents", "feedback", "TEXT")
             await self._ensure_column(db, "users", "funnel_step", "TEXT")
             await self._ensure_column(db, "users", "seen_sections", "TEXT DEFAULT '{}'")
+            await self._ensure_column(db, "users", "notifications_enabled", "INTEGER DEFAULT 1")
+            await self._ensure_column(db, "users", "last_active_at", "TEXT")
+            await self._ensure_column(db, "users", "last_broadcast_at", "TEXT")
             await db.commit()
 
             # Уникальный индекс на ref_code — создаём отдельно от ALTER TABLE,
@@ -520,13 +522,28 @@ class Database:
                 return [dict(r) for r in rows]
 
     async def get_users_for_notification(self):
-        """Пользователи которым не отправляли уведомление 3+ дня"""
+        """Пользователи которым не отправляли уведомление 3+ дня и у которых не отключены уведомления"""
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute(
                 """SELECT * FROM users WHERE
                    (notified_at IS NULL OR julianday('now') - julianday(notified_at) >= 3)
+                   AND (notifications_enabled IS NULL OR notifications_enabled = 1)
                    AND name IS NOT NULL""",
+            ) as cur:
+                rows = await cur.fetchall()
+                return [dict(r) for r in rows]
+
+    async def get_users_for_broadcast(self, days: int = 14):
+        """Пользователи с включёнными уведомлениями, не получавшие рассылку news >= 14 дней"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """SELECT * FROM users WHERE
+                   (last_broadcast_at IS NULL OR julianday('now') - julianday(last_broadcast_at) >= ?)
+                   AND (notifications_enabled IS NULL OR notifications_enabled = 1)
+                   AND name IS NOT NULL""",
+                (days,)
             ) as cur:
                 rows = await cur.fetchall()
                 return [dict(r) for r in rows]
@@ -534,6 +551,22 @@ class Database:
     async def update_notified(self, tg_id: int):
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("UPDATE users SET notified_at=? WHERE tg_id=?", (datetime.now().isoformat(), tg_id))
+            await db.commit()
+
+    async def update_last_active(self, tg_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE users SET last_active_at=? WHERE tg_id=?", (datetime.now().isoformat(), tg_id))
+            await db.commit()
+
+    async def update_broadcast_sent(self, tg_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE users SET last_broadcast_at=? WHERE tg_id=?", (datetime.now().isoformat(), tg_id))
+            await db.commit()
+
+    async def set_notifications_enabled(self, tg_id: int, enabled: bool):
+        val = 1 if enabled else 0
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE users SET notifications_enabled=? WHERE tg_id=?", (val, tg_id))
             await db.commit()
 
     # ===== SCHEDULE (Расписание / режим дня) =====
