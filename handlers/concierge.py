@@ -890,11 +890,13 @@ class ConciergeHandler:
     # ══════════════════════════════════════════════════════
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message or not getattr(message, "text", None):
+            return
         user_id = update.effective_user.id
         user = await self.db.get_user(user_id)
-        text = update.message.text.strip()
+        text = message.text.strip()
         ui_lang = _detect_lang(text, user.get("lang", "ru"))
-        message = update.message
         state = await self._load_state(user_id)
         await self.db.update_last_active(user_id)
 

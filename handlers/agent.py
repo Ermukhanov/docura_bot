@@ -536,13 +536,16 @@ class AgentHandler:
         if context.user_data.get("step") != "agent_waiting_schedule_text":
             return False
 
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message or not getattr(message, "text", None):
+            return
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
         is_kg   = (user or {}).get("role") == "kindergarten"
-        text    = update.message.text.strip()
+        text    = message.text.strip()
 
-        wait_msg = await update.message.reply_text(
+        wait_msg = await message.reply_text(
             "⏳ Сохраняю..." if lang == "ru" else "⏳ Сақталуда..."
         )
 

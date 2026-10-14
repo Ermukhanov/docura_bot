@@ -1252,10 +1252,13 @@ class DocumentHandler:
             await message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message or not getattr(message, "text", None):
+            return
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
-        text    = update.message.text.strip()
+        text    = message.text.strip()
         step    = context.user_data.get("step", "")
 
         if step == "rating_feedback":
@@ -1265,14 +1268,14 @@ class DocumentHandler:
                 text=f"👎 Отзыв от {user_id} {user.get('name', '')} — документ {doc_type}:\n{text}"
             )
             context.user_data["step"] = None
-            await update.message.reply_text("Спасибо, передали команде." if lang == "ru" else "Рақмет, командаға жіберілді.")
+            await message.reply_text("Спасибо, передали команде." if lang == "ru" else "Рақмет, командаға жіберілді.")
             return
 
         if step == "template_text":
             dtype = context.user_data.get("template_doc_type", "")
             await self.db.add_sample(dtype, lang, text, f"Текстовый образец {dtype}", user_id)
             context.user_data.clear()
-            await update.message.reply_text("Образец сохранён. Бот будет ориентироваться на его структуру при генерации." if lang == "ru" else "Үлгі сақталды. Бот құжат жасағанда оның құрылымына бағдарланады.")
+            await message.reply_text("Образец сохранён. Бот будет ориентироваться на его структуру при генерации." if lang == "ru" else "Үлгі сақталды. Бот құжат жасағанда оның құрылымына бағдарланады.")
             return
 
         if len(text) < 1:
@@ -1281,12 +1284,12 @@ class DocumentHandler:
                 qs = context.user_data.get("questions", [])
                 idx = context.user_data.get("q_index", 0)
                 if idx < len(qs) and qs[idx]["key"] in CYCLE_REQUIRED_FIELDS:
-                    await update.message.reply_text(f"Заполните поле: {CYCLE_REQUIRED_FIELDS[qs[idx]['key']]}.")
+                    await message.reply_text(f"Заполните поле: {CYCLE_REQUIRED_FIELDS[qs[idx]['key']]}.")
                     return
-            await update.message.reply_text(t(lang, "val_too_short"))
+            await message.reply_text(t(lang, "val_too_short"))
             return
         if len(text) > 500:
-            await update.message.reply_text(t(lang, "val_too_long"))
+            await message.reply_text(t(lang, "val_too_long"))
             return
 
         if step == "waiting_answer":
@@ -1294,18 +1297,18 @@ class DocumentHandler:
             idx = context.user_data.get("q_index", 0)
             if idx < len(qs):
                 if qs[idx]["key"] == "week_topic" and text.strip().lower() in {"план", "не знаю", "младшая группа", "неделя младшей группы", "білмеймін", "жоспар"}:
-                    await update.message.reply_text("Уточните тему недели: например, «Домашние животные» или «Транспорт»." if lang == "ru" else "Апта тақырыбын нақтылаңыз: мысалы, «Үй жануарлары» немесе «Көлік».")
+                    await message.reply_text("Уточните тему недели: например, «Домашние животные» или «Транспорт»." if lang == "ru" else "Апта тақырыбын нақтылаңыз: мысалы, «Үй жануарлары» немесе «Көлік».")
                     return
                 context.user_data["doc_answers"][qs[idx]["key"]] = text
             doc_type = context.user_data.get("doc_type", "")
             doc_lang = context.user_data.get("doc_lang", lang)
             doc_name = DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, "")
             if doc_type == DEVELOPMENT_MONITORING and idx + 1 >= len(qs) and text.strip().lower() in {"пустой", "бос", "blank", "empty"}:
-                await self._generate_monitoring(update.message, context, lang)
+                await self._generate_monitoring(message, context, lang)
             elif doc_type == DEVELOPMENT_MONITORING and idx + 1 >= len(qs):
-                await update.message.reply_text("У тебя есть реальные наблюдения и уровни развития по детям?" if lang == "ru" else "Балалар бойынша нақты бақылаулар мен даму деңгейлері бар ма?", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Да, отправлю данные" if lang == "ru" else "Иә, деректерді жіберемін", callback_data="doc_monitoring_data_yes")], [InlineKeyboardButton("Нет, нужен пустой бланк" if lang == "ru" else "Жоқ, бос бланк керек", callback_data="doc_monitoring_data_no")], [InlineKeyboardButton("Отмена" if lang == "ru" else "Бас тарту", callback_data="doc_cancel")]]))
+                await message.reply_text("У тебя есть реальные наблюдения и уровни развития по детям?" if lang == "ru" else "Балалар бойынша нақты бақылаулар мен даму деңгейлері бар ма?", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Да, отправлю данные" if lang == "ru" else "Иә, деректерді жіберемін", callback_data="doc_monitoring_data_yes")], [InlineKeyboardButton("Нет, нужен пустой бланк" if lang == "ru" else "Жоқ, бос бланк керек", callback_data="doc_monitoring_data_no")], [InlineKeyboardButton("Отмена" if lang == "ru" else "Бас тарту", callback_data="doc_cancel")]]))
             else:
-                await self._ask_question(update.message, context, lang, idx + 1, doc_name=doc_name)
+                await self._ask_question(message, context, lang, idx + 1, doc_name=doc_name)
 
         elif step == "monitoring_data":
             rows = []
@@ -1313,7 +1316,7 @@ class DocumentHandler:
                 cells = [c.strip() for c in line.split("|")]
                 if cells and cells[0]: rows.append(cells[:7])
             context.user_data["doc_answers"]["rows"] = rows
-            await self._generate_monitoring(update.message, context, lang)
+            await self._generate_monitoring(message, context, lang)
 
         elif step == "help_write":
             await self._handle_help_write(update, context, user, lang, text)

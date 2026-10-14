@@ -35,8 +35,15 @@ TELEGRAM_TOKEN    = os.getenv("TELEGRAM_TOKEN")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
 
+def _get_msg(update: Update):
+    return getattr(update, "effective_message", None) or getattr(update, "message", None)
+
+
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Краткая помощь, доступная пользователю в любой момент через /help."""
+    msg = _get_msg(update)
+    if not msg:
+        return
     db   = context.application.bot_data["db"]
     user = await db.get_user(update.effective_user.id)
     lang = user.get("lang", "ru") if user else "ru"
@@ -78,7 +85,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "💡 Дауыс хабарламасын да жібере аласыз."
     )
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-    await update.message.reply_text(
+    await msg.reply_text(
         text,
         reply_markup=InlineKeyboardMarkup([[
             InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")
@@ -89,6 +96,9 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Быстрый старт создания документа"""
+    msg = _get_msg(update)
+    if not msg:
+        return
     db   = context.application.bot_data["db"]
     user = await db.get_user(update.effective_user.id)
     if not user or not user.get("name"):
@@ -99,7 +109,7 @@ async def cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from handlers.main_menu import MainMenuHandler
     mm = MainMenuHandler(db)
     lang = user.get("lang", "ru")
-    await mm._send_main_menu(update.message.chat_id, context, update.effective_user.id, lang)
+    await mm._send_main_menu(msg.chat_id, context, update.effective_user.id, lang)
 
 
 async def cmd_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -109,6 +119,9 @@ async def cmd_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ВСЕГДА показывала школьные поля «Предмет»/«Классы», даже для воспитателей
     детского сада, у которых эти поля всегда пустые — а нужные им поля
     (детский сад/возрастная группа) не показывались вовсе."""
+    msg = _get_msg(update)
+    if not msg:
+        return
     db   = context.application.bot_data["db"]
     user = await db.get_user(update.effective_user.id)
     if not user or not user.get("name"):
@@ -116,7 +129,7 @@ async def cmd_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     lang = user.get("lang", "ru")
-    await ProfileHandler(db).show(MessageQueryAdapter(update.message), update.effective_user.id, lang)
+    await ProfileHandler(db).show(MessageQueryAdapter(msg), update.effective_user.id, lang)
 
 
 def get_site_url() -> str:
@@ -163,6 +176,9 @@ async def cmd_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"• 📊 Үнемделген уақыт аналитикасы мен тарифтер\n\n"
         f"🔐 *Қауіпсіз кіру:* бір реттік кіру кілті бар жеке сілтеме:\n`{browser_url}`"
     )
+    msg = _get_msg(update)
+    if not msg:
+        return
     kb = [
         [
             InlineKeyboardButton("📱 " + ("Веб-кабинет (Mini App)" if lang == "ru" else "Веб-кабинет (Mini App)"), web_app=WebAppInfo(url=webapp_url)),
@@ -170,11 +186,14 @@ async def cmd_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ],
         [InlineKeyboardButton("🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"), callback_data="menu_main")]
     ]
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+    await msg.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
 
 
 async def cmd_tariffs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Открывает актуальные тарифы тем же экраном, что и кнопка подписки."""
+    msg = _get_msg(update)
+    if not msg:
+        return
     db = context.application.bot_data["db"]
     user_id = update.effective_user.id
     user = await db.get_user(user_id)
@@ -182,11 +201,14 @@ async def cmd_tariffs(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await OnboardingHandler(db).start(update, context)
         return
     lang = user.get("lang", "ru")
-    await ProfileHandler(db)._show_subscription(MessageQueryAdapter(update.message), user, lang)
+    await ProfileHandler(db)._show_subscription(MessageQueryAdapter(msg), user, lang)
 
 
 async def cmd_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Запускает безопасный сценарий сообщения в поддержку."""
+    msg = _get_msg(update)
+    if not msg:
+        return
     db = context.application.bot_data["db"]
     user = await db.get_user(update.effective_user.id)
     if not user or not user.get("name"):
@@ -195,7 +217,7 @@ async def cmd_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = user.get("lang", "ru")
     # Используем существующую обработку ProfileHandler для сохранения обратной совместимости.
     context.user_data["step"] = "prof_complaint"
-    await update.message.reply_text(
+    await msg.reply_text(
         "💬 Опишите вопрос, ошибку или пожелание одним сообщением.\n\nПосле отправки появится кнопка связи с поддержкой."
         if lang == "ru" else
         "💬 Сұрағыңызды, қатені немесе ұсынысыңызды бір хабарламада жазыңыз.\n\nЖібергеннен кейін қолдау қызметіне хабарласу батырмасы шығады.",
@@ -207,6 +229,9 @@ async def cmd_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Реферальная программа: показывает персональную ссылку и статистику."""
+    msg = _get_msg(update)
+    if not msg:
+        return
     db      = context.application.bot_data["db"]
     user_id = update.effective_user.id
     user    = await db.get_user(user_id)
@@ -248,11 +273,14 @@ async def cmd_invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👥 Шақырылғандар (тіркелген): *{referrals_count}*\n"
         f"📄 Барлық бонус құжаттар: *{bonus_docs}*"
     )
-    await update.message.reply_text(text, parse_mode="Markdown")
+    await msg.reply_text(text, parse_mode="Markdown")
 
 
 async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """История документов"""
+    msg = _get_msg(update)
+    if not msg:
+        return
     db   = context.application.bot_data["db"]
     user = await db.get_user(update.effective_user.id)
     if not user:
@@ -268,11 +296,14 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
             lines.append(f"📄 {d['doc_name']} — {d['created_at'][:10]} ⭐{d['score']}/100")
         text = "\n".join(lines)
     kb = [[InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")]]
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+    await msg.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
 
 
 async def cmd_off(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Отключение уведомлений"""
+    msg = _get_msg(update)
+    if not msg:
+        return
     db = context.application.bot_data["db"]
     user_id = update.effective_user.id
     user = await db.get_user(user_id)
@@ -286,11 +317,14 @@ async def cmd_off(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
     kb = [[InlineKeyboardButton("📄 Создать документ" if lang == "ru" else "📄 Құжат жасау", callback_data="menu_create")]]
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
+    await msg.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
 
 
 async def cmd_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Включение уведомлений"""
+    msg = _get_msg(update)
+    if not msg:
+        return
     db = context.application.bot_data["db"]
     user_id = update.effective_user.id
     user = await db.get_user(user_id)
@@ -307,7 +341,7 @@ async def cmd_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📅 Расписание" if lang == "ru" else "📅 Сабақ кестесі", callback_data="agent_schedule")],
         [InlineKeyboardButton("📄 Создать КСП" if lang == "ru" else "📄 ҚМЖ жасау", callback_data="doc_lesson_plan")]
     ]
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
+    await msg.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
 
 
 async def _start_after_account_reset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -332,6 +366,9 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _route_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = _get_msg(update)
+    if not msg or not getattr(msg, "text", None):
+        return
     db   = context.application.bot_data["db"]
     key  = context.application.bot_data["anthropic_key"]
     if await _start_after_account_reset(update, context):
@@ -480,7 +517,7 @@ async def run():
     app.add_handler(CommandHandler("on",      cmd_on))
 
     # Голос
-    app.add_handler(MessageHandler(filters.VOICE, voice.handle))
+    app.add_handler(MessageHandler(filters.VOICE & filters.UpdateType.MESSAGE, voice.handle))
     # Документы (Word-образцы, расписание в PDF/Word, или чеки)
     async def _handle_document(update, context):
         step = context.user_data.get("step")
@@ -492,7 +529,7 @@ async def run():
             if await agent.handle_photo(update, context):
                 return
         await documents.handle_document(update, context)
-    app.add_handler(MessageHandler(filters.Document.ALL, _handle_document))
+    app.add_handler(MessageHandler(filters.Document.ALL & filters.UpdateType.MESSAGE, _handle_document))
 
     # Фото — расписание/режим дня или чек
     async def _handle_photo(update, context):
@@ -501,7 +538,7 @@ async def run():
         # иначе это чек оплаты — обрабатывает profile
         from handlers.profile import ProfileHandler as PH
         await PH(db, ANTHROPIC_API_KEY).handle_photo(update, context)
-    app.add_handler(MessageHandler(filters.PHOTO, _handle_photo))
+    app.add_handler(MessageHandler(filters.PHOTO & filters.UpdateType.MESSAGE, _handle_photo))
 
     # Колбэки
     app.add_handler(CallbackQueryHandler(onboarding.callback, pattern="^(lang_|role_|onboard_)"))
@@ -514,7 +551,7 @@ async def run():
     app.add_handler(CallbackQueryHandler(kundelik.callback,   pattern="^kd_"))
 
     # Текст
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _route_text))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.UpdateType.MESSAGE, _route_text))
 
     app.add_error_handler(on_error)
 

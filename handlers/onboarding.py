@@ -37,9 +37,13 @@ class OnboardingHandler:
                 # Начисляем приглашённому +2 бонусных документа при старте (итого 5 вместо 3)
                 await self.db.upsert_user(user_id, {"referred_by": referrer["tg_id"], "bonus_docs": 2})
 
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message:
+            return
+
         context.user_data.clear()
         context.user_data["onboard_step"] = 0
-        await update.message.reply_text(
+        await message.reply_text(
             "👋 Привет! Я *AI-агент Docura* — ваш персональный помощник для создания официальных документов.\n\n"
             "📄 КСП, КТП, СОР/СОЧ — для учителей\n"
             "🧸 Циклограммы, тематические планы — для воспитателей\n"
@@ -70,7 +74,9 @@ class OnboardingHandler:
         context.user_data.clear()
         await self._drop_chat_task(user_id)
         msg = "❌ Отменено. Возвращаю в главное меню..." if lang == "ru" else "❌ Болдырылмады. Басты мәзірге оралуда..."
-        await update.message.reply_text(msg)
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if message:
+            await message.reply_text(msg)
         from handlers.main_menu import MainMenuHandler
         await MainMenuHandler(self.db).show(update, context)
 
@@ -239,16 +245,19 @@ class OnboardingHandler:
         await MainMenuHandler(self.db)._send_main_menu(query.message.chat_id, context, user_id, lang)
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message or not getattr(message, "text", None):
+            return
         user_id = update.effective_user.id
         user = await self.db.get_user(user_id)
         lang = user.get("lang", "ru") if user else "ru"
         role = user.get("role", "teacher") if user else context.user_data.get("role", "teacher")
         step = context.user_data.get("step", "")
-        text = update.message.text.strip()
+        text = message.text.strip()
 
         if step == "onboard_registration":
             if len(text) < 2 or len(text) > 200:
-                await update.message.reply_text(
+                await message.reply_text(
                     t(lang, "val_too_short") if len(text) < 2 else t(lang, "val_too_long")
                 )
                 return
@@ -256,7 +265,7 @@ class OnboardingHandler:
             fields = self._registration_fields(lang, role)
             idx = context.user_data.get("onboard_reg_index", 0)
             if idx >= len(fields):
-                await self._show_profile_confirmation(update.message, context, user_id, lang)
+                await self._show_profile_confirmation(message, context, user_id, lang)
                 return
             field = fields[idx][0]
             values = {field: text}
@@ -270,18 +279,18 @@ class OnboardingHandler:
                 context.user_data["step"] = "onboard_registration"
                 next_question = fields[idx + 1][1]
                 buttons = [[InlineKeyboardButton("← Назад" if lang == "ru" else "← Артқа", callback_data="onboard_back")], [InlineKeyboardButton("❌ Отмена" if lang == "ru" else "❌ Болдырмау", callback_data="onboard_cancel")]]
-                await update.message.reply_text(next_question, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=ParseMode.MARKDOWN)
+                await message.reply_text(next_question, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=ParseMode.MARKDOWN)
             else:
-                await self._show_profile_confirmation(update.message, context, user_id, lang)
+                await self._show_profile_confirmation(message, context, user_id, lang)
             return
 
         elif step == "onboard_confirmation":
             from handlers.query_adapter import MessageQueryAdapter
             lowered = text.lower()
             if any(w in lowered for w in ["да", "иә", "дұрыс", "верно", "ок", "ok", "yes", "ага", "жарайды"]):
-                await self._finish_new_onboarding(MessageQueryAdapter(update.message), context, user_id, lang)
+                await self._finish_new_onboarding(MessageQueryAdapter(message), context, user_id, lang)
             elif any(w in lowered for w in ["нет", "жоқ", "изменить", "өзгерт", "қате", "ошибка", "no"]):
-                await self._show_registration_question(MessageQueryAdapter(update.message), context, lang, 0)
+                await self._show_registration_question(MessageQueryAdapter(message), context, lang, 0)
             else:
-                await self._show_profile_confirmation(update.message, context, user_id, lang)
+                await self._show_profile_confirmation(message, context, user_id, lang)
             return

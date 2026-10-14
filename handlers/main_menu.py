@@ -23,7 +23,9 @@ class MainMenuHandler:
             await OnboardingHandler(self.db).start(update, context)
             return
         lang = user.get("lang", "ru")
-        await self._send_main_menu(update.message.chat_id, context, user_id, lang)
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        chat_id = message.chat_id if message else update.effective_user.id
+        await self._send_main_menu(chat_id, context, user_id, lang)
 
     def _build_menu_text(self, user: dict, lang: str) -> str:
         name_parts = (user.get("name") or "").split()

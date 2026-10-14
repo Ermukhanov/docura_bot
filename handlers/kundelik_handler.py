@@ -399,8 +399,11 @@ class KundelikHandler:
 
     async def handle_token_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработка ввода логина, пароля или токена пользователем."""
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message or not getattr(message, "text", None):
+            return
         user_id = update.effective_user.id
-        msg_text = update.message.text.strip()
+        msg_text = message.text.strip()
         user = await self.db.get_user(user_id) or {}
         lang = user.get("lang", "ru")
         step = context.user_data.get("step") or ""

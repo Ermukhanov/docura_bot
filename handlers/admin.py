@@ -108,10 +108,12 @@ class AdminHandler:
             t_name = TIER_NAMES.get(tier, "PRO")
             note = f"\n\n✅ {t_name.upper()} АКТИВИРОВАН"
             try:
-                if query.message.caption is not None:
-                    await query.edit_message_caption(caption=query.message.caption + note)
+                caption = getattr(query.message, "caption", None)
+                if caption is not None:
+                    await query.edit_message_caption(caption=caption + note)
                 else:
-                    await _safe_edit(query, (query.message.text or "") + note)
+                    msg_text = getattr(query.message, "text", "") or ""
+                    await _safe_edit(query, msg_text + note)
             except BadRequest as e:
                 logger.warning("admin activate: cannot annotate message: %s", e)
             try:
@@ -230,16 +232,19 @@ class AdminHandler:
             await self._show_samples_list(query)
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message or not getattr(message, "text", None):
+            return
         step  = context.user_data.get("step", "")
-        text  = update.message.text.strip()
+        text  = message.text.strip()
 
         if not is_admin(update.effective_user.id):
             context.user_data["step"] = None
-            await update.message.reply_text("⛔ Нет доступа.")
+            await message.reply_text("⛔ Нет доступа.")
             return
 
         if step == "admin_panel":
-            await self._send_menu(update.message.chat_id, context)
+            await self._send_menu(message.chat_id, context)
 
         elif step == "admin_activate":
             try:

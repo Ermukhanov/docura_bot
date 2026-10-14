@@ -797,11 +797,14 @@ class ProfileHandler:
         )
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message or not getattr(message, "text", None):
+            return
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
         is_kg   = (user or {}).get("role") == "kindergarten"
-        text    = update.message.text.strip()
+        text    = message.text.strip()
         step    = context.user_data.get("step", "")
 
         cancel_kb = [[CANCEL_BTN(lang)]]
