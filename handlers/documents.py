@@ -9,7 +9,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from handlers.texts import t
-from handlers.rag_base import get_system_prompt, SELF_EVAL_PROMPT
+from handlers.rag_base import get_system_prompt, SELF_EVAL_PROMPT, ensure_ai_disclaimer
 from database import Database, free_limit_for
 from handlers.doc_schemas import build_structure_instruction, localize_labels, fix_title, register_titles
 from handlers.doc_questions import get_questions
@@ -872,7 +872,7 @@ class DocumentHandler:
             if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
                 await self._start_cycle_schedule(query, context, user, lang)
                 return
-            if doc_type == DEVELOPMENT_MONITORING:
+            if doc_type in {DEVELOPMENT_MONITORING, "kg_individual_development_card", "kg_monitoring"}:
                 await self._start_development_monitoring(query, context, user, lang)
                 return
             qs = get_questions(doc_type, doc_lang, DOC_QUESTIONS, REGISTRY_QUESTIONS)
@@ -907,6 +907,9 @@ class DocumentHandler:
             doc_type = context.user_data.get("doc_type", "")
             if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
                 await self._start_cycle_schedule(query, context, user, lang)
+                return
+            if doc_type in {DEVELOPMENT_MONITORING, "kg_individual_development_card", "kg_monitoring"}:
+                await self._start_development_monitoring(query, context, user, lang)
                 return
             qs = get_questions(doc_type, doc_lang, DOC_QUESTIONS, REGISTRY_QUESTIONS)
             context.user_data["questions"] = qs or [{"key": "description", "q": "✍️ Опишите, что нужно создать:"}]
@@ -1142,20 +1145,33 @@ class DocumentHandler:
         await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=doc_name)
 
     async def _start_development_monitoring(self, query, context, user, lang):
-        # Мониторинг развития — групповой документ (сразу на всех детей), логику
-        # привязки к одному ребёнку сюда добавлять не нужно (см. постановку задачи) —
-        # правим только язык документа и подмешивание concierge_prefill.
-        lang = context.user_data.get("doc_lang", lang)
-        questions = [
-            {"key": "period", "q": "За какой период нужен мониторинг?" if lang == "ru" else "Мониторинг қай кезеңге керек?"},
-            {"key": "age_group", "q": "Для какой возрастной группы он нужен?" if lang == "ru" else "Ол қай жас тобына арналған?"},
-            {"key": "children", "q": "Пришлите список детей в любом формате: нумерованным списком или через запятую. Для пустого бланка напишите «пустой»." if lang == "ru" else "Балалар тізімін кез келген форматта жіберіңіз: нөмірленген тізіммен немесе үтір арқылы. Бос бланк үшін «бос» деп жазыңыз."},
-        ]
-        saved_group = user.get("age_group", "")
-        answers = {"organization": user.get("school", ""), "educator_name": user.get("name", ""), "group": saved_group, "age_group": saved_group, "director_name": user.get("director", "")}
-        answers.update(_pop_concierge_prefill(context, allowed_keys={"period", "age_group"}))
-        context.user_data.update({"doc_type": DEVELOPMENT_MONITORING, "doc_lang": lang, "doc_answers": answers, "questions": questions, "q_index": 0, "step": "waiting_answer"})
-        await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING])
+        doc_lang = context.user_data.get("doc_lang", lang)
+        doc_type = context.user_data.get("doc_type") or DEVELOPMENT_MONITORING
+        saved_group = user.get("age_group", "") if user else ""
+        existing_answers = dict(context.user_data.get("doc_answers", {}))
+        answers = {
+            "organization": (user or {}).get("school", ""),
+            "educator_name": (user or {}).get("name", ""),
+            "group": saved_group,
+            "age_group": saved_group,
+            "director_name": (user or {}).get("director", ""),
+            **existing_answers,
+        }
+        answers.update(_pop_concierge_prefill(context))
+        context.user_data.update({
+            "doc_type": doc_type,
+            "doc_lang": doc_lang,
+            "doc_answers": answers,
+            "questions": [],
+            "q_index": 0,
+            "step": None,
+        })
+        if query and hasattr(query, "edit_message_text"):
+            try:
+                await query.edit_message_text("⏳ Начинаю генерацию..." if lang == "ru" else "⏳ Жасалуда...")
+            except Exception:
+                pass
+        await self._generate_monitoring(query.message, context, doc_lang)
 
     async def _use_student_data(self, query, context, user_id, user, lang, student_id):
         doc_type = context.user_data.get("doc_type", "")
@@ -1324,20 +1340,23 @@ class DocumentHandler:
     async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if context.user_data.get("step") != "template_word":
             return
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message or not getattr(message, "document", None):
+            return
         user = await self.db.get_user(update.effective_user.id)
         lang = user.get("lang", "ru") if user else "ru"
         if not user or user.get("role") != "kindergarten":
             context.user_data.clear()
-            await update.message.reply_text(
+            await message.reply_text(
                 "📄 Загрузка образцов доступна только воспитателям детского сада."
                 if lang == "ru" else
                 "📄 Үлгі жүктеу тек балабақша тәрбиешілеріне қолжетімді."
             )
             return
-        document = update.message.document
+        document = message.document
         name = document.file_name or "template.docx"
         if not name.lower().endswith(".docx"):
-            await update.message.reply_text("Нужен Word-файл в формате .docx. Отправь образец еще раз" if lang == "ru" else "Word .docx форматындағы файл қажет. Үлгіні қайта жіберіңіз")
+            await message.reply_text("Нужен Word-файл в формате .docx. Отправь образец еще раз" if lang == "ru" else "Word .docx форматындағы файл қажет. Үлгіні қайта жіберіңіз")
             return
         folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), "user_templates")
         os.makedirs(folder, exist_ok=True)
@@ -1345,7 +1364,7 @@ class DocumentHandler:
         path = os.path.join(folder, f"{update.effective_user.id}_{dtype}.docx")
         await (await document.get_file()).download_to_drive(custom_path=path)
         context.user_data["template_pending"] = {"doc_type": dtype, "path": path, "name": name, "metadata": {"telegram_file_id": document.file_id}}
-        await update.message.reply_text(
+        await message.reply_text(
             "Как использовать этот образец?" if lang == "ru" else "Бұл үлгіні қалай қолдану керек?",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Только для меня" if lang == "ru" else "Тек мен үшін", callback_data="doc_template_personal")], [InlineKeyboardButton("Для всей организации" if lang == "ru" else "Бүкіл ұйым үшін", callback_data="doc_template_org")], [InlineKeyboardButton("Отмена" if lang == "ru" else "Бас тарту", callback_data="doc_cancel")]])
         )
@@ -1353,11 +1372,14 @@ class DocumentHandler:
     async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if context.user_data.get("step") != "template_photo":
             return
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message or not getattr(message, "photo", None):
+            return
         user = await self.db.get_user(update.effective_user.id)
         lang = user.get("lang", "ru") if user else "ru"
-        wait = await update.message.reply_text("🔍 Распознаю образец..." if lang == "ru" else "🔍 Үлгі танылуда...")
+        wait = await message.reply_text("🔍 Распознаю образец..." if lang == "ru" else "🔍 Үлгі танылуда...")
         try:
-            file_obj = await update.message.photo[-1].get_file()
+            file_obj = await message.photo[-1].get_file()
             import tempfile
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
                 await file_obj.download_to_drive(tmp.name)
@@ -1377,11 +1399,11 @@ class DocumentHandler:
             await self.db.add_sample(context.user_data.get("template_doc_type", ""), lang, content, "Фото-образец", update.effective_user.id)
             context.user_data.clear()
             await wait.delete()
-            await update.message.reply_text("Образец сохранён. Бот будет ориентироваться на его структуру при генерации." if lang == "ru" else "Үлгі сақталды. Бот құжат жасағанда оның құрылымына бағдарланады.")
+            await message.reply_text("Образец сохранён. Бот будет ориентироваться на его структуру при генерации." if lang == "ru" else "Үлгі сақталды. Бот құжат жасағанда оның құрылымына бағдарланады.")
         except Exception as exc:
             print(f"Template photo recognition error: {exc}")
             await wait.delete()
-            await update.message.reply_text("Не удалось распознать фото. Попробуйте более чёткое изображение." if lang == "ru" else "Фотоны тану мүмкін болмады. Анығырақ сурет жіберіңіз.")
+            await message.reply_text("Не удалось распознать фото. Попробуйте более чёткое изображение." if lang == "ru" else "Фотоны тану мүмкін болмады. Анығырақ сурет жіберіңіз.")
 
     async def _reward_referrer_if_needed(self, context, user_id: int):
         """Реферальный бонус: когда приглашённый создал ПЕРВЫЙ документ, пригласившему
@@ -1414,32 +1436,91 @@ class DocumentHandler:
             )
 
     async def _generate_monitoring(self, message, context, lang):
-        # ВАЖНО: во всех 4 местах, откуда вызывается эта функция, ей передавали
-        # интерфейсный lang, а не выбранный пользователем язык документа — из-за
-        # этого "Мониторинг развития" всегда генерировался на языке интерфейса.
-        # Разрешаем правильный язык здесь же, одним местом, а не правя все вызовы.
+        # ВАЖНО: во всех местах, откуда вызывается эта функция, разрешаем
+        # выбранный пользователем язык документа (doc_lang), а данные детей и
+        # группы автоматически подтягиваем из БД и профиля воспитателя.
         lang = context.user_data.get("doc_lang", lang)
+        doc_type = context.user_data.get("doc_type") or DEVELOPMENT_MONITORING
         from handlers.word_generator import generate_word
-        answers = context.user_data.get("doc_answers", {})
-        raw_children = answers.get("children", "").strip().lower()
-        children = (["—"] * 15 if raw_children in {"пустой", "бос", "blank", "empty"} else [x.strip() for x in answers.get("children", "").replace("\n", ",").split(",") if x.strip()])
+
+        user = await self.db.get_user(message.chat_id) or {}
+        answers = dict(context.user_data.get("doc_answers", {}))
+        saved_group = user.get("age_group", "") or ""
+        answers.setdefault("organization", user.get("school", ""))
+        answers.setdefault("educator_name", user.get("name", ""))
+        answers.setdefault("director_name", user.get("director", ""))
+        if saved_group:
+            answers.setdefault("group", saved_group)
+            answers.setdefault("age_group", saved_group)
+
+        raw_children = str(answers.get("children", "")).strip()
+        is_blank = raw_children.lower() in {"пустой", "бос", "blank", "empty"}
+        children = (
+            ["—"] * 15
+            if is_blank
+            else [
+                x.strip()
+                for x in raw_children.replace("\n", ",").split(",")
+                if x.strip() and x.strip().lower() not in {"автоматически", "автоматты", "automatic"}
+            ]
+        )
+
+        # Автоматически подтягиваем воспитанников из базы, если список не задан вручную
+        children_records = []
+        if not is_blank and not children and not answers.get("child_name"):
+            try:
+                students = await self.db.get_students(message.chat_id)
+                for s in students or []:
+                    children_records.append({
+                        "name": s.get("name", ""),
+                        "birth_date": s.get("birth_date", ""),
+                        "group": s.get("class_name") or answers.get("group") or saved_group,
+                    })
+            except Exception:
+                pass
+
         rows = answers.get("rows", [])
-        filename = generate_word("", DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], teacher_name=answers.get("educator_name", ""), director_name=answers.get("director_name", ""), monitoring_data={**answers, "children": children, "rows": rows, "lang": lang}, lang=lang)
+        doc_title = DOC_NAMES.get(lang, DOC_NAMES["ru"]).get(doc_type, DOC_NAMES["ru"][DEVELOPMENT_MONITORING])
+        filename = generate_word(
+            "",
+            doc_title,
+            teacher_name=answers.get("educator_name", ""),
+            director_name=answers.get("director_name", ""),
+            monitoring_data={
+                **answers,
+                "children": children,
+                "children_records": children_records,
+                "rows": rows,
+                "lang": lang,
+            },
+            registry_doc_type=doc_type,
+            lang=lang,
+        )
         caption_text = {
-            "ru": "📄 Мониторинг развития",
-            "kz": "📄 Даму мониторингі",
-            "en": "📄 Development Monitoring",
-        }.get(lang, "📄 Мониторинг развития")
+            "ru": f"📄 {doc_title}",
+            "kz": f"📄 {doc_title}",
+            "en": f"📄 {doc_title}",
+        }.get(lang, f"📄 {doc_title}")
+        out_name = "Жеке_даму_картасы" if lang == "kz" else ("Карта_развития" if lang == "ru" else "Development_Card")
         with open(filename, "rb") as f:
-            await message.reply_document(document=f, filename=f"monitoring_{datetime.now().strftime('%d%m%Y')}.docx", caption=caption_text)
+            await message.reply_document(
+                document=f,
+                filename=f"{out_name}_{datetime.now().strftime('%d%m%Y')}.docx",
+                caption=caption_text,
+            )
         os.remove(filename)
-        user = await self.db.get_user(message.chat_id)
-        document_id = await self.db.save_document(message.chat_id, DEVELOPMENT_MONITORING, DOC_NAMES.get(lang, DOC_NAMES["ru"])[DEVELOPMENT_MONITORING], "", 100)
-        await self.db.log_analytics(message.chat_id, DEVELOPMENT_MONITORING, 100, lang)
+        document_id = await self.db.save_document(message.chat_id, doc_type, doc_title, "", 100)
+        await self._reward_referrer_if_needed(context, message.chat_id)
+        await self.db.upsert_user(message.chat_id, {
+            "last_doc_type": doc_type,
+            "last_doc_date": now_local().isoformat(),
+        })
+        await self.db.log_analytics(message.chat_id, doc_type, 100, lang)
         if user and not user.get("subscribed"):
             await self.db.increment_free(message.chat_id)
+            user = await self.db.get_user(message.chat_id) or user
         context.user_data.clear()
-        await self._send_post_document_actions(message, context, lang, user, DEVELOPMENT_MONITORING, document_id)
+        await self._send_post_document_actions(message, context, lang, user, doc_type, document_id)
 
     async def _generate_presentation(self, message, context, lang, user):
         from handlers.presentation_generator import PresentationGenerator
@@ -1634,10 +1715,12 @@ class DocumentHandler:
         context.user_data["step"] = "waiting_answer"
         help_title = "✍️ *Варианты текста:*" if lang == "ru" else "✍️ *Мәтін нұсқалары:*"
         help_sub = "_Скопируйте нужный вариант и отправьте_" if lang == "ru" else "_Қажетті нұсқаны көшіріп алып жіберіңіз_"
-        await update.message.reply_text(
-            f"{help_title}\n\n{result}\n\n{DIVIDER}\n{help_sub}",
-            parse_mode=ParseMode.MARKDOWN
-        )
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if message:
+            await message.reply_text(
+                f"{help_title}\n\n{result}\n\n{DIVIDER}\n{help_sub}",
+                parse_mode=ParseMode.MARKDOWN
+            )
 
     async def _generate(self, message, context, lang):
         user_id  = message.chat_id
@@ -1653,7 +1736,7 @@ class DocumentHandler:
                 await message.reply_text("Не могу создать циклограмму. Заполните поле: " + ", ".join(missing) + ".")
                 return
 
-        if doc_type == DEVELOPMENT_MONITORING:
+        if doc_type in {DEVELOPMENT_MONITORING, "kg_individual_development_card", "kg_monitoring"}:
             await self._generate_monitoring(message, context, lang)
             return
 
@@ -1794,6 +1877,8 @@ class DocumentHandler:
                     f"Улучши документ. Оценка {score}/100. "
                     f"Заполни все пустые поля, добавь конкретику из профиля.\n\n{result}"
                 )
+
+        result = ensure_ai_disclaimer(result, doc_lang)
 
         # Формируем Word документ
         wait_msg = await message.reply_text(

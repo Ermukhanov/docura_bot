@@ -57,20 +57,23 @@ class VoiceHandler:
         self.anthropic_key = anthropic_key
 
     async def handle(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message or not getattr(message, "voice", None):
+            return
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
         is_kg   = (user or {}).get("role") == "kindergarten"
 
         if not user or not user.get("name"):
-            await update.message.reply_text(
+            await message.reply_text(
                 "Сначала зарегистрируйтесь: /start" if lang == "ru"
                 else "Алдымен тіркеліңіз: /start"
             )
             return
 
-        # Голосовой ввод доступен только на тарифе PRO
-        if user.get("tier") != "pro":
+        # Голосовой ввод доступен на платных тарифах (PRO, MAX, B2B)
+        if not user.get("subscribed") and (user.get("tier") or "").lower() not in ("pro", "max", "b2b"):
             kb = [[InlineKeyboardButton(
                 "⭐ Перейти на PRO" if lang == "ru" else "⭐ PRO-ға өту",
                 callback_data="prof_sub"
@@ -82,15 +85,15 @@ class VoiceHandler:
                 "🎤 Дауыстық енгізу тек *PRO* тарифінде қол жетімді.\n\n"
                 "PRO рәсімдеңіз немесе /new арқылы мәтінмен жазыңыз."
             )
-            await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+            await message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
             return
 
-        proc_msg = await update.message.reply_text(
+        proc_msg = await message.reply_text(
             "🎤 " + ("Слушаю..." if lang == "ru" else ("Listening..." if lang == "en" else "Тыңдауда..."))
         )
 
         try:
-            voice_file = await update.message.voice.get_file()
+            voice_file = await message.voice.get_file()
             with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
                 await voice_file.download_to_drive(tmp.name)
                 tmp_path = tmp.name
@@ -111,7 +114,7 @@ class VoiceHandler:
 
             if not voice_text or len(voice_text.strip()) < 3:
                 kb = [[MENU_BTN(lang)]]
-                await update.message.reply_text(
+                await message.reply_text(
                     ("🎤 Не смог распознать речь.\n\n"
                      "Попробуйте:\n"
                      "- Говорить чётче и громче\n"
@@ -129,10 +132,14 @@ class VoiceHandler:
                 )
                 return
 
-            await update.message.reply_text(
-                f"🎤 *{'Распознано' if lang == 'ru' else ('Recognized' if lang == 'en' else 'Танылды')}:*\n_{voice_text}_",
-                parse_mode=ParseMode.MARKDOWN
-            )
+            rec_label = "Распознано" if lang == "ru" else ("Recognized" if lang == "en" else "Танылды")
+            try:
+                await message.reply_text(
+                    f"🎤 *{rec_label}:*\n_{voice_text}_",
+                    parse_mode=ParseMode.MARKDOWN
+                )
+            except Exception:
+                await message.reply_text(f"🎤 {rec_label}:\n{voice_text}")
 
             # Быстрое распознавание частых запросов без лишнего вызова LLM.
             voice_keywords = {
@@ -193,7 +200,7 @@ class VoiceHandler:
                 parsed = json.loads(raw)
             except json.JSONDecodeError:
                 kb = [[MENU_BTN(lang)]]
-                await update.message.reply_text(
+                await message.reply_text(
                     ("Не смог определить тип документа.\n"
                      "Выберите документ через меню 👇") if lang == "ru" else (
                     "Could not determine document type.\n"
@@ -219,7 +226,7 @@ class VoiceHandler:
                      "- *'Характеристика на ученика Асылбека'*\n"
                      "- *'Заявление на отпуск'*")
                 )
-                await update.message.reply_text(
+                await message.reply_text(
                     (f"Не смог определить тип документа.\n\n"
                      f"Попробуйте сказать точнее:\n{example_text}") if lang == "ru" else (
                     "Could not determine document type.\n\n"
@@ -248,14 +255,14 @@ class VoiceHandler:
                 context.user_data["questions"] = mini_qs + list(qs)
 
             start_suffix = 'начинаем!' if lang == 'ru' else ('starting!' if lang == 'en' else 'бастаймыз!')
-            await update.message.reply_text(
+            await message.reply_text(
                 f"✅ *{doc_name}* — {start_suffix}",
                 parse_mode=ParseMode.MARKDOWN
             )
 
             from handlers.documents import DocumentHandler
             await DocumentHandler(self.db, self.anthropic_key)._ask_question(
-                update.message, context, lang, 0
+                message, context, lang, 0
             )
 
         except Exception as e:
@@ -263,7 +270,7 @@ class VoiceHandler:
             import traceback
             traceback.print_exc()
             kb = [[MENU_BTN(lang)]]
-            await update.message.reply_text(
+            await message.reply_text(
                 ("❌ Ошибка при обработке голосового.\n"
                  "Попробуйте написать текстом.") if lang == "ru" else
                 ("❌ Қате. Мәтінмен жазып көріңіз."),

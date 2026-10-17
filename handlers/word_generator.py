@@ -152,47 +152,62 @@ def generate_word(content: str, title: str, teacher_name: str = "", director_nam
     doc = Document()
     doc.core_properties.author = "Docura"
 
+    is_dev_card = (
+        registry_doc_type in ("kg_individual_development_card", "development_monitoring", "kg_monitoring")
+        or bool(monitoring_data)
+    )
+
     # ── Страница: поля ГОСТ РК ────────────────────────
     for section in doc.sections:
-        section.left_margin   = Cm(3.0)   # 30мм
-        section.right_margin  = Cm(1.5)   # 15мм
-        section.top_margin    = Cm(2.0)   # 20мм
-        section.bottom_margin = Cm(2.0)   # 20мм
-        if cycle_data or monitoring_data:
-            # Пять рабочих дней и пять блоков лучше читаются на альбомной странице.
-            section.orientation = WD_ORIENT.LANDSCAPE
+        if is_dev_card:
+            section.orientation   = WD_ORIENT.LANDSCAPE
+            section.page_width    = Cm(29.7)
+            section.page_height   = Cm(21.0)
+            section.left_margin   = Cm(2.0)
+            section.right_margin  = Cm(2.0)
+            section.top_margin    = Cm(1.0)
+            section.bottom_margin = Cm(1.5)
+        elif cycle_data:
+            section.left_margin   = Cm(3.0)
+            section.right_margin  = Cm(1.5)
+            section.top_margin    = Cm(2.0)
+            section.bottom_margin = Cm(2.0)
+            section.orientation   = WD_ORIENT.LANDSCAPE
             section.page_width    = Cm(29.7)
             section.page_height   = Cm(21.0)
         else:
+            section.left_margin   = Cm(3.0)   # 30мм
+            section.right_margin  = Cm(1.5)   # 15мм
+            section.top_margin    = Cm(2.0)   # 20мм
+            section.bottom_margin = Cm(2.0)   # 20мм
             section.page_width    = Cm(21.0)  # A4
             section.page_height   = Cm(29.7)
 
     # ── Стиль Normal по умолчанию ─────────────────────
     style = doc.styles["Normal"]
     style.font.name = FONT_MAIN
-    style.font.size = Pt(FONT_SIZE_MAIN)
-    style.paragraph_format.line_spacing = Pt(18)
+    style.font.size = Pt(12 if is_dev_card else FONT_SIZE_MAIN)
+    style.paragraph_format.line_spacing = Pt(14 if is_dev_card else 18)
     style.paragraph_format.space_after  = Pt(0)
 
     # Бренд Docura сохраняется только в метаданных файла.
 
-    # ── ЗАГОЛОВОК ДОКУМЕНТА ───────────────────────────
-    title_p = _para(doc, title.upper(),
-                    align=WD_ALIGN_PARAGRAPH.CENTER,
-                    bold=True, size=16, color=NAVY,
-                    space_before=6, space_after=6)
+    if not is_dev_card:
+        # ── ЗАГОЛОВОК ДОКУМЕНТА ───────────────────────────
+        _para(doc, title.upper(),
+              align=WD_ALIGN_PARAGRAPH.CENTER,
+              bold=True, size=16, color=NAVY,
+              space_before=6, space_after=6)
 
-    # Синяя линия под заголовком
-    _add_hrule(doc, BLUE_HEX, "12")
-    doc.add_paragraph().paragraph_format.space_after = Pt(6)
+        # Синяя линия под заголовком
+        _add_hrule(doc, BLUE_HEX, "12")
+        doc.add_paragraph().paragraph_format.space_after = Pt(6)
 
     # ── ПАРСИМ СОДЕРЖИМОЕ ─────────────────────────────
-    if registry_doc_type == "kg_individual_development_card":
-        _add_individual_development_card(doc, monitoring_data or {})
+    if is_dev_card:
+        _add_development_monitoring(doc, monitoring_data or {})
     elif cycle_data:
         _add_kindergarten_cycle_schedule(doc, cycle_data)
-    elif monitoring_data:
-        _add_development_monitoring(doc, monitoring_data)
     else:
         _parse_content(doc, content)
 
@@ -204,25 +219,9 @@ def generate_word(content: str, title: str, teacher_name: str = "", director_nam
 
 
 def _add_individual_development_card(doc, data: dict):
-    """Пустая карта: результаты не заполняются без подтверждённых наблюдений."""
-    kz = data.get("lang") == "kz"
-    labels = (["Баланың аты-жөні", "Туған жылы", "Баланың жасы", "Тобы"] if kz
-              else ["Child’s full name", "Birth year", "Child’s age", "Group"] if data.get("lang") == "en"
-              else ["ФИО ребенка", "Год рождения", "Возраст ребенка", "Группа"])
-    values = [data.get("child_name", ""), data.get("birth_year", ""), data.get("age", ""), data.get("group", "")]
-    info = doc.add_table(rows=4, cols=2); info.style = "Table Grid"
-    for row, label, value in zip(info.rows, labels, values):
-        _set_cell_color(row.cells[0], LIGHT_BLUE_HEX); _run(row.cells[0].paragraphs[0], label, bold=True, size=10); _run(row.cells[1].paragraphs[0], value, size=10)
-    headers = (["Құзыреттіліктер", "Бастапқы бақылау", "Аралық бақылау", "Қорытынды бақылау", "Қорытынды, даму деңгейі"] if kz
-               else ["Competencies", "Initial observation", "Intermediate observation", "Final observation", "Conclusion / level"] if data.get("lang") == "en"
-               else ["Компетенции", "Начальное наблюдение", "Промежуточное наблюдение", "Итоговое наблюдение", "Вывод / уровень"])
-    rows = ["Физикалық қасиеттерді дамыту", "Коммуникативтік дағдыларды дамыту", "Танымдық және зияткерлік дағдыларды дамыту", "Шығармашылық дағдыларды дамыту", "Әлеуметтік-эмоционалды дағдыларды қалыптастыру"] if kz else (["Physical development", "Communication skills", "Cognitive and intellectual skills", "Creative and research skills", "Social-emotional skills"] if data.get("lang") == "en" else ["Развитие физических качеств", "Развитие коммуникативных навыков", "Развитие познавательных навыков", "Развитие творческих навыков", "Формирование социально-эмоциональных навыков"])
-    table = doc.add_table(rows=1 + len(rows), cols=5); table.style = "Table Grid"
-    for i, header in enumerate(headers): _set_cell_color(table.rows[0].cells[i], NAVY_HEX); _run(table.rows[0].cells[i].paragraphs[0], header, bold=True, size=7, color=WHITE)
-    for r, name in enumerate(rows, 1):
-        _run(table.rows[r].cells[0].paragraphs[0], name, size=8)
-    legend = ["I деңгей: төмен", "II деңгей: орташа", "III деңгей: жоғары"] if kz else (["Level I: low", "Level II: medium", "Level III: high"] if data.get("lang") == "en" else ["I уровень: низкий", "II уровень: средний", "III уровень: высокий"])
-    _para(doc, "\n".join(legend), size=9, space_before=8)
+    """Формирует индивидуальную карту развития ребёнка по единому эталону Жеке даму картасы."""
+    _add_development_monitoring(doc, data)
+
 
 
 def _add_kindergarten_cycle_schedule(doc, data: dict):
@@ -323,26 +322,390 @@ def _add_kindergarten_cycle_schedule(doc, data: dict):
 
 
 
+_DEFAULT_MONITORING_CHILDREN = [
+    ("Алтаев Адилжан", 2020, 5),
+    ("Амантай Асылым", 2020, 5),
+    ("Ахметкереева Айлин", 2020, 5),
+    ("Әділхан Амина", 2020, 5),
+    ("Ғайып Балназым", 2020, 5),
+    ("Ержолдас Ахмад", 2020, 5),
+    ("Жайлканов Айбар", 2020, 5),
+    ("Қадырбай Аяна", 2020, 5),
+    ("Қайыр Әлинұр", 2020, 5),
+    ("Қайырлы Қайнар", 2020, 5),
+    ("Манас Айша", 2020, 5),
+    ("Мырзахан Аружан", 2020, 5),
+    ("Нұржан Сұлтан", 2020, 5),
+    ("Самиғолла Тұмаш", 2020, 5),
+    ("Серікбай Інжу", 2020, 5),
+    ("Талғат Мұстафа", 2020, 5),
+    ("Танатар Мади", 2020, 5),
+    ("Шулембаева Алан", 2020, 5),
+    ("Амангелді Айзере", 2020, 5),
+    ("Санат Анели", 2021, 4),
+    ("Төлеубек Нұрәли", 2021, 4),
+    ("Унгария Раяна", 2021, 4),
+    ("Алтынбеков Ислам", 2021, 4),
+    ("Асқар Аяла", 2021, 4),
+]
+
+_DEV_CARD_VARIANTS = {
+    "kz": [
+        [
+            ("Денсаулық үшін гигиеналық шаралардың маңыздылығы туралы түсініктерін қалыптастыру; жеке заттарын қолдану (бет орамал, майлық, сүлгі, тарақ, түбек)", "Ересектердің көмегімен мәдени-гигиеналық дағдыларды орындауды жалғастыру (жеңін түру, қолын сабындап жуу, сүлгімен құрғатып сүрту)", "Сызықтардың, арқанның, тақтайдың, гимнастикалық скамейканың, бөрененің бойымен тепе-теңдікті сақтап жүруге қабілетті.", "III деңгей"),
+            ("Ересектермен және құрдастарымен тілдік қарым-қатынас жасауды, сөз тіркестерін айтуды (3–5 сөзбен) дамыту", "Күрделі емес сөз тіркестерін қайталауға үйрету", "Өзінің тәжірибесіне сүйеніп, суреттер бойынша әңгіме құрастыра алады.", "III деңгей"),
+            ("Тәулік бөліктері туралы түсініктерін қалыптастыру", "Тәулік бөліктерін суреттен, ауызша сипаттамасы бойынша ажыратуға үйрету", "Геометриялық фигураларды және геометриялық денелерді көру және сипап сезу арқылы зерттейді, оларды ажыратады және атай алады.", "III деңгей"),
+            ("Бейнелеу тәсілдері туралы түсініктерін қалыптастыру (нүкте, сызық, ырғақ)", "Әр түрлі сызықтарды салу: тік, көлденең, толқынды", "Қарапайым себеп-салдарлық байланысты орнатуға қабілетті.", "III деңгей"),
+            ("Өзін-өзі бағалауын арттыру жұмысын жүргізу", "Сөздік қоры жақсы дамыған", "Ауа-райындағы және табиғаттағы маусымдық өзгерістерде қарапайым байланыстар орната алуды, қоршаған ортада, табиғатта қауіпсіздікті сақтауды біледі.", "III деңгей"),
+        ],
+        [
+            ("Қимыл-қозғалыс белсенділігін арттыру, дене жаттығуларына қызығушылығын қалыптастыру. Жеке бас гигиенасын сақтау дағдыларын дамыту.", "Өздігінен киіну, шешіну, тазалық сақтау әрекеттерін орындауға жаттықтыру.", "Негізгі қимылдарды еркін орындайды, тепе-теңдікті сақтай алады.", "III деңгей"),
+            ("Сөздік қорын байыту, ересектермен және құрдастарымен қарым-қатынас жасауға ынталандыру.", "Өз ойын түсінікті жеткізуге және сұрақтарға жауап беруге үйрету.", "Суреттер бойынша әңгіме құрастырып, ойын байланыстырып жеткізеді.", "III деңгей"),
+            ("Қоршаған орта туралы түсініктерін кеңейту, қарапайым ұғымдарды меңгерту.", "Тәулік бөліктерін ажыратуға және салыстыруға үйрету.", "Геометриялық пішіндерді танып, олардың атауларын дұрыс атайды.", "III деңгей"),
+            ("Сурет салуға, жапсыруға және мүсіндеуге қызығушылығын арттыру.", "Әртүрлі сызықтар мен қарапайым бейнелерді салу дағдыларын жетілдіру.", "Шығармашылық жұмыстарды қызығушылықпен орындап, себеп-салдарлық байланыстарды анықтай алады.", "III деңгей"),
+            ("Өзіне деген сенімділігін қалыптастыру, жағымды қарым-қатынас жасауға үйрету.", "Құрдастарымен достық қарым-қатынас орнатуға баулу.", "Табиғаттағы маусымдық өзгерістерді байқап, қауіпсіздік ережелерін сақтайды.", "III деңгей"),
+        ],
+        [
+            ("Дене жаттығуларына қызығушылығын арттыру, негізгі қимыл-қозғалыс дағдыларын дамыту.", "Қимылдарды үйлестіріп орындауға, дене шынықтыру жаттығуларына белсенді қатысуға үйрету.", "Негізгі қимылдарды дұрыс орындайды, қозғалыс ойындарына белсенді қатысады.", "III деңгей"),
+            ("Сөздік қорын дамыту, үлкендермен және құрдастарымен қарым-қатынас жасауға ынталандыру.", "Қарапайым сөйлемдер арқылы ойын толық жеткізуге үйрету.", "Суреттер бойынша әңгіме құрастырып, өз ойын еркін жеткізе алады.", "III деңгей"),
+            ("Қоршаған орта туралы білімдерін кеңейту, түстер мен пішіндерді ажыратуға үйрету.", "Қарапайым салыстыру және топтастыру әрекеттерін орындауға жаттықтыру.", "Геометриялық пішіндерді таниды, ажыратады және дұрыс атайды.", "III деңгей"),
+            ("Бейнелеу және құрастыру әрекеттеріне қызығушылығын қалыптастыру.", "Сурет салу барысында әртүрлі тәсілдерді қолдануға үйрету.", "Шығармашылық тапсырмаларды қызығушылықпен орындап, өз ойын бейнелей алады.", "III деңгей"),
+            ("Өзіне деген сенімділігін қалыптастыру, жағымды мінез-құлық дағдыларын дамыту.", "Құрдастарымен бірлескен ойындарға қатысуға және өзара сыйластыққа тәрбиелеу.", "Қоғамдық орындардағы тәртіп ережелерін сақтайды, табиғатқа қамқорлық танытады.", "III деңгей"),
+        ],
+        [
+            ("Негізгі қимыл-қозғалыс дағдыларын дамыту, ұсақ және жалпы моториканы жетілдіру жұмыстарын жүргізу.", "Қимылдарды үйлестіруге, дене жаттығуларын орындауға ынталандыру.", "Ересектердің көмегімен негізгі қимылдарды орындайды, қарапайым қозғалыс тапсырмаларын орындауға талпынады.", "III деңгей"),
+            ("Сөздік қорын дамыту, қарапайым сөздер мен сөз тіркестерін қолдануға үйрету.", "Сұрақтарға қысқа жауап беру және қарым-қатынасқа түсу дағдыларын қалыптастыру.", "Қарапайым сөйлемдер құрап, өз қажеттіліктерін сөзбен жеткізе алады.", "III деңгей"),
+            ("Түстерді, пішіндерді, көлемдерді ажыратуға бағытталған жұмыстар жүргізу.", "Заттарды салыстыру, топтастыру және қарапайым тапсырмаларды орындауға үйрету.", "Таныс пішіндер мен түстерді ажыратады, ересектің көмегімен тапсырмаларды орындайды.", "III деңгей"),
+            ("Бейнелеу әрекеттеріне қызығушылығын арттыру, қарапайым сурет салу дағдыларын қалыптастыру.", "Қарындашпен, бояумен жұмыс жасауға ынталандыру.", "Үлгі бойынша қарапайым жұмыстарды орындайды, шығармашылық әрекетке қызығушылық танытады.", "III деңгей"),
+            ("Ересектермен және құрдастарымен жағымды қарым-қатынас орнатуға жағдай жасау.", "Мінез-құлық ережелерін сақтауға және өз эмоцияларын білдіруге үйрету.", "Құрдастарымен бірлескен ойындарға қатысады, қарапайым әлеуметтік дағдыларды меңгерген.", "III деңгей"),
+        ],
+    ],
+    "ru": [
+        [
+            ("Формирование представлений о важности гигиенических процедур для здоровья; использование личных вещей (носовой платок, салфетка, полотенце, расческа).", "Продолжать выполнение культурно-гигиенических навыков с помощью взрослых (засучивать рукава, мыть руки с мылом, вытирать насухо полотенцем).", "Способен сохранять равновесие при ходьбе по линии, веревке, доске, гимнастической скамейке, бревну.", "III уровень"),
+            ("Развитие речевого общения со взрослыми и сверстниками, произнесение словосочетаний (из 3–5 слов).", "Обучение повторению несложных словосочетаний и фраз.", "Опираясь на собственный опыт, умеет составлять рассказ по картинкам.", "III уровень"),
+            ("Формирование представлений о частях суток.", "Обучение различению частей суток по картинкам и устному описанию.", "Исследует геометрические фигуры и геометрические тела зрительно и осязательно, различает и называет их.", "III уровень"),
+            ("Формирование представлений о способах изображения (точка, линия, ритм).", "Рисование различных линий: прямых, горизонтальных, волнистых.", "Способен устанавливать простейшие причинно-следственные связи.", "III уровень"),
+            ("Проведение работы по повышению самооценки ребёнка.", "Словарный запас хорошо развит, активно общается.", "Умеет устанавливать простые связи в сезонных изменениях погоды и природы, знает правила безопасности в окружающей среде и природе.", "III уровень"),
+        ],
+        [
+            ("Повышение двигательной активности, формирование интереса к физическим упражнениям. Развитие навыков соблюдения личной гигиены.", "Упражнение в самостоятельном одевании, раздевании, соблюдении опрятности.", "Свободно выполняет основные виды движений, умеет сохранять равновесие.", "III уровень"),
+            ("Обогащение словарного запаса, поощрение к общению со взрослыми и сверстниками.", "Обучение понятному выражению своих мыслей и ответам на вопросы.", "Составляет рассказ по картинкам, связно передает свою мысль.", "III уровень"),
+            ("Расширение представлений об окружающем мире, усвоение базовых понятий.", "Обучение различению и сравнению частей суток и предметов.", "Узнает геометрические фигуры и правильно называет их.", "III уровень"),
+            ("Повышение интереса к рисованию, аппликации и лепке.", "Совершенствование навыков рисования различных линий и простых образов.", "С интересом выполняет творческие работы, умеет определять причинно-следственные связи.", "III уровень"),
+            ("Формирование уверенности в себе, обучение доброжелательному общению.", "Воспитание дружеских взаимоотношений со сверстниками.", "Замечает сезонные изменения в природе, соблюдает правила безопасности.", "III уровень"),
+        ],
+        [
+            ("Повышение интереса к физическим упражнениям, развитие основных двигательных навыков.", "Обучение координированному выполнению движений, активному участию в физкультурных занятиях.", "Правильно выполняет основные движения, активно участвует в подвижных играх.", "III уровень"),
+            ("Развитие словарного запаса, поощрение к общению со взрослыми и сверстниками.", "Обучение полному выражению мысли с помощью простых предложений.", "Составляет рассказ по картинкам, свободно выражает свои мысли.", "III уровень"),
+            ("Расширение знаний об окружающем мире, обучение различению цветов и форм.", "Упражнение в выполнении простых действий сравнения и группировки.", "Узнает, различает и правильно называет геометрические фигуры.", "III уровень"),
+            ("Формирование интереса к изобразительной и конструктивной деятельности.", "Обучение использованию различных приемов в процессе рисования.", "С интересом выполняет творческие задания, умеет передать свой замысел.", "III уровень"),
+            ("Формирование уверенности в себе, развитие навыков позитивного поведения.", "Приобщение к участию в совместных играх со сверстниками и взаимному уважению.", "Соблюдает правила поведения в общественных местах, проявляет заботу о природе.", "III уровень"),
+        ],
+        [
+            ("Развитие основных двигательных навыков, проведение работы по совершенствованию мелкой и общей моторики.", "Поощрение к координации движений, выполнению физических упражнений.", "С помощью взрослых выполняет основные движения, стремится выполнять простые двигательные задания.", "III уровень"),
+            ("Развитие словарного запаса, обучение использованию простых слов и словосочетаний.", "Формирование навыков краткого ответа на вопросы и вступления в общение.", "Составляет простые предложения, умеет словами выразить свои потребности.", "III уровень"),
+            ("Проведение работы, направленной на различение цветов, форм, величин.", "Обучение сравнению, группировке предметов и выполнению простых заданий.", "Различает знакомые формы и цвета, выполняет задания при поддержке взрослого.", "III уровень"),
+            ("Повышение интереса к изобразительной деятельности, формирование простых навыков рисования.", "Поощрение к работе с карандашом и красками.", "Выполняет простые работы по образцу, проявляет интерес к творческой деятельности.", "III уровень"),
+            ("Создание условий для установления доброжелательных отношений со взрослыми и сверстниками.", "Обучение соблюдению правил поведения и выражению своих эмоций.", "Участвует в совместных играх со сверстниками, владеет базовыми социальными навыками.", "III уровень"),
+        ],
+    ],
+    "en": [
+        [
+            ("Forming understanding of the importance of hygiene procedures for health; using personal items (handkerchief, napkin, towel, comb).", "Continuing cultural and hygienic skills with adult assistance (rolling up sleeves, washing hands with soap, drying with a towel).", "Able to maintain balance when walking along a line, rope, board, gymnastic bench, or beam.", "Level III"),
+            ("Developing verbal communication with adults and peers, speaking short phrases (3–5 words).", "Teaching repetition of simple phrases and expressions.", "Based on personal experience, can compose a story from pictures.", "Level III"),
+            ("Forming understanding of parts of the day.", "Teaching to distinguish parts of the day from pictures and oral descriptions.", "Explores geometric shapes and solids visually and by touch, distinguishes and names them.", "Level III"),
+            ("Forming understanding of depiction techniques (dot, line, rhythm).", "Drawing various lines: straight, horizontal, wavy.", "Able to establish simple cause-and-effect relationships.", "Level III"),
+            ("Conducting activities to build the child's self-esteem.", "Vocabulary is well developed, communicates actively.", "Can establish simple connections in seasonal weather and nature changes, knows safety rules in the environment.", "Level III"),
+        ],
+        [
+            ("Increasing motor activity, fostering interest in physical exercises. Developing personal hygiene skills.", "Practicing independent dressing, undressing, and neatness.", "Performs basic movements freely and maintains balance.", "Level III"),
+            ("Enriching vocabulary, encouraging communication with adults and peers.", "Teaching clear expression of thoughts and answering questions.", "Composes stories from pictures and conveys ideas coherently.", "Level III"),
+            ("Expanding knowledge of the surrounding world and basic concepts.", "Teaching to distinguish and compare parts of the day and objects.", "Recognizes geometric shapes and names them correctly.", "Level III"),
+            ("Increasing interest in drawing, appliqué, and modeling.", "Improving skills in drawing various lines and simple images.", "Performs creative tasks with interest and identifies cause-and-effect connections.", "Level III"),
+            ("Building self-confidence and teaching friendly communication.", "Fostering friendly relationships with peers.", "Notices seasonal changes in nature and follows safety rules.", "Level III"),
+        ],
+    ],
+}
+
+
+def _infer_birth_and_age(child_entry, data: dict, group_str: str, lang: str, idx: int) -> tuple[str, str, str, str]:
+    """Извлекает (ФИО, год рождения, возраст, группу) из записи ребёнка или подставляет по возрасту группы."""
+    default_group = {
+        "kz": "«Жұлдызша» МАД тобы",
+        "ru": "Предшкольная группа «Жұлдызша»",
+        "en": "Pre-school group “Zhuldyzsha”",
+    }[lang]
+    clean_group = group_str.strip() if group_str else ""
+    if clean_group.lower() in {"", "автоматически", "автоматты", "automatic", "________________"}:
+        clean_group = default_group
+
+    name = ""
+    raw_by = ""
+    raw_age = ""
+
+    if isinstance(child_entry, dict):
+        name = str(child_entry.get("name") or child_entry.get("child_name") or "").strip()
+        raw_by = str(child_entry.get("birth_year") or child_entry.get("birth_date") or "").strip()
+        raw_age = str(child_entry.get("age") or "").strip()
+        if child_entry.get("group") or child_entry.get("class_name"):
+            g_cand = str(child_entry.get("group") or child_entry.get("class_name")).strip()
+            if g_cand and g_cand.lower() not in {"автоматически", "автоматты", "automatic"}:
+                clean_group = g_cand
+    elif isinstance(child_entry, (list, tuple)):
+        name = str(child_entry[0]).strip() if len(child_entry) > 0 else ""
+        raw_by = str(child_entry[1]).strip() if len(child_entry) > 1 else ""
+        raw_age = str(child_entry[2]).strip() if len(child_entry) > 2 else ""
+    else:
+        name = str(child_entry or "").strip()
+
+    if not raw_by and data.get("birth_year"):
+        raw_by = str(data.get("birth_year")).strip()
+    if not raw_age and data.get("age"):
+        raw_age = str(data.get("age")).strip()
+    if not raw_by and not raw_age and data.get("birth_year_age"):
+        bya = str(data.get("birth_year_age")).strip()
+        ym = re.search(r"\b(20\d{2})\b", bya)
+        if ym:
+            raw_by = ym.group(1)
+        am = re.search(r"\b([1-7])\s*(?:жас|лет|год|г\.|y)", bya, re.I)
+        if am:
+            raw_age = am.group(1)
+
+    # Определяем числовой год рождения и возраст
+    yr_num = None
+    age_num = None
+    ym = re.search(r"\b(20\d{2})\b", raw_by)
+    if ym:
+        yr_num = int(ym.group(1))
+    am = re.search(r"\b([1-7])\b", raw_age)
+    if am:
+        age_num = int(am.group(1))
+
+    if yr_num and not age_num:
+        age_num = max(2, min(6, 2025 - yr_num))
+    elif age_num and not yr_num:
+        yr_num = 2025 - age_num
+    elif not yr_num and not age_num:
+        gl = clean_group.lower()
+        if any(w in gl for w in ("3", "кіші", "младш", "ясли")):
+            yr_num, age_num = 2022, 3
+        elif any(w in gl for w in ("4", "ортаңғы", "средн")):
+            yr_num, age_num = 2021, 4
+        else:
+            default_pair = _DEFAULT_MONITORING_CHILDREN[idx % len(_DEFAULT_MONITORING_CHILDREN)]
+            yr_num, age_num = default_pair[1], default_pair[2]
+
+    if lang == "kz":
+        by_str = f"{yr_num} жыл"
+        age_str = f"{age_num} жас"
+    elif lang == "en":
+        by_str = f"{yr_num}"
+        age_str = f"{age_num} years"
+    else:
+        by_str = f"{yr_num} г."
+        age_word = "года" if age_num in (2, 3, 4) else "лет"
+        age_str = f"{age_num} {age_word}"
+
+    return name or "________________", by_str, age_str, clean_group
+
+
 def _add_development_monitoring(doc, data: dict):
+    """Генерирует Индивидуальные карты развития детей (Баланың жеке даму картасы)
+    строго по структуре эталона Жеке даму картасы.docx (альбомная ориентация, 7x5 таблица)."""
     lang = data.get("lang", "ru")
     if lang not in ("ru", "kz", "en"):
         lang = "ru"
-    labels = [_label(k, lang) for k in ("organization", "group", "age", "period", "educator")]
-    values = [data.get("organization") or "________________", data.get("group") or "________________", data.get("age_group") or "________________", data.get("period") or "________________", data.get("educator_name") or "________________"]
-    info = doc.add_table(rows=len(labels), cols=2); info.style = "Table Grid"
-    for row, lbl, value in zip(info.rows, labels, values):
-        _set_cell_color(row.cells[0], LIGHT_BLUE_HEX); _run(row.cells[0].paragraphs[0], lbl + ":", bold=True, size=10); _run(row.cells[1].paragraphs[0], value, size=10)
-    headers = {
-        "ru": ["№", "ФИО ребенка", "Физическое развитие", "Коммуникативное развитие", "Познавательное развитие", "Творческое развитие", "Социально-эмоциональное развитие", "Примечание"],
-        "kz": ["№", "Баланың аты-жөні", "Дене дамуы", "Коммуникативтік даму", "Танымдық даму", "Шығармашылық даму", "Әлеуметтік-эмоциялық даму", "Ескертпе"],
-        "en": ["No.", "Child's full name", "Physical development", "Communication development", "Cognitive development", "Creative development", "Social-emotional development", "Note"],
+
+    # Учебный год
+    raw_period = str(data.get("school_year") or data.get("period") or "").strip()
+    ym = re.search(r"20\d{2}\s*[–\-/]\s*20\d{2}", raw_period)
+    school_year = ym.group(0).replace("-", "–").replace(" ", "") if ym else "2025–2026"
+
+    group_raw = str(data.get("group") or data.get("age_group") or "").strip()
+
+    # Проверяем, нужен ли пустой бланк
+    obs_raw = str(data.get("observations") or "").strip().lower()
+    raw_children_field = data.get("children")
+    is_blank = obs_raw in {"пустой", "бос", "blank", "empty"} or (
+        isinstance(raw_children_field, str) and raw_children_field.strip().lower() in {"пустой", "бос", "blank", "empty"}
+    )
+
+    # Собираем список детей (из БД, из параметров или из эталонного списка)
+    children_entries = []
+    if data.get("children_records"):
+        children_entries = list(data["children_records"])
+    elif data.get("child_name") or data.get("student_name"):
+        c_name = str(data.get("child_name") or data.get("student_name")).strip()
+        if c_name and c_name.lower() not in {"автоматически", "автоматты", "automatic"}:
+            children_entries = [c_name]
+    elif isinstance(raw_children_field, list) and raw_children_field:
+        if all(x == "—" for x in raw_children_field):
+            is_blank = True
+            children_entries = ["________________"]
+        else:
+            children_entries = [x for x in raw_children_field if str(x).strip()]
+    elif isinstance(raw_children_field, str) and raw_children_field.strip():
+        rc = raw_children_field.strip()
+        if rc.lower() not in {"автоматически", "автоматты", "automatic", "пустой", "бос", "blank", "empty"}:
+            children_entries = [x.strip() for x in rc.replace("\n", ",").split(",") if x.strip()]
+
+    if not children_entries:
+        if is_blank:
+            children_entries = ["________________"]
+        else:
+            children_entries = list(_DEFAULT_MONITORING_CHILDREN)
+
+    title_text = {
+        "kz": f"{school_year} оқу жылындағы Баланың жеке даму картасы",
+        "ru": f"Индивидуальная карта развития ребенка на {school_year} учебный год",
+        "en": f"Child's Individual Development Card for the {school_year} academic year",
     }[lang]
-    rows = data.get("rows") or [[name] for name in data.get("children", [])] or [[] for _ in range(10)]
-    table = doc.add_table(rows=1 + len(rows), cols=8); table.style = "Table Grid"
-    for i, h in enumerate(headers): _set_cell_color(table.rows[0].cells[i], NAVY_HEX); _run(table.rows[0].cells[i].paragraphs[0], h, bold=True, size=7, color=WHITE)
-    for n, source in enumerate(rows, 1):
-        vals = [str(n)] + (source + [""] * 7)[:7]
-        for i, val in enumerate(vals): _run(table.rows[n].cells[i].paragraphs[0], val, size=8)
+
+    headers = {
+        "kz": [
+            "Құзыреттіліктер",
+            "Бастапқы бақылау нәтижелері бойынша дамыту, түзету іс-шаралары (қазан - желтоқсан)",
+            "Аралық бақылау нәтижелері бойынша дамыту, түзету іс-шаралары (ақпан - сәуір)",
+            "Қорытынды бақылау нәтижелері бойынша дамыту, түзету іс-шаралары (маусым - тамыз)",
+            "Қорытынды (баланың даму деңгейі сәйкес келеді: III деңгей - «жоғары»; II деңгей – «орташа»; I деңгей - «төмен»)",
+        ],
+        "ru": [
+            "Компетентности",
+            "Развивающие, коррекционные мероприятия по результатам стартового контроля (октябрь - декабрь)",
+            "Развивающие, коррекционные мероприятия по результатам промежуточного контроля (февраль - апрель)",
+            "Развивающие, коррекционные мероприятия по результатам итогового контроля (июнь - август)",
+            "Итог (уровень развития ребенка соответствует: III уровень - «высокий»; II уровень – «средний»; I уровень - «низкий»)",
+        ],
+        "en": [
+            "Competencies",
+            "Developmental and corrective activities based on initial assessment (October - December)",
+            "Developmental and corrective activities based on intermediate assessment (February - April)",
+            "Developmental and corrective activities based on final assessment (June - August)",
+            "Conclusion (child's development level: Level III - “high”; Level II - “medium”; Level I - “low”)",
+        ],
+    }[lang]
+
+    competencies = {
+        "kz": [
+            "Физикалық қасиеттері",
+            "Коммуникативтік дағдылары",
+            "Танымдық және зияткерлік дағдылары",
+            "Шығармашылық дағдыларының, зерттеу іс-әрекетінің дамуы",
+            "Әлеуметтік-эмоционалды дағдыларды қалыптастыру",
+        ],
+        "ru": [
+            "Физические качества",
+            "Коммуникативные навыки",
+            "Познавательные и интеллектуальные навыки",
+            "Развитие творческих навыков, исследовательской деятельности",
+            "Формирование социально-эмоциональных навыков",
+        ],
+        "en": [
+            "Physical qualities",
+            "Communication skills",
+            "Cognitive and intellectual skills",
+            "Creative skills and research activity development",
+            "Social-emotional skills formation",
+        ],
+    }[lang]
+
+    legend_text = {
+        "kz": (
+            "Дағдыларды меңгеру деңгейлері: "
+            "1-деңгей – бала белгілі бір қимыл мен біліктерді жаңғырта алады (1-3 ұпай) "
+            "2 – деңгей – бала не істеп жатқанын түсінеді, белгілі білім қорына ие (4 – 6 ұпай) "
+            "3 – деңгей – бала өзінің білетінін және жасай алатынын қолданады, білімін өз бетінше және шығармашылықпен қолдана алады (7 – 10 ұпай)"
+        ),
+        "ru": (
+            "Уровни овладения навыками: "
+            "1-уровень – ребенок может воспроизводить отдельные действия и умения (1-3 балла) "
+            "2 – уровень – ребенок понимает, что делает, обладает определенным запасом знаний (4 – 6 баллов) "
+            "3 – уровень – ребенок применяет то, что знает и умеет, самостоятельно и творчески использует знания (7 – 10 баллов)"
+        ),
+        "en": (
+            "Skill mastery levels: "
+            "Level 1 – the child can reproduce certain actions and skills (1-3 points) "
+            "Level 2 – the child understands what they are doing and has a certain stock of knowledge (4 – 6 points) "
+            "Level 3 – the child applies what they know and can do, using knowledge independently and creatively (7 – 10 points)"
+        ),
+    }[lang]
+
+    col_widths = [Cm(4.55), Cm(6.32), Cm(5.07), Cm(5.07), Cm(5.06)]
+    variants = _DEV_CARD_VARIANTS[lang]
+    custom_rows = data.get("rows") or []
+
+    for idx, entry in enumerate(children_entries):
+        if idx > 0:
+            doc.add_page_break()
+
+        c_name, c_by, c_age, c_group = _infer_birth_and_age(entry, data, group_raw, lang, idx)
+
+        _para(
+            doc,
+            title_text,
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+            bold=True,
+            size=12,
+            space_before=0,
+            space_after=2,
+            keep_with_next=True,
+        )
+
+        meta_text = {
+            "kz": f"Баланың аты-жөні: {c_name}  Туған жылы: {c_by}\nБаланың жасы: {c_age}     Тобы: {c_group}",
+            "ru": f"ФИО ребенка: {c_name}  Год рождения: {c_by}\nВозраст ребенка: {c_age}     Группа: {c_group}",
+            "en": f"Child's full name: {c_name}  Birth year: {c_by}\nChild's age: {c_age}     Group: {c_group}",
+        }[lang]
+        _para(
+            doc,
+            meta_text,
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+            bold=True,
+            size=12,
+            space_before=0,
+            space_after=4,
+            keep_with_next=True,
+        )
+
+        table = doc.add_table(rows=7, cols=5)
+        table.style = "Table Grid"
+
+        # Шапка таблицы (Row 0)
+        for c_idx, h_text in enumerate(headers):
+            cell = table.rows[0].cells[c_idx]
+            cell.width = col_widths[c_idx]
+            p = cell.paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            _run(p, h_text, bold=True, size=11)
+
+        # Строки компетентностей (Rows 1..5)
+        variant_rows = variants[idx % len(variants)]
+        for r_idx, comp_name in enumerate(competencies, start=1):
+            row_cells = table.rows[r_idx].cells
+            for c_idx in range(5):
+                row_cells[c_idx].width = col_widths[c_idx]
+
+            p0 = row_cells[0].paragraphs[0]
+            p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            _run(p0, comp_name, bold=True, size=11)
+
+            if not is_blank:
+                if r_idx - 1 < len(custom_rows) and len(custom_rows[r_idx - 1]) >= 4:
+                    c1, c2, c3, c4 = custom_rows[r_idx - 1][:4]
+                else:
+                    c1, c2, c3, c4 = variant_rows[r_idx - 1]
+                for c_idx, val in enumerate((c1, c2, c3, c4), start=1):
+                    p = row_cells[c_idx].paragraphs[0]
+                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER if c_idx == 4 else WD_ALIGN_PARAGRAPH.LEFT
+                    _run(p, val, size=11)
+
+        # Нижняя строка (Row 6) — объединённая легенда уровней
+        merged_cell = table.rows[6].cells[0].merge(table.rows[6].cells[4])
+        p_leg = merged_cell.paragraphs[0]
+        p_leg.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        _run(p_leg, legend_text, bold=True, size=10)
+
 
 
 def _parse_content(doc, content: str):
@@ -378,6 +741,10 @@ def _parse_content(doc, content: str):
     i = 0
     while i < len(lines):
         s = lines[i].strip()
+
+        if "Составлено с помощью ИИ" in s and "Проверено учителем" in s:
+            i += 1
+            continue
 
         if not s:
             if not prev_empty:

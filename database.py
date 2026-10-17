@@ -591,14 +591,15 @@ class Database:
                 return row["schedule_data"] if row else None
 
     async def get_users_with_schedules(self):
-        """Возвращает пользователей, у которых сохранено расписание."""
+        """Возвращает пользователей, у которых сохранено расписание и включены уведомления."""
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute(
                 """SELECT u.*, s.schedule_data 
                    FROM users u 
                    JOIN schedules s ON u.tg_id = s.tg_id
-                   WHERE u.name IS NOT NULL"""
+                   WHERE u.name IS NOT NULL
+                     AND (u.notifications_enabled IS NULL OR u.notifications_enabled = 1)"""
             ) as cur:
                 rows = await cur.fetchall()
                 return [dict(r) for r in rows]

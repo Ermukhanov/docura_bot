@@ -53,7 +53,17 @@ def ensure_schema(c):
                 role TEXT DEFAULT 'teacher',
                 subscribed INTEGER DEFAULT 0,
                 tier TEXT,
+                sub_expires TEXT,
                 free_used INTEGER DEFAULT 0,
+                promo_used INTEGER DEFAULT 0,
+                bonus_docs INTEGER DEFAULT 0,
+                ref_code TEXT,
+                referred_by INTEGER,
+                ref_rewarded INTEGER DEFAULT 0,
+                auto_generate INTEGER DEFAULT 0,
+                notifications_enabled INTEGER DEFAULT 1,
+                last_active_at TEXT,
+                last_broadcast_at TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 notified_at TEXT
             );
@@ -642,6 +652,9 @@ def api_add_memory_note():
         ctx = json.loads(row['context_data']) if row and row['context_data'] else {}
         notes = ctx.setdefault('user_preferences', [])
         notes.append({'text': note, 'date': data.get('date', '')})
+        custom_notes = ctx.setdefault('custom_notes', [])
+        if note not in custom_notes:
+            custom_notes.append(note)
         new_json = json.dumps(ctx, ensure_ascii=False)
         db.execute(
             '''INSERT INTO agent_memory (tg_id, context_data, updated_at)
@@ -752,7 +765,7 @@ def api_verify_receipt():
             db.execute("""
                 UPDATE users SET
                     subscribed=1,
-                    subscription_expires=datetime('now', '+30 days'),
+                    sub_expires=datetime('now', '+30 days'),
                     tier=?,
                     promo_used=CASE WHEN ?=1 THEN 1 ELSE promo_used END
                 WHERE tg_id=?

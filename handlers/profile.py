@@ -656,7 +656,10 @@ class ProfileHandler:
         await self._process_receipt(update, context, source="photo")
 
     async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        doc = update.message.document
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message:
+            return
+        doc = message.document
         if not doc:
             return
         mime = doc.mime_type or ""
@@ -665,23 +668,26 @@ class ProfileHandler:
         await self._process_receipt(update, context, source="document")
 
     async def _process_receipt(self, update: Update, context: ContextTypes.DEFAULT_TYPE, source: str):
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message:
+            return
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
         tier    = context.user_data.get("chosen_tier", "pro")
         expected_amount = TIER_PRICES.get(tier, 3990)
 
-        wait_msg = await update.message.reply_text(
+        wait_msg = await message.reply_text(
             "🔍 Проверяю чек..." if lang == "ru" else "🔍 Чек тексерілуде..."
         )
 
         try:
             if source == "photo":
-                file_obj = await update.message.photo[-1].get_file()
+                file_obj = await message.photo[-1].get_file()
                 media_type = "image/jpeg"
             else:
-                file_obj = await update.message.document.get_file()
-                mime = update.message.document.mime_type or "image/jpeg"
+                file_obj = await message.document.get_file()
+                mime = message.document.mime_type or "image/jpeg"
                 media_type = mime if "pdf" not in mime else "image/jpeg"
 
             import tempfile, os
@@ -699,7 +705,7 @@ class ProfileHandler:
             used = await self.db.is_receipt_used(receipt_hash)
             if used:
                 await wait_msg.delete()
-                await update.message.reply_text(
+                await message.reply_text(
                     "❌ Этот чек уже был использован для активации." if lang == "ru"
                     else "❌ Бұл чек бұрын қолданылған."
                 )
@@ -740,7 +746,7 @@ class ProfileHandler:
         except Exception as e:
             print(f"Receipt check error: {e}")
             await wait_msg.delete()
-            await update.message.reply_text(
+            await message.reply_text(
                 "❌ Не удалось прочитать чек. Пришлите более чёткий скриншот." if lang == "ru"
                 else "❌ Чекті оқу мүмкін болмады. Нақтырақ скриншот жіберіңіз."
             )
@@ -769,7 +775,7 @@ class ProfileHandler:
             msg_map = reason_map.get(lang, reason_map["ru"])
             friendly = next((v for k, v in msg_map.items() if k in reason.lower()), msg_map["неверная сумма"])
             kb = [[InlineKeyboardButton("💳 Выбрать тариф" if lang == "ru" else "💳 Тариф таңдау", callback_data="prof_sub")]]
-            await update.message.reply_text(
+            await message.reply_text(
                 f"❌ Чек не прошёл проверку.\n\n{friendly}" if lang == "ru"
                 else f"❌ Чек тексеруден өтпеді.\n\n{friendly}",
                 reply_markup=InlineKeyboardMarkup(kb)
@@ -789,7 +795,7 @@ class ProfileHandler:
 
         tier_title = TIER_NAMES.get(clean_tier, "PRO")
         kb = [[MENU_BTN(lang)]]
-        await update.message.reply_text(
+        await message.reply_text(
             f"🎉 *Тариф Docura {tier_title} успешно активирован!*\n\nТеперь у вас расширенный доступ к возможностям платформы. Спасибо за оплату!" if lang == "ru"
             else f"🎉 *Docura {tier_title} тарифі сәтті белсендірілді!*\n\nЕнді платформаның барлық артықшылықтары қолжетімді. Рахмет!",
             reply_markup=InlineKeyboardMarkup(kb),
@@ -814,7 +820,7 @@ class ProfileHandler:
             subject = quote("Docura: отзыв или жалоба")
             body = quote(text)
             mail_url = f"mailto:docurakz@gmail.com?subject={subject}&body={body}"
-            await update.message.reply_text(
+            await message.reply_text(
                 "✅ Спасибо! Нажмите кнопку ниже, чтобы отправить сообщение." if lang == "ru" else "✅ Рахмет! Хабарламаны жіберу үшін төмендегі батырманы басыңыз.",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✉️ Отправить на почту" if lang == "ru" else "✉️ Поштаға жіберу", url=mail_url)], [MENU_BTN(lang)]])
             )
@@ -840,19 +846,19 @@ class ProfileHandler:
                             "parent_phone": item.get("phone", ""),
                         })
                 context.user_data["step"] = None
-                await update.message.reply_text(
+                await message.reply_text(
                     (f"✅ Добавлено учеников: {len(pending)}" if lang == "ru" else f"✅ Қосылған оқушылар: {len(pending)}"),
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("👥 " + ("Мои ученики" if not is_kg and lang == "ru" else "Мои воспитанники" if is_kg and lang == "ru" else "Менің оқушыларым"), callback_data="prof_students")], [MENU_BTN(lang)]])
                 )
             elif any(w in lowered for w in ["нет", "жоқ", "отмена", "болдырмау", "no"]):
                 context.user_data.pop("bulk_students", None)
                 context.user_data["step"] = None
-                await update.message.reply_text(
+                await message.reply_text(
                     "❌ Отменено." if lang == "ru" else "❌ Болдырылмады.",
                     reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]])
                 )
             else:
-                await update.message.reply_text(
+                await message.reply_text(
                     "Нажмите кнопку «Добавить всех» или «Отмена» выше." if lang == "ru"
                     else "Жоғарыдағы «Барлығын қосу» немесе «Болдырмау» батырмасын басыңыз."
                 )
@@ -881,7 +887,7 @@ class ProfileHandler:
 
         if step in prof_steps:
             if len(text) < 2:
-                await update.message.reply_text(
+                await message.reply_text(
                     "❌ Слишком коротко. Попробуйте снова:" if lang == "ru" else "❌ Тым қысқа. Қайталап көріңіз:",
                     reply_markup=InlineKeyboardMarkup(cancel_kb)
                 )
@@ -889,13 +895,13 @@ class ProfileHandler:
             field, next_step, next_q = prof_steps[step]
             await self.db.upsert_user(user_id, {field: text})
             context.user_data["step"] = next_step
-            await update.message.reply_text(next_q, reply_markup=InlineKeyboardMarkup(cancel_kb), parse_mode=ParseMode.MARKDOWN)
+            await message.reply_text(next_q, reply_markup=InlineKeyboardMarkup(cancel_kb), parse_mode=ParseMode.MARKDOWN)
 
         elif step == "prof_edit_director":
             await self.db.upsert_user(user_id, {"director": text})
             context.user_data["step"] = None
             kb = [[MENU_BTN(lang)]]
-            await update.message.reply_text(
+            await message.reply_text(
                 "✅ *Профиль обновлён!*" if lang == "ru" else "✅ *Профиль жаңартылды!*",
                 reply_markup=InlineKeyboardMarkup(kb),
                 parse_mode=ParseMode.MARKDOWN
@@ -903,7 +909,7 @@ class ProfileHandler:
 
         elif step == "student_name":
             if len(text) < 3:
-                await update.message.reply_text(
+                await message.reply_text(
                     "❌ Введите полное имя (минимум 3 символа):" if lang == "ru" else "❌ Толық атын енгізіңіз:",
                     reply_markup=InlineKeyboardMarkup(cancel_kb)
                 )
@@ -915,14 +921,14 @@ class ProfileHandler:
                 if lang == "ru" else
                 ("🏷 Топты енгізіңіз:" if is_kg else "🏷 Сыныпты енгізіңіз (мысалы: 9А):")
             )
-            await update.message.reply_text(group_q, reply_markup=InlineKeyboardMarkup(cancel_kb))
+            await message.reply_text(group_q, reply_markup=InlineKeyboardMarkup(cancel_kb))
 
         elif step == "student_class":
             context.user_data["new_student"]["class_name"] = text
             if is_kg:
                 context.user_data["new_student"]["grades"] = {}
                 context.user_data["step"] = "student_achievements"
-                await update.message.reply_text(
+                await message.reply_text(
                     ("🏆 Достижения ребёнка через запятую:\n"
                      "_Например: выступление на утреннике, конкурс рисунков_\n"
                      "Или напишите *пропустить*") if lang == "ru" else
@@ -933,7 +939,7 @@ class ProfileHandler:
                 )
             else:
                 context.user_data["step"] = "student_grades"
-                await update.message.reply_text(
+                await message.reply_text(
                     ("📊 Введите оценки через запятую:\n"
                      "_Формат: Математика-5, Русский-4_\n"
                      "Или напишите *пропустить*") if lang == "ru" else
@@ -956,7 +962,7 @@ class ProfileHandler:
                             pass
             context.user_data["new_student"]["grades"] = grades
             context.user_data["step"] = "student_achievements"
-            await update.message.reply_text(
+            await message.reply_text(
                 ("🏆 Введите достижения через запятую:\n_Призёр олимпиады, КВН, Волонтёр_\n"
                  "Или напишите *пропустить*") if lang == "ru" else
                 ("🏆 Жетістіктерді үтірмен енгізіңіз:\n"
@@ -971,7 +977,7 @@ class ProfileHandler:
                 achievements = [a.strip() for a in text.split(",") if a.strip()]
             context.user_data["new_student"]["achievements"] = achievements
             context.user_data["step"] = "student_absences"
-            await update.message.reply_text(
+            await message.reply_text(
                 "📅 Количество пропущенных дней (введите число или 0):" if lang == "ru"
                 else "📅 Өткізген күндер санын енгізіңіз (0 немесе сан):",
                 reply_markup=InlineKeyboardMarkup(cancel_kb)
@@ -995,7 +1001,7 @@ class ProfileHandler:
                 if lang == "ru" else
                 ("😊 Баланың мінез-құлқын таңдаңыз:" if is_kg else "😊 Оқушының мінез-құлқын таңдаңыз:")
             )
-            await update.message.reply_text(beh_q, reply_markup=InlineKeyboardMarkup(kb))
+            await message.reply_text(beh_q, reply_markup=InlineKeyboardMarkup(kb))
 
         elif step == "student_behavior":
             behavior_map = {
@@ -1006,7 +1012,7 @@ class ProfileHandler:
             behavior = behavior_map.get(text, text)
             context.user_data["new_student"]["behavior"] = behavior
             context.user_data["step"] = "student_parents"
-            await update.message.reply_text(
+            await message.reply_text(
                 "👪 ФИО родителей (или «пропустить»):" if lang == "ru" else "👪 Ата-анасының аты-жөні (немесе «өткізу»):",
                 reply_markup=InlineKeyboardMarkup(cancel_kb)
             )
@@ -1014,7 +1020,7 @@ class ProfileHandler:
         elif step == "student_parents":
             context.user_data["new_student"]["parents"] = "" if text.lower() in {"пропустить", "өткізу", "-", "нет", "жоқ"} else text
             context.user_data["step"] = "student_parent_phone"
-            await update.message.reply_text(
+            await message.reply_text(
                 "📞 Телефон родителей (или «пропустить»):" if lang == "ru" else "📞 Ата-анасының телефоны (немесе «өткізу»):",
                 reply_markup=InlineKeyboardMarkup(cancel_kb)
             )
@@ -1022,7 +1028,7 @@ class ProfileHandler:
         elif step == "student_parent_phone":
             context.user_data["new_student"]["parent_phone"] = "" if text.lower() in {"пропустить", "өткізу", "-", "нет", "жоқ"} else text
             context.user_data["step"] = "student_birth_date"
-            await update.message.reply_text(
+            await message.reply_text(
                 "🎂 Дата рождения (или «пропустить»):" if lang == "ru" else "🎂 Туған күні (немесе «өткізу»):",
                 reply_markup=InlineKeyboardMarkup(cancel_kb)
             )
@@ -1032,6 +1038,7 @@ class ProfileHandler:
             await self._finish_add_student(update, context, user_id, lang, is_kg)
 
     async def _finish_add_student(self, update, context, user_id, lang, is_kg=False):
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
         student_data = context.user_data.pop("new_student", {})
         if not student_data.get("behavior"):
             student_data["behavior"] = "хорошее" if lang == "ru" else "жақсы"
@@ -1051,21 +1058,25 @@ class ProfileHandler:
             [InlineKeyboardButton("👥 " + list_btn_text,  callback_data="prof_students")],
             [MENU_BTN(lang)],
         ]
-        await update.message.reply_text(
-            f"✅ *{name}* добавлен в базу!" if lang == "ru" else f"✅ *{name}* базаға қосылды!",
-            reply_markup=InlineKeyboardMarkup(kb),
-            parse_mode=ParseMode.MARKDOWN
-        )
+        if message:
+            await message.reply_text(
+                f"✅ *{name}* добавлен в базу!" if lang == "ru" else f"✅ *{name}* базаға қосылды!",
+                reply_markup=InlineKeyboardMarkup(kb),
+                parse_mode=ParseMode.MARKDOWN
+            )
 
     async def _parse_students_from_text(self, update, context, raw_text: str):
         await self._parse_students_with_ai(update, context, [{"type": "text", "text": raw_text}])
 
     async def _parse_students_from_photo(self, update, context):
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message or not getattr(message, "photo", None):
+            return
         user = await self.db.get_user(update.effective_user.id)
         lang = user.get("lang", "ru") if user else "ru"
-        wait = await update.message.reply_text("🔍 Читаю список..." if lang == "ru" else "🔍 Тізім оқылуда...")
+        wait = await message.reply_text("🔍 Читаю список..." if lang == "ru" else "🔍 Тізім оқылуда...")
         try:
-            photo = update.message.photo[-1]
+            photo = message.photo[-1]
             file_obj = await photo.get_file()
             import tempfile, os
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
@@ -1078,9 +1089,12 @@ class ProfileHandler:
             await self._parse_students_with_ai(update, context, [{"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": encoded}}])
         except Exception:
             await wait.delete()
-            await update.message.reply_text("Не удалось прочитать фото. Пришлите более чёткое изображение." if lang == "ru" else "Фотоны оқу мүмкін болмады. Анығырақ сурет жіберіңіз.")
+            await message.reply_text("Не удалось прочитать фото. Пришлите более чёткое изображение." if lang == "ru" else "Фотоны оқу мүмкін болмады. Анығырақ сурет жіберіңіз.")
 
     async def _parse_students_with_ai(self, update, context, content: list):
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message:
+            return
         user = await self.db.get_user(update.effective_user.id)
         lang = user.get("lang", "ru") if user else "ru"
         prompt = ("Извлеки список учеников из текста или изображения. Верни ТОЛЬКО JSON-массив: "
@@ -1099,12 +1113,12 @@ class ProfileHandler:
             print(f"Student list parse error: {exc}")
             students = []
         if not students:
-            await update.message.reply_text("Не удалось найти учеников. Попробуйте другой текст или более чёткое фото." if lang == "ru" else "Оқушылар тізімі табылмады. Басқа мәтін не анығырақ фото жіберіңіз.")
+            await message.reply_text("Не удалось найти учеников. Попробуйте другой текст или более чёткое фото." if lang == "ru" else "Оқушылар тізімі табылмады. Басқа мәтін не анығырақ фото жіберіңіз.")
             return
         context.user_data["bulk_students"] = students
         context.user_data["step"] = "student_bulk_confirm"
         names = "\n".join(f"• {item['name']}" for item in students[:30])
-        await update.message.reply_text(
+        await message.reply_text(
             (f"Нашёл {len(students)} учеников. Добавить всех?\n\n{names}" if lang == "ru" else f"{len(students)} оқушы табылды. Барлығын қосу керек пе?\n\n{names}"),
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Добавить всех" if lang == "ru" else "Барлығын қосу", callback_data="prof_bulk_confirm")], [InlineKeyboardButton("Отмена" if lang == "ru" else "Болдырмау", callback_data="prof_bulk_cancel")]])
         )

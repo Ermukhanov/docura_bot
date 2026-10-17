@@ -73,11 +73,14 @@ class AdminHandler:
 
     async def login(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """/mernar — открывает админ-меню, если ID в ADMIN_IDS."""
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message:
+            return
         if not is_admin(update.effective_user.id):
-            await update.message.reply_text("⛔ Нет доступа.")
+            await message.reply_text("⛔ Нет доступа.")
             return
         context.user_data["step"] = "admin_panel"
-        await self._send_menu(update.message.chat_id, context)
+        await self._send_menu(message.chat_id, context)
 
     async def callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
@@ -250,7 +253,7 @@ class AdminHandler:
             try:
                 tg_id = int(text.strip())
                 await self.db.activate_subscription(tg_id, tier="pro")
-                await update.message.reply_text(f"✅ Подписка PRO активирована для {tg_id}")
+                await message.reply_text(f"✅ Подписка PRO активирована для {tg_id}")
                 try:
                     await context.bot.send_message(
                         chat_id=tg_id,
@@ -260,15 +263,15 @@ class AdminHandler:
                 except Exception:
                     pass
             except Exception:
-                await update.message.reply_text("❌ Неверный ID.")
+                await message.reply_text("❌ Неверный ID.")
             context.user_data["step"] = "admin_panel"
-            await self._send_menu(update.message.chat_id, context)
+            await self._send_menu(message.chat_id, context)
 
         elif step == "admin_activate_max":
             try:
                 tg_id = int(text.strip())
                 await self.db.activate_subscription(tg_id, tier="max")
-                await update.message.reply_text(f"💎 Подписка MAX активирована для {tg_id}!\nВключено: Kundelik.kz, BilimClass, презентации, автопилот.")
+                await message.reply_text(f"💎 Подписка MAX активирована для {tg_id}!\nВключено: Kundelik.kz, BilimClass, презентации, автопилот.")
                 try:
                     await context.bot.send_message(
                         chat_id=tg_id,
@@ -284,30 +287,30 @@ class AdminHandler:
                 except Exception:
                     pass
             except Exception:
-                await update.message.reply_text("❌ Неверный ID.")
+                await message.reply_text("❌ Неверный ID.")
             context.user_data["step"] = "admin_panel"
-            await self._send_menu(update.message.chat_id, context)
+            await self._send_menu(message.chat_id, context)
 
         elif step == "admin_deactivate":
             try:
                 tg_id = int(text.strip())
                 await self.db.deactivate_subscription(tg_id)
-                await update.message.reply_text(f"✅ Подписка отменена для {tg_id}")
+                await message.reply_text(f"✅ Подписка отменена для {tg_id}")
             except Exception:
-                await update.message.reply_text("❌ Неверный ID.")
+                await message.reply_text("❌ Неверный ID.")
             context.user_data["step"] = "admin_panel"
-            await self._send_menu(update.message.chat_id, context)
+            await self._send_menu(message.chat_id, context)
 
         elif step == "admin_reset":
             try:
                 tg_id = int(text)
             except ValueError:
-                await update.message.reply_text("❌ Неверный Telegram ID. Введите число.")
+                await message.reply_text("❌ Неверный Telegram ID. Введите число.")
                 return
 
             user = await self.db.get_user(tg_id)
             if not user:
-                await update.message.reply_text("❌ Пользователь с таким Telegram ID не найден.")
+                await message.reply_text("❌ Пользователь с таким Telegram ID не найден.")
                 return
 
             context.user_data["step"] = "admin_panel"
@@ -315,7 +318,7 @@ class AdminHandler:
                 [InlineKeyboardButton("Да, сбросить", callback_data=f"admin_reset_confirm_{tg_id}")],
                 [InlineKeyboardButton("Отмена", callback_data="admin_reset_cancel")],
             ]
-            await update.message.reply_text(
+            await message.reply_text(
                 "Сбросить профиль и онбординг пользователя?\n"
                 "Пользователь останется в базе. Оплата, PRO-доступ, история оплат и реферальные бонусы сохранятся",
                 reply_markup=InlineKeyboardMarkup(kb)
@@ -338,8 +341,8 @@ class AdminHandler:
                     failed += 1
                 await asyncio.sleep(0.05)  # лимит Telegram ~30 сообщений/сек
             context.user_data["step"] = "admin_panel"
-            await update.message.reply_text(f"✅ Доставлено: {sent}\n❌ Не доставлено: {failed}")
-            await self._send_menu(update.message.chat_id, context)
+            await message.reply_text(f"✅ Доставлено: {sent}\n❌ Не доставлено: {failed}")
+            await self._send_menu(message.chat_id, context)
 
         elif step == "admin_sample_text":
             doc_type = context.user_data.get("sample_doc_type", "")
@@ -347,7 +350,7 @@ class AdminHandler:
             title = DOC_NAMES.get("ru", {}).get(doc_type, doc_type)
 
             if len(text) < 50:
-                await update.message.reply_text("⚠️ Слишком короткий образец. Пришлите полный текст документа (минимум 50 символов).")
+                await message.reply_text("⚠️ Слишком короткий образец. Пришлите полный текст документа (минимум 50 символов).")
                 return
 
             await self.db.add_sample(
@@ -360,7 +363,7 @@ class AdminHandler:
                 [InlineKeyboardButton("📚 Список образцов", callback_data="admin_samples_list")],
                 [InlineKeyboardButton("← Главное меню", callback_data="admin_menu")],
             ]
-            await update.message.reply_text(
+            await message.reply_text(
                 f"✅ Образец «{title}» ({doc_lang}) сохранён!\n\n"
                 f"Теперь бот будет использовать его как эталон при генерации этого типа документов.",
                 reply_markup=InlineKeyboardMarkup(kb)

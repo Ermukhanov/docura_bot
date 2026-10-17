@@ -156,14 +156,36 @@ SPECIAL_FIELDS = {
          "q": {"ru": "Мероприятия на неделе (если нет — «нет»)", "kz": "Аптадағы іс-шаралар (жоқ болса — «жоқ»)", "en": "Events this week (or “none”)"}},
     ],
     "development_monitoring": [
-        {"key": "period", "optional": False,
+        {"key": "period", "optional": True,
          "q": {"ru": "За какой период нужен мониторинг?", "kz": "Мониторинг қай кезеңге керек?", "en": "Which period is the monitoring for?"}},
-        {"key": "age_group", "optional": False,
+        {"key": "age_group", "optional": True,
          "q": {"ru": "Для какой возрастной группы?", "kz": "Қай жас тобына арналған?", "en": "Which age group?"}},
-        {"key": "children", "optional": False,
-         "q": {"ru": "Список детей (через запятую или столбиком) или «пустой» для чистого бланка",
-               "kz": "Балалар тізімі (үтірмен немесе бағанмен) немесе бос бланк үшін «бос»",
-               "en": "List of children (comma-separated or one per line) or “blank” for an empty form"}},
+        {"key": "children", "optional": True,
+         "q": {"ru": "Список детей (если не укажете — возьму автоматически из базы)",
+               "kz": "Балалар тізімі (көрсетпесеңіз — базадан автоматты түрде аламын)",
+               "en": "List of children (automatically taken from DB if not given)"}},
+    ],
+    "kg_individual_development_card": [
+        {"key": "child_name", "optional": True,
+         "q": {"ru": "ФИО ребенка?", "kz": "Баланың аты-жөні?", "en": "Child's full name?"}},
+        {"key": "birth_year_age", "optional": True,
+         "q": {"ru": "Год рождения и возраст?", "kz": "Туған жылы және жасы?", "en": "Birth year and age?"}},
+        {"key": "group", "optional": True,
+         "q": {"ru": "Группа?", "kz": "Тобы?", "en": "Group?"}},
+        {"key": "school_year", "optional": True,
+         "q": {"ru": "Учебный год?", "kz": "Оқу жылы?", "en": "Academic year?"}},
+        {"key": "observations", "optional": True,
+         "q": {"ru": "Наблюдения?", "kz": "Бақылаулар?", "en": "Observations?"}},
+    ],
+    "kg_monitoring": [
+        {"key": "age_group", "optional": True,
+         "q": {"ru": "Возрастная группа?", "kz": "Жас тобы?", "en": "Age group?"}},
+        {"key": "period", "optional": True,
+         "q": {"ru": "Период?", "kz": "Кезең?", "en": "Period?"}},
+        {"key": "skills", "optional": True,
+         "q": {"ru": "Навыки?", "kz": "Дағдылар?", "en": "Skills?"}},
+        {"key": "results", "optional": True,
+         "q": {"ru": "Результаты?", "kz": "Нәтижелер?", "en": "Results?"}},
     ],
 }
 
@@ -769,6 +791,9 @@ class ConciergeHandler:
                 task["doc_lang"] = extracted["doc_lang"]
             await self._apply_student_from_db(task, user_id)
 
+        if task["doc_type"] in ("development_monitoring", "kg_individual_development_card", "kg_monitoring") and not task.get("doc_lang"):
+            task["doc_lang"] = _detect_lang(user_text or "", user.get("document_lang") or ui_lang or "kz")
+
         task["updated_at"] = now_local().isoformat()
         missing = self._missing(task, fields, user)
         need_lang = not task.get("doc_lang")
@@ -811,11 +836,11 @@ class ConciergeHandler:
                 answers["period"] = _week_period()
             if not answers.get("events"):
                 answers["events"] = "нет" if doc_lang == "ru" else ("жоқ" if doc_lang == "kz" else "none")
-        elif doc_type == "development_monitoring":
+        elif doc_type in ("development_monitoring", "kg_individual_development_card", "kg_monitoring"):
             answers.setdefault("organization", user.get("school", ""))
             answers.setdefault("educator_name", user.get("name", ""))
             answers.setdefault("director_name", user.get("director", ""))
-            answers.setdefault("group", answers.get("age_group", ""))
+            answers.setdefault("group", answers.get("age_group") or user.get("age_group", ""))
         return answers
 
     async def _generate_from_task(self, message, context, user, ui_lang: str, state: dict, user_text: str | None):
@@ -1016,13 +1041,19 @@ class ConciergeHandler:
     async def _start_direct_document(self, update, context, user, lang, doc_type, known_data: dict | None = None):
         """Запускает подготовку документа из голосового/текстового запроса. Недостающие
         данные агент теперь собирает сам в разговоре (раньше — жёсткий опросник кнопками)."""
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message:
+            return
         first_text = None
         if known_data:
             first_text = "; ".join(f"{k}: {v}" for k, v in known_data.items() if v)
-        await self._begin_task(update.message, context, user, lang, doc_type, first_text)
+        await self._begin_task(message, context, user, lang, doc_type, first_text)
 
     async def _start_generation(self, update, context, user_id, user, lang, doc_type):
-        await self._begin_task(update.message, context, user, lang, doc_type, None)
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message:
+            return
+        await self._begin_task(message, context, user, lang, doc_type, None)
 
     # ══════════════════════════════════════════════════════
     # ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ (используется notifications.py)

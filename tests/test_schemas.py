@@ -62,7 +62,7 @@ for lg in ("kz", "en"):
     d = Document(f); txt = "\n".join(c.text for t in d.tables for r in t.rows for c in r.cells) + "\n".join(p.text for p in d.paragraphs)
     check(f"циклограмма ({lg}) без русских подписей структуры", not any(w in txt for w in RU_ONLY), str([w for w in RU_ONLY if w in txt]))
     f = generate_word("", "Мониторинг", "И", "П", monitoring_data={**data, "children": ["А", "Б"], "rows": []}, lang=lg)
-    d = Document(f); txt = "\n".join(c.text for t in d.tables for r in t.rows for c in r.cells)
+    d = Document(f); txt = "\n".join(c.text for t in d.tables for r in t.rows for c in r.cells) + "\n".join(p.text for p in d.paragraphs)
     check(f"мониторинг ({lg}) без русских подписей", "ФИО ребенка" not in txt and "Организация" not in txt and "Физическое развитие" not in txt)
     if lg == "en":
         check("мониторинг (en) не падает в казахский", "Баланың" not in txt and "Child's full name" in txt)

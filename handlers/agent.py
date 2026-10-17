@@ -217,7 +217,8 @@ class AgentHandler:
 
         elif data == "agent_reminders":
             memory = await self.db.get_agent_context(user_id)
-            enabled = bool(memory.get("reminders_enabled", True))
+            notif_col = user.get("notifications_enabled") if user else 1
+            enabled = bool(memory.get("reminders_enabled", True)) and (notif_col is None or bool(notif_col))
             auto_gen = bool(user.get("auto_generate")) if user else False
             title = "🔔 *Напоминания и автогенерация*\n\n" if lang == "ru" else "🔔 *Еске салғыштар мен авто-жасау*\n\n"
             status = ("включены" if enabled else "выключены") if lang == "ru" else ("қосулы" if enabled else "өшірулі")
@@ -240,7 +241,11 @@ class AgentHandler:
 
         elif data == "agent_reminders_toggle":
             memory = await self.db.get_agent_context(user_id)
-            await self.db.update_agent_context(user_id, {"reminders_enabled": not bool(memory.get("reminders_enabled", True))})
+            notif_col = user.get("notifications_enabled") if user else 1
+            cur_enabled = bool(memory.get("reminders_enabled", True)) and (notif_col is None or bool(notif_col))
+            new_enabled = not cur_enabled
+            await self.db.update_agent_context(user_id, {"reminders_enabled": new_enabled})
+            await self.db.set_notifications_enabled(user_id, new_enabled)
             await query.edit_message_text("✅ Настройка напоминаний сохранена." if lang == "ru" else "✅ Еске салғыш параметрі сақталды.", reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]]))
 
         elif data == "agent_autogen_toggle":
@@ -267,9 +272,10 @@ class AgentHandler:
 
         elif data == "agent_reminders_off":
             await self.db.update_agent_context(user_id, {"reminders_enabled": False})
+            await self.db.set_notifications_enabled(user_id, False)
             await query.edit_message_text(
-                "🔕 Напоминания отключены. Включить их можно в разделе «Напоминания»." if lang == "ru"
-                else "🔕 Еске салғыштар өшірілді. Оларды «Еске салғыштар» бөлімінен қайта қоса аласыз.",
+                "🔕 Напоминания отключены. Включить их можно в разделе «Напоминания» или командой /on." if lang == "ru"
+                else "🔕 Еске салғыштар өшірілді. Оларды «Еске салғыштар» бөлімінен немесе /on командасымен қайта қоса аласыз.",
                 reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]])
             )
 
@@ -327,11 +333,18 @@ class AgentHandler:
             )
 
         elif data in {"agent_auto_generate_ksp", "agent_auto_generate_cycle"}:
-            if not user or not user.get("subscribed") or not user.get("auto_generate"):
+            from database import can_generate
+            from handlers.chat_utils import now_local
+            from datetime import timedelta
+
+            if not user or not can_generate(user):
                 await query.edit_message_text(
-                    "Автогенерация доступна только в PRO после её включения." if lang == "ru"
-                    else "Автоматты жасау тек PRO тарифінде және ол қосылғанда қолжетімді.",
-                    reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]])
+                    "Лимит бесплатных документов исчерпан. Оформите подписку PRO для безлимитной генерации черновиков." if lang == "ru"
+                    else "Тегін құжаттар лимиті таусылды. Шексіз құжат жасау үшін PRO тарифін қосыңыз.",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("⭐ Посмотреть PRO" if lang == "ru" else "⭐ PRO көру", callback_data="prof_sub")],
+                        [MENU_BTN(lang)],
+                    ])
                 )
                 return
 
@@ -339,8 +352,21 @@ class AgentHandler:
             doc_type = "lesson_plan" if data == "agent_auto_generate_ksp" else "kindergarten_cycle_schedule"
             schedule_json = await self.db.get_schedule(user_id)
             schedule = json.loads(schedule_json) if schedule_json else {}
-            monday = schedule.get("Понедельник", []) if isinstance(schedule, dict) else []
-            first_lesson = next((item for item in monday if isinstance(item, dict)), {})
+
+            day_names = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+            now_dt = now_local()
+            tomorrow_name = day_names[(now_dt + timedelta(days=1)).weekday()]
+            today_name = day_names[now_dt.weekday()]
+
+            day_lessons = []
+            if isinstance(schedule, dict):
+                day_lessons = schedule.get(tomorrow_name) or schedule.get(today_name) or []
+                if not day_lessons:
+                    for v in schedule.values():
+                        if isinstance(v, list) and v:
+                            day_lessons = v
+                            break
+            first_lesson = next((item for item in day_lessons if isinstance(item, dict)), {})
 
             # Проверяем базу учеников / воспитанников перед генерацией
             students = await self.db.get_students(user_id)
@@ -357,11 +383,19 @@ class AgentHandler:
                     if class_students:
                         answers["students_list"] = ", ".join(class_students[:25])
             else:
+                group_val = (
+                    first_lesson.get("class")
+                    or user.get("age_group")
+                    or user.get("classes")
+                    or ("Старшая группа" if lang == "ru" else "Ересек топ")
+                )
+                topic_val = first_lesson.get("subject") or ("[уточнить]" if lang == "ru" else "[нақтылау]")
                 answers = {
                     "organization": user.get("school", ""),
-                    "group": user.get("age_group", ""),
+                    "educator_name": user.get("name", ""),
+                    "group": group_val,
                     "period": "следующая неделя" if lang == "ru" else "келесі апта",
-                    "week_topic": "[уточнить]",
+                    "week_topic": topic_val,
                     "events": "нет" if lang == "ru" else "жоқ",
                 }
                 if students:
@@ -397,12 +431,16 @@ class AgentHandler:
         if context.user_data.get("step") != "agent_waiting_schedule_photo":
             return False  # не наш случай
 
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        if not message:
+            return False
+
         user_id = update.effective_user.id
         user    = await self.db.get_user(user_id)
         lang    = user.get("lang", "ru") if user else "ru"
         is_kg   = (user or {}).get("role") == "kindergarten"
 
-        wait_msg = await update.message.reply_text(
+        wait_msg = await message.reply_text(
             "🔍 Распознаю..." if lang == "ru" else "🔍 Танылуда..."
         )
 
@@ -419,8 +457,8 @@ class AgentHandler:
 }}
 Если не можешь распознать — верни {{"error": "не удалось распознать"}}"""
 
-            if update.message.photo:
-                file_obj = await update.message.photo[-1].get_file()
+            if message.photo:
+                file_obj = await message.photo[-1].get_file()
                 with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
                     await file_obj.download_to_drive(tmp.name)
                     tmp_path = tmp.name
@@ -434,8 +472,8 @@ class AgentHandler:
                         {"type": "text", "text": base_prompt}
                     ]
                 }]
-            elif update.message.document:
-                doc = update.message.document
+            elif message.document:
+                doc = message.document
                 fname = (doc.file_name or "file.pdf").lower()
                 file_obj = await doc.get_file()
                 suffix = ".docx" if fname.endswith(".docx") else ".pdf" if fname.endswith(".pdf") else ".jpg"
@@ -502,7 +540,7 @@ class AgentHandler:
             ]
             done_word = "Режим дня загружен!" if is_kg else "Расписание загружено!"
             done_word_kz = "Күн тәртібі жүктелді!" if is_kg else "Кесте жүктелді!"
-            await update.message.reply_text(
+            await message.reply_text(
                 f"✅ *{done_word}*\n\n"
                 f"📅 Дней: {days_count}\n"
                 f"📚 Занятий: {lessons_count}\n\n"
@@ -523,7 +561,7 @@ class AgentHandler:
                 [InlineKeyboardButton("✍️ Ввести текстом" if lang == "ru" else "✍️ Мәтінмен", callback_data="agent_schedule_text")],
                 [MENU_BTN(lang)],
             ]
-            await update.message.reply_text(
+            await message.reply_text(
                 "❌ Не удалось распознать с фото.\n"
                 "Попробуйте ввести текстом или сделайте более чёткое фото." if lang == "ru"
                 else "❌ Суреттен тану мүмкін болмады.",
@@ -581,7 +619,7 @@ class AgentHandler:
             context.user_data["step"] = None
 
             kb = [[InlineKeyboardButton("📋 Посмотреть" if lang == "ru" else "📋 Қарау", callback_data="agent_schedule_view")], [MENU_BTN(lang)]]
-            await update.message.reply_text(
+            await message.reply_text(
                 "✅ *Сохранено!*\n\nТеперь бот использует это автоматически." if lang == "ru"
                 else "✅ *Сақталды!*",
                 reply_markup=InlineKeyboardMarkup(kb),
@@ -593,7 +631,7 @@ class AgentHandler:
             print(f"Schedule text parse error: {e}")
             await wait_msg.delete()
             context.user_data["step"] = None
-            await update.message.reply_text(
+            await message.reply_text(
                 "❌ Не удалось обработать. Попробуйте другой формат." if lang == "ru"
                 else "❌ Өңдеу мүмкін болмады."
             )

@@ -10,6 +10,7 @@ from telegram.ext import Application
 from telegram.constants import ParseMode
 from database import Database
 from handlers.chat_utils import now_local, LOCAL_TZ
+from handlers.rag_base import ensure_ai_disclaimer
 
 logger = logging.getLogger(__name__)
 
@@ -380,6 +381,7 @@ async def monitor_schedules(app: Application, db: Database, anthropic_key: str):
                             messages=[{"role": "user", "content": prompt}]
                         )
                         content = msg.content[0].text if msg.content else ""
+                        content = ensure_ai_disclaimer(content, lang)
 
                         from handlers.word_generator import generate_word
                         word_path = generate_word(
@@ -402,14 +404,23 @@ async def monitor_schedules(app: Application, db: Database, anthropic_key: str):
                             f"✅ Құжат сабаққа дайын!"
                         )
 
-                        with open(word_path, "rb") as f:
-                            await app.bot.send_document(
-                                chat_id=tg_id,
-                                document=f,
-                                filename=f"{doc_name}_{now.strftime('%d%m%Y')}.docx",
-                                caption=caption,
-                                parse_mode=ParseMode.MARKDOWN
-                            )
+                        try:
+                            with open(word_path, "rb") as f:
+                                await app.bot.send_document(
+                                    chat_id=tg_id,
+                                    document=f,
+                                    filename=f"{doc_name}_{now.strftime('%d%m%Y')}.docx",
+                                    caption=caption,
+                                    parse_mode=ParseMode.MARKDOWN
+                                )
+                        except Exception:
+                            with open(word_path, "rb") as f:
+                                await app.bot.send_document(
+                                    chat_id=tg_id,
+                                    document=f,
+                                    filename=f"{doc_name}_{now.strftime('%d%m%Y')}.docx",
+                                    caption=caption.replace("*", "")
+                                )
                         try:
                             os.remove(word_path)
                         except:
@@ -436,7 +447,10 @@ async def monitor_schedules(app: Application, db: Database, anthropic_key: str):
                             [InlineKeyboardButton("Да, создать" if lang == "ru" else "Иә, жасау", callback_data=call_key)],
                             [InlineKeyboardButton("Нет, спасибо" if lang == "ru" else "Жоқ, рақмет", callback_data="agent_skip")]
                         ])
-                        await app.bot.send_message(chat_id=tg_id, text=prompt_text, reply_markup=kb, parse_mode=ParseMode.MARKDOWN)
+                        try:
+                            await app.bot.send_message(chat_id=tg_id, text=prompt_text, reply_markup=kb, parse_mode=ParseMode.MARKDOWN)
+                        except Exception:
+                            await app.bot.send_message(chat_id=tg_id, text=prompt_text.replace("*", ""), reply_markup=kb)
                         await db.update_agent_context(tg_id, {"last_sched_mon_key": dedup_key})
 
                     await asyncio.sleep(0.5)
