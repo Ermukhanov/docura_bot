@@ -104,10 +104,7 @@ class MainMenuHandler:
                 InlineKeyboardButton("🧠 " + ("Память ИИ" if lang == "ru" else "ЖИ жады"), callback_data="agent_memory_menu"),
                 InlineKeyboardButton("💻 " + ("Личный кабинет" if lang == "ru" else "Жеке кабинет"), callback_data="prof_cabinet"),
             ],
-            [
-                InlineKeyboardButton("⭐ " + ("Подписка и PRO" if lang == "ru" else "Жазылым және PRO"), callback_data="prof_sub"),
-                InlineKeyboardButton("💎 BilimClass (MAX)", callback_data="kd_menu"),
-            ],
+            [InlineKeyboardButton("⭐ " + ("Подписка и PRO" if lang == "ru" else "Жазылым және PRO"), callback_data="prof_sub")],
             [
                 InlineKeyboardButton("🎁 " + ("Рефералы (+5 док)" if lang == "ru" else "Рефералдар (+5 құжат)"), callback_data="menu_invite"),
                 InlineKeyboardButton("👤 " + ("Мой профиль" if lang == "ru" else "Менің профилім"), callback_data="menu_profile"),
