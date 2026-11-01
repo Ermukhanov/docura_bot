@@ -957,7 +957,7 @@ class DocumentHandler:
             if student_id == 0:
                 await self._use_student_data(query, context, user_id, user, lang, student_id)
             else:
-                student = await self.db.get_student(student_id)
+                student = await self.db.get_student_for_teacher(student_id, user_id)
                 if not student:
                     return
                 grades = json.loads(student.get("grades", "{}"))
@@ -1179,7 +1179,7 @@ class DocumentHandler:
         context.user_data["q_index"]     = 0
 
         if student_id > 0:
-            student = await self.db.get_student(student_id)
+            student = await self.db.get_student_for_teacher(student_id, user_id)
             if student:
                 grades       = json.loads(student.get("grades", "{}"))
                 achievements = json.loads(student.get("achievements", "[]"))

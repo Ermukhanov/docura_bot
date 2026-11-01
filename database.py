@@ -398,6 +398,16 @@ class Database:
                 row = await cur.fetchone()
                 return dict(row) if row else None
 
+    async def get_student_for_teacher(self, student_id: int, teacher_id: int):
+        """Fetch a student only when it belongs to the requesting teacher."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM students WHERE id=? AND teacher_id=?", (student_id, teacher_id)
+            ) as cur:
+                row = await cur.fetchone()
+                return dict(row) if row else None
+
     async def add_student(self, teacher_id: int, data: dict | str = None, class_name: str = "", **kwargs):
         """Добавить ученика. Поддерживает как передачу словаря data, так и именованные аргументы:
         add_student(user_id, data={...})
@@ -451,10 +461,35 @@ class Database:
             await db.execute(f"UPDATE students SET {sets} WHERE id=?", vals)
             await db.commit()
 
+    async def update_student_for_teacher(self, student_id: int, teacher_id: int, data: dict) -> bool:
+        data = _validated_fields(data, STUDENT_UPDATE_COLUMNS, "student")
+        if not data:
+            return False
+        sanitized = {
+            key: json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value
+            for key, value in data.items()
+        }
+        sets = ", ".join(f"{key}=?" for key in sanitized)
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                f"UPDATE students SET {sets} WHERE id=? AND teacher_id=?",
+                [*sanitized.values(), student_id, teacher_id],
+            )
+            await db.commit()
+            return cursor.rowcount > 0
+
     async def delete_student(self, student_id: int):
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("DELETE FROM students WHERE id=?", (student_id,))
             await db.commit()
+
+    async def delete_student_for_teacher(self, student_id: int, teacher_id: int) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "DELETE FROM students WHERE id=? AND teacher_id=?", (student_id, teacher_id)
+            )
+            await db.commit()
+            return cursor.rowcount > 0
 
     # ===== DOCUMENTS =====
     async def save_document(self, teacher_id: int, doc_type: str, doc_name: str, content: str, score: int):

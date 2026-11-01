@@ -380,7 +380,7 @@ class ProfileHandler:
                 students = await self.db.get_students(user_id)
                 saved = next((student for student in reversed(students) if student["name"] == item["name"]), None)
                 if saved:
-                    await self.db.update_student(saved["id"], {
+                    await self.db.update_student_for_teacher(saved["id"], user_id, {
                         "birth_date": item.get("birth_date", ""), "parents": item.get("parent_name", ""),
                         "parent_phone": item.get("phone", ""),
                     })
@@ -397,13 +397,13 @@ class ProfileHandler:
 
         elif data.startswith("student_del_"):
             student_id = int(data[12:])
-            await self.db.delete_student(student_id)
+            await self.db.delete_student_for_teacher(student_id, user_id)
             await query.answer("✅ Удалено" if lang == "ru" else "✅ Жойылды", show_alert=False)
             await self._show_students(query, user_id, lang, is_kg)
 
         elif data.startswith("student_view_"):
             student_id = int(data[13:])
-            await self._show_student_detail(query, student_id, lang, is_kg)
+            await self._show_student_detail(query, student_id, user_id, lang, is_kg)
 
         elif data == "prof_back_students":
             await self._show_students(query, user_id, lang, is_kg)
@@ -495,8 +495,8 @@ class ProfileHandler:
 
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
-    async def _show_student_detail(self, query, student_id, lang, is_kg=False):
-        s = await self.db.get_student(student_id)
+    async def _show_student_detail(self, query, student_id, user_id, lang, is_kg=False):
+        s = await self.db.get_student_for_teacher(student_id, user_id)
         if not s:
             return
 
@@ -841,7 +841,7 @@ class ProfileHandler:
                     students = await self.db.get_students(user_id)
                     saved = next((student for student in reversed(students) if student["name"] == item["name"]), None)
                     if saved:
-                        await self.db.update_student(saved["id"], {
+                        await self.db.update_student_for_teacher(saved["id"], user_id, {
                             "birth_date": item.get("birth_date", ""), "parents": item.get("parent_name", ""),
                             "parent_phone": item.get("phone", ""),
                         })
@@ -1045,7 +1045,7 @@ class ProfileHandler:
         await self.db.add_student(user_id, student_data)
         saved = next((s for s in reversed(await self.db.get_students(user_id)) if s["name"] == student_data.get("name")), None)
         if saved:
-            await self.db.update_student(saved["id"], {
+            await self.db.update_student_for_teacher(saved["id"], user_id, {
                 "parents": student_data.get("parents", ""),
                 "parent_phone": student_data.get("parent_phone", ""),
                 "birth_date": student_data.get("birth_date", ""),
