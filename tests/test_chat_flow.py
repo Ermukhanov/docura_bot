@@ -124,6 +124,9 @@ async def main():
     u, m = upd(1, "сделай КСП по математике 7А")
     await h.handle_text(u, ctx)
     txt = m.sent[-1][0]
+    events = await db.get_funnel_event_counts()
+    check("выбор документа агентом записан в воронку",
+          any(e["event"] == "doc_type_chosen" and e["doc_type"] == "lesson_plan" for e in events))
     check("агент просит недостающие данные (тема/длительность/язык)",
           "не хватает" in txt and "Тема урока" in txt and "длительность" in txt.lower() and "язык" in txt.lower(), txt)
     check("предмет и класс (названы в сообщении) повторно НЕ спрашиваются", "Предмет и класс" not in txt)
@@ -146,6 +149,9 @@ async def main():
         check("заголовок документа на казахском", "ҚМЖ" in flat.upper() and "КРАТКОСРОЧНЫЙ" not in flat.upper(), flat[:120])
     st = await h._load_state(1)
     check("задача очищена после генерации", st["doc_task"] is None)
+    events = await db.get_funnel_event_counts()
+    check("готовый документ записан в воронку",
+          any(e["event"] == "doc_generated" and e["doc_type"] == "lesson_plan" for e in events))
 
     # ── 3. Приветствие: после генерации разговор «идёт» -> не здороваемся ──
     CHAT_REPLY["reply"] = "Добрый день, Айгуль! Рада помочь, что дальше?"

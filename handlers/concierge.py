@@ -760,6 +760,7 @@ class ConciergeHandler:
         user_id = user["tg_id"]
         state = await self._load_state(user_id)
         task = self._new_task(doc_type, ui_lang)
+        await self.db.log_funnel_event(user_id, "doc_type_chosen", doc_type)
         state["doc_task"] = task
         await self._advance_task(message, context, user, ui_lang, state, first_text)
 
