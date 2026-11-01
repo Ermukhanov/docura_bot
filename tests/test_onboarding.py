@@ -10,6 +10,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from database import Database
+from handlers.documents import DocumentHandler
 from handlers.main_menu import MainMenuHandler
 from handlers.onboarding import OnboardingHandler
 
@@ -97,6 +98,39 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         update = types.SimpleNamespace(callback_query=query, effective_user=query.from_user)
         await self.handler.callback(update, self.context)
         self.assertEqual(self.context.user_data["doc_type"], "characteristic")
+
+    async def test_question_count_tracks_prefilled_fields_and_backed_answers(self):
+        document_handler = DocumentHandler(self.db, "")
+        self.context.user_data.update({
+            "doc_type": "lesson_plan",
+            "doc_lang": "ru",
+            "questions": [
+                {"key": "subject_class", "q": "Предмет и класс?"},
+                {"key": "topic", "q": "Тема?"},
+                {"key": "date", "q": "Дата?"},
+            ],
+            "doc_answers": {"subject_class": "Математика, 7А"},
+        })
+        message = FakeMessage(705)
+
+        await document_handler._ask_question(message, self.context, "ru", 0, doc_name="КСП")
+        self.assertIn("Вопрос 1 из 2", message.sent[-1][0])
+        self.context.user_data["doc_answers"]["topic"] = "Дроби"
+        await document_handler._ask_question(message, self.context, "ru", 2, doc_name="КСП")
+        self.assertIn("Вопрос 2 из 2", message.sent[-1][0])
+
+    async def test_school_user_cannot_start_kindergarten_document(self):
+        await self.db.upsert_user(706, {"lang": "ru", "role": "teacher"})
+        query = FakeQuery(user_id=706)
+        context = types.SimpleNamespace(user_data={})
+        document_handler = DocumentHandler(self.db, "")
+
+        await document_handler._start_doc(
+            query, context, 706, await self.db.get_user(706), "ru", "kindergarten_cycle_schedule"
+        )
+
+        self.assertIn("роли", query.edited[-1][0])
+        self.assertEqual(await self.db.get_funnel_event_counts(), [])
 
     async def test_free_user_menu_shows_only_create_until_first_result(self):
         menu = MainMenuHandler(self.db)

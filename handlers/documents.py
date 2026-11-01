@@ -930,7 +930,7 @@ class DocumentHandler:
         # ── Категория документов (и школьная, и садиковская — cat_planning / cat_kg_planning и т.д.) ──
         if data.startswith("cat_"):
             cat = data[len("cat_"):]
-            await self._show_doc_list(query, lang, cat)
+            await self._show_doc_list(query, lang, cat, user)
 
         # ── Выбор конкретного документа ──
         elif data.startswith("doc_"):
@@ -977,7 +977,11 @@ class DocumentHandler:
             keyboard.append([InlineKeyboardButton("✍️ Ввести вручную" if lang == "ru" else "✍️ Қолмен енгізу", callback_data="gen_student_0")])
             await query.edit_message_text("Выберите ученика из базы:" if lang == "ru" else "Базадан оқушыны таңдаңыз:", reply_markup=InlineKeyboardMarkup(keyboard))
 
-    async def _show_doc_list(self, query, lang, cat):
+    async def _show_doc_list(self, query, lang, cat, user):
+        role_cats = CAT_DOCS_KG if (user or {}).get("role") == "kindergarten" else CAT_DOCS
+        if cat not in role_cats and cat != "common":
+            await self._show_categories(query, lang, user or {})
+            return
         docs  = CAT_DOCS_ALL.get(cat, [])
         names = DOC_NAMES.get(lang, DOC_NAMES["ru"])
         keyboard = [[InlineKeyboardButton(names.get(d, d), callback_data=f"doc_{d}")] for d in docs]
@@ -1008,6 +1012,18 @@ class DocumentHandler:
         )
 
     async def _start_doc(self, query, context, user_id, user, lang, doc_type):
+        user = user or {}
+        role = user.get("role")
+        role_cats = CAT_DOCS_KG if role == "kindergarten" else CAT_DOCS
+        allowed_types = {doc for docs in role_cats.values() for doc in docs}
+        allowed_types.update(doc for docs in CAT_DOCS_COMMON.values() for doc in docs)
+        if not role or doc_type not in allowed_types:
+            await query.edit_message_text(
+                "Сначала выберите документ, подходящий вашей роли." if lang == "ru"
+                else "Алдымен рөліңізге сәйкес құжатты таңдаңыз."
+            )
+            return
+        await self.db.log_funnel_event(user_id, "doc_type_chosen", doc_type)
         subscribed = user.get("subscribed", 0)
         free_used  = user.get("free_used", 0)
 
@@ -1057,6 +1073,8 @@ class DocumentHandler:
         # на экране ниже (или на экране выбора языка после выбора ученика).
         context.user_data.pop("doc_lang", None)
         context.user_data["doc_type"] = doc_type
+        context.user_data.pop("_question_set_key", None)
+        context.user_data.pop("_question_order", None)
 
         # Для документов по ученику/ребёнку — СНАЧАЛА предложить выбрать из базы,
         # и только потом (внутри _use_student_data, после выбора) спросить язык.
@@ -1244,17 +1262,32 @@ class DocumentHandler:
             return
 
         q      = qs[idx]
-        total  = len(qs)
-        bar    = _progress_bar(idx + 1, total)
         doc_lang = context.user_data.get("doc_lang", lang)
+        answers = context.user_data.get("doc_answers", {})
+        question_set_key = (context.user_data.get("doc_type"), doc_lang, tuple(item["key"] for item in qs))
+        if context.user_data.get("_question_set_key") != question_set_key:
+            context.user_data["_question_set_key"] = question_set_key
+            context.user_data["_question_order"] = [item["key"] for item in qs if item["key"] not in answers]
+        question_order = context.user_data.get("_question_order", [])
+        question_number = question_order.index(q["key"]) + 1
+        total = len(question_order)
+        bar = _progress_bar(question_number, total)
+        count_label = (
+            f"Question {question_number} of {total}"
+            if doc_lang == "en" else
+            f"Сұрақ {question_number} / {total}"
+            if doc_lang == "kz" else
+            f"Вопрос {question_number} из {total}"
+        )
 
         text = (
             f"📄 *{doc_name}* {_doc_lang_name(doc_lang)}\n"
+            f"{count_label}\n"
             f"{bar}\n"
             f"{DIVIDER}\n\n"
             f"{q['q']}"
         ) if doc_name else (
-            f"{bar}\n{DIVIDER}\n\n{q['q']}"
+            f"{count_label}\n{bar}\n{DIVIDER}\n\n{q['q']}"
         )
 
         keyboard = []
