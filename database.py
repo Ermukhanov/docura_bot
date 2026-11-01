@@ -13,6 +13,29 @@ from datetime import datetime, timedelta
 # даже если он подключён к сервису.
 DB_PATH = os.getenv("DB_PATH", "docura.db")
 
+USER_UPDATE_COLUMNS = frozenset({
+    "lang", "name", "school", "position", "subject", "classes", "age_group",
+    "is_class_teacher", "director", "role", "subscribed", "tier", "free_used",
+    "created_at", "notified_at", "ref_code", "referred_by", "ref_rewarded",
+    "bonus_docs", "promo_used", "reset_pending", "document_lang", "lang_selected",
+    "last_doc_type", "last_doc_date", "auto_generate", "reminder_days", "sub_expires",
+    "funnel_step", "seen_sections", "notifications_enabled", "last_active_at",
+    "last_broadcast_at",
+})
+STUDENT_UPDATE_COLUMNS = frozenset({
+    "name", "class_name", "grades", "achievements", "absences", "behavior", "notes",
+    "parents", "parent_phone", "address", "birth_date", "health_group", "notes_extended",
+})
+
+
+def _validated_fields(data: dict, allowed: frozenset[str], table: str) -> dict:
+    if not isinstance(data, dict):
+        raise TypeError(f"{table} updates must be a dictionary")
+    unknown = set(data) - allowed
+    if unknown:
+        raise ValueError(f"Unsupported {table} field(s): {', '.join(sorted(unknown))}")
+    return data
+
 class Database:
     def __init__(self):
         self.db_path = DB_PATH
@@ -242,26 +265,25 @@ class Database:
         await self.upsert_user(tg_id, {"seen_sections": json.dumps(seen)})
 
     async def upsert_user(self, tg_id: int, data: dict):
+        data = _validated_fields(data, USER_UPDATE_COLUMNS, "user")
         sanitized = {}
         for k, v in data.items():
             if isinstance(v, (dict, list)):
                 sanitized[k] = json.dumps(v, ensure_ascii=False)
             else:
                 sanitized[k] = v
-        user = await self.get_user(tg_id)
-        if user:
-            sets = ", ".join(f"{k}=?" for k in sanitized)
-            vals = list(sanitized.values()) + [tg_id]
-            async with aiosqlite.connect(self.db_path) as db:
-                await db.execute(f"UPDATE users SET {sets} WHERE tg_id=?", vals)
-                await db.commit()
-        else:
-            sanitized["tg_id"] = tg_id
-            cols = ", ".join(sanitized.keys())
-            qs   = ", ".join("?" * len(sanitized))
-            async with aiosqlite.connect(self.db_path) as db:
-                await db.execute(f"INSERT INTO users ({cols}) VALUES ({qs})", list(sanitized.values()))
-                await db.commit()
+        if not sanitized:
+            return
+        columns = ["tg_id", *sanitized]
+        placeholders = ", ".join("?" for _ in columns)
+        updates = ", ".join(f"{column}=excluded.{column}" for column in sanitized)
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                f"INSERT INTO users ({', '.join(columns)}) VALUES ({placeholders}) "
+                f"ON CONFLICT(tg_id) DO UPDATE SET {updates}",
+                [tg_id, *sanitized.values()],
+            )
+            await db.commit()
 
     async def increment_free(self, tg_id: int):
         async with aiosqlite.connect(self.db_path) as db:
@@ -414,6 +436,9 @@ class Database:
             await db.commit()
 
     async def update_student(self, student_id: int, data: dict):
+        data = _validated_fields(data, STUDENT_UPDATE_COLUMNS, "student")
+        if not data:
+            return
         sanitized = {}
         for k, v in data.items():
             if isinstance(v, (dict, list)):
