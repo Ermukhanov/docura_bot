@@ -212,12 +212,17 @@ class Database:
             await self._ensure_column(db, "users", "notifications_enabled", "INTEGER DEFAULT 1")
             await self._ensure_column(db, "users", "last_active_at", "TEXT")
             await self._ensure_column(db, "users", "last_broadcast_at", "TEXT")
+            await self._ensure_column(db, "users", "first_doc_reminder_sent_at", "TEXT")
             await db.commit()
 
             # Уникальный индекс на ref_code — создаём отдельно от ALTER TABLE,
             # т.к. SQLite не позволяет добавлять UNIQUE через ADD COLUMN
             await db.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_ref_code ON users(ref_code) WHERE ref_code IS NOT NULL"
+            )
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_funnel_events_event_created "
+                "ON funnel_events(event, created_at)"
             )
             await db.commit()
 
@@ -628,6 +633,55 @@ class Database:
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("UPDATE users SET notifications_enabled=? WHERE tg_id=?", (val, tg_id))
             await db.commit()
+
+    # ===== FUNNEL EVENTS / FIRST DOCUMENT REMINDER =====
+    async def log_funnel_event(self, tg_id: int, event: str, doc_type: str = ""):
+        if event not in {"start", "doc_type_chosen", "doc_generated"}:
+            raise ValueError(f"Unsupported funnel event: {event}")
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "INSERT INTO funnel_events (tg_id, event, doc_type) VALUES (?, ?, ?)",
+                (tg_id, event, doc_type or ""),
+            )
+            await db.commit()
+
+    async def get_funnel_event_counts(self) -> list[dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT event, doc_type, COUNT(*) AS count FROM funnel_events "
+                "GROUP BY event, doc_type ORDER BY event, count DESC"
+            ) as cur:
+                return [dict(row) for row in await cur.fetchall()]
+
+    async def get_users_due_first_doc_reminder(self) -> list[dict]:
+        """Users at least 24 hours old, with no generated document or prior reminder."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """SELECT u.* FROM users AS u
+                   WHERE datetime(u.created_at) <= datetime('now', '-1 day')
+                     AND COALESCE(u.notifications_enabled, 1)=1
+                     AND u.first_doc_reminder_sent_at IS NULL
+                     AND NOT EXISTS (
+                         SELECT 1 FROM documents AS d WHERE d.teacher_id=u.tg_id
+                     )
+                   ORDER BY u.created_at"""
+            ) as cur:
+                return [dict(row) for row in await cur.fetchall()]
+
+    async def mark_first_doc_reminder_sent(self, tg_id: int) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                """UPDATE users SET first_doc_reminder_sent_at=?
+                   WHERE tg_id=? AND first_doc_reminder_sent_at IS NULL
+                     AND NOT EXISTS (
+                         SELECT 1 FROM documents WHERE teacher_id=?
+                     )""",
+                (datetime.now().isoformat(), tg_id, tg_id),
+            )
+            await db.commit()
+            return cursor.rowcount > 0
 
     # ===== SCHEDULE (Расписание / режим дня) =====
     async def save_schedule(self, tg_id: int, schedule_data: Any):

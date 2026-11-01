@@ -1,5 +1,6 @@
 """Focused persistence tests. Run with: python tests/test_database.py"""
 import asyncio
+from datetime import datetime, timedelta, timezone
 import os
 import sys
 import tempfile
@@ -65,6 +66,33 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await self.db.update_student_for_teacher(student_id, 404, {"name": "Әлия А."}))
         self.assertTrue(await self.db.delete_student_for_teacher(student_id, 404))
         self.assertIsNone(await self.db.get_student_for_teacher(student_id, 404))
+
+    async def test_funnel_events_are_recorded_and_counted_by_type(self):
+        await self.db.log_funnel_event(501, "start")
+        await self.db.log_funnel_event(501, "doc_type_chosen", "lesson_plan")
+        await self.db.log_funnel_event(501, "doc_generated", "lesson_plan")
+
+        counts = await self.db.get_funnel_event_counts()
+        self.assertEqual(
+            {(row["event"], row["doc_type"]): row["count"] for row in counts},
+            {("start", ""): 1, ("doc_type_chosen", "lesson_plan"): 1,
+             ("doc_generated", "lesson_plan"): 1},
+        )
+        with self.assertRaises(ValueError):
+            await self.db.log_funnel_event(501, "unknown")
+
+    async def test_first_document_reminder_is_due_once_only_for_eligible_users(self):
+        old = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=25)).isoformat()
+        await self.db.upsert_user(601, {"name": "Кандидат", "created_at": old})
+        await self.db.upsert_user(602, {"name": "Уже создал", "created_at": old})
+        await self.db.save_document(602, "lesson_plan", "КСП", "content", 0)
+        await self.db.upsert_user(603, {"name": "Отключил", "created_at": old, "notifications_enabled": 0})
+
+        due = await self.db.get_users_due_first_doc_reminder()
+        self.assertEqual([user["tg_id"] for user in due], [601])
+        self.assertTrue(await self.db.mark_first_doc_reminder_sent(601))
+        self.assertFalse(await self.db.mark_first_doc_reminder_sent(601))
+        self.assertEqual(await self.db.get_users_due_first_doc_reminder(), [])
 
 
 if __name__ == "__main__":
