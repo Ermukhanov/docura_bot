@@ -16,8 +16,9 @@ from handlers.onboarding import OnboardingHandler
 
 
 class FakeMessage:
-    def __init__(self, chat_id=1):
+    def __init__(self, chat_id=1, text=""):
         self.chat_id = chat_id
+        self.text = text
         self.sent = []
 
     async def reply_text(self, text, **kwargs):
@@ -150,6 +151,30 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         text, kwargs = query.edited[0]
         self.assertIn("A\\_B\\*\\`\\[C]", text)
         self.assertEqual(kwargs["parse_mode"], "Markdown")
+
+    async def test_optional_profile_is_collected_after_first_document_and_can_be_skipped(self):
+        await self.db.upsert_user(707, {"lang": "ru", "role": "teacher"})
+        query = FakeQuery("onboard_save_profile", 707)
+        update = types.SimpleNamespace(callback_query=query, effective_user=query.from_user)
+        await self.handler.callback(update, self.context)
+        self.assertIn("Название школы", query.edited[-1][0])
+
+        for answer in ("Лицей № 8", "Учитель биологии"):
+            message = FakeMessage(707, answer)
+            update = types.SimpleNamespace(
+                effective_user=types.SimpleNamespace(id=707), effective_message=message, message=message
+            )
+            await self.handler.handle_text(update, self.context)
+
+        saved = await self.db.get_user(707)
+        self.assertEqual(saved["school"], "Лицей № 8")
+        self.assertEqual(saved["position"], "Учитель биологии")
+        self.assertIsNone(saved["director"])
+
+        query = FakeQuery("onboard_profile_skip_field", 707)
+        update = types.SimpleNamespace(callback_query=query, effective_user=query.from_user)
+        await self.handler.callback(update, self.context)
+        self.assertIn("Спасибо", query.edited[-1][0])
 
 
 if __name__ == "__main__":

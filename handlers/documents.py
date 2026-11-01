@@ -1699,18 +1699,30 @@ class DocumentHandler:
             "Ты получишь +2 документа, я +5"
         )
         share_url = f"https://t.me/share/url?url={quote(ref_link)}&text={share_text}"
+        fresh_user = await self.db.get_user(message.chat_id) or user
+        history = await self.db.get_history(message.chat_id, limit=2)
+        is_first_document = len(history) == 1
         keyboard = [
             [InlineKeyboardButton("📤 Поделиться с коллегой" if lang == "ru" else "📤 Әріптеспен бөлісу", url=share_url)],
             [InlineKeyboardButton("⭐ Оценить документ" if lang == "ru" else "⭐ Құжатты бағалау", callback_data="doc_rate")],
+        ]
+        if is_first_document and any(not fresh_user.get(key) for key in ("school", "position", "director")):
+            keyboard.append([InlineKeyboardButton(
+                "📝 Сохранить данные для следующих документов" if lang == "ru" else "📝 Келесі құжаттарға деректерді сақтау",
+                callback_data="onboard_save_profile",
+            )])
+            keyboard.append([InlineKeyboardButton(
+                "Позже" if lang == "ru" else "Кейін", callback_data="onboard_skip_profile"
+            )])
+        keyboard.extend([
             [InlineKeyboardButton("📄 Создать ещё" if lang == "ru" else "📄 Тағы жасау", callback_data="menu_create")],
             [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
-        ]
+        ])
         await message.reply_text(
             "📄 Документ готов! Что дальше?" if lang == "ru" else "📄 Құжат дайын! Келесі не?",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
         # Первое бесплатное создание — отдельное ненавязчивое приглашение.
-        fresh_user = await self.db.get_user(message.chat_id)
         if fresh_user and not fresh_user.get("subscribed") and fresh_user.get("free_used") == 1:
             await message.reply_text(
                 "🎁 Понравилось? Пригласи коллегу — оба получите бонусные документы!" if lang == "ru" else "🎁 Ұнады ма? Әріптесіңізді шақырыңыз — екеуіңіз де бонус құжат аласыз!",

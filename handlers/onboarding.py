@@ -91,6 +91,49 @@ class OnboardingHandler:
             query, context, user_id, user, lang, doc_type
         )
 
+    def _post_doc_profile_fields(self, lang, role):
+        if lang == "ru":
+            school = "Название детского сада" if role == "kindergarten" else "Название школы"
+            director = "ФИО заведующей" if role == "kindergarten" else "ФИО директора"
+            return [
+                ("school", f"🏫 {school}?"),
+                ("position", "💼 Ваша должность?"),
+                ("director", f"👔 {director}?"),
+            ]
+        return [
+            ("school", "🏫 Мекеменің атауы?"),
+            ("position", "💼 Лауазымыңыз?"),
+            ("director", "👔 Басшының аты-жөні?"),
+        ]
+
+    async def _ask_post_doc_profile_field(self, query, context, user_id, lang):
+        user = await self.db.get_user(user_id) or {}
+        fields = self._post_doc_profile_fields(lang, user.get("role", "teacher"))
+        idx = context.user_data.get("post_doc_profile_index", 0)
+        if idx >= len(fields):
+            context.user_data["step"] = None
+            context.user_data.pop("post_doc_profile_index", None)
+            text = "✅ Спасибо! Буду подставлять эти данные в следующие документы." if lang == "ru" else "✅ Рақмет! Бұл деректерді келесі құжаттарға қосамын."
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📄 Создать ещё" if lang == "ru" else "📄 Тағы жасау", callback_data="menu_create")],
+                [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
+            ])
+            await query.edit_message_text(text, reply_markup=keyboard)
+            return
+        context.user_data["step"] = "post_doc_profile"
+        buttons = [[InlineKeyboardButton(
+            "Пропустить остальные поля" if lang == "ru" else "Қалған өрістерді өткізу",
+            callback_data="onboard_skip_profile",
+        )]]
+        buttons.append([InlineKeyboardButton(
+            "Пропустить это поле" if lang == "ru" else "Бұл өрісті өткізу",
+            callback_data="onboard_profile_skip_field",
+        )])
+        await query.edit_message_text(
+            fields[idx][1] + ("\n\nЕсли не хотите сохранять поле — пропустите." if lang == "ru" else "\n\nСақтағыңыз келмесе, өткізіңіз."),
+            reply_markup=InlineKeyboardMarkup(buttons),
+        )
+
     async def _drop_chat_task(self, user_id: int):
         """Сбрасывает незавершённую подготовку документа в разговоре с ИИ-агентом."""
         try:
@@ -122,6 +165,24 @@ class OnboardingHandler:
         user_id = update.effective_user.id
         user = await self.db.get_user(user_id)
         lang = user.get("lang", "ru") if user else "ru"
+
+        if data == "onboard_save_profile":
+            context.user_data["post_doc_profile_index"] = 0
+            await self._ask_post_doc_profile_field(query, context, user_id, lang)
+            return
+        if data == "onboard_profile_skip_field":
+            context.user_data["post_doc_profile_index"] = context.user_data.get("post_doc_profile_index", 0) + 1
+            await self._ask_post_doc_profile_field(query, context, user_id, lang)
+            return
+        if data == "onboard_skip_profile":
+            context.user_data["step"] = None
+            context.user_data.pop("post_doc_profile_index", None)
+            text = "Хорошо, оставлю эти поля пустыми. Их можно добавить в профиле позже." if lang == "ru" else "Жақсы, бұл өрістерді бос қалдырамын. Кейін профильде толтыра аласыз."
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📄 Создать ещё" if lang == "ru" else "📄 Тағы жасау", callback_data="menu_create")],
+                [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
+            ]))
+            return
 
         quick_docs = {
             "onboard_doc_ksp": ("teacher", "lesson_plan"),
@@ -329,6 +390,19 @@ class OnboardingHandler:
         role = user.get("role", "teacher") if user else context.user_data.get("role", "teacher")
         step = context.user_data.get("step", "")
         text = message.text.strip()
+
+        if step == "post_doc_profile":
+            if len(text) > 200:
+                await message.reply_text(t(lang, "val_too_long"))
+                return
+            fields = self._post_doc_profile_fields(lang, (user or {}).get("role", role))
+            idx = context.user_data.get("post_doc_profile_index", 0)
+            if idx < len(fields) and text.lower() not in {"пропустить", "өткізу", "skip", "-"} and text:
+                await self.db.upsert_user(user_id, {fields[idx][0]: text})
+            context.user_data["post_doc_profile_index"] = idx + 1
+            from handlers.query_adapter import MessageQueryAdapter
+            await self._ask_post_doc_profile_field(MessageQueryAdapter(message), context, user_id, lang)
+            return
 
         if step == "onboard_registration":
             if len(text) < 2 or len(text) > 200:
