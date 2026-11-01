@@ -52,6 +52,20 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         unchanged = await self.db.get_student(student["id"])
         self.assertEqual(unchanged["class_name"], "7А")
 
+    async def test_student_records_are_scoped_to_their_owner(self):
+        await self.db.add_student(404, {"name": "Әлия", "class_name": "5Б"})
+        student = (await self.db.get_students(404))[0]
+        student_id = student["id"]
+
+        self.assertIsNone(await self.db.get_student_for_teacher(student_id, 405))
+        self.assertFalse(await self.db.update_student_for_teacher(student_id, 405, {"name": "Бөтен"}))
+        self.assertFalse(await self.db.delete_student_for_teacher(student_id, 405))
+        self.assertEqual((await self.db.get_student_for_teacher(student_id, 404))["name"], "Әлия")
+
+        self.assertTrue(await self.db.update_student_for_teacher(student_id, 404, {"name": "Әлия А."}))
+        self.assertTrue(await self.db.delete_student_for_teacher(student_id, 404))
+        self.assertIsNone(await self.db.get_student_for_teacher(student_id, 404))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
