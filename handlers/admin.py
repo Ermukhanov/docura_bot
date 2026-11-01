@@ -120,7 +120,7 @@ class AdminHandler:
             except BadRequest as e:
                 logger.warning("admin activate: cannot annotate message: %s", e)
             try:
-                extra_perks = "\n💎 Включает интеграцию с Kundelik.kz / BilimClass, презентации и автопилот!" if tier == "max" else ""
+                extra_perks = "\n💎 Включает автоматизацию расписания и сводные отчёты." if tier == "max" else ""
                 await context.bot.send_message(
                     chat_id=tg_id,
                     text=f"🎉 *Поздравляем! Подписка {t_name} активирована.*\n\nТеперь у вас безлимитный доступ к документам!{extra_perks}",
@@ -155,7 +155,7 @@ class AdminHandler:
         elif data == "admin_activate_max_btn":
             context.user_data["step"] = "admin_activate_max"
             kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
-            await _safe_edit(query, "💎 Введите Telegram ID для активации MAX (Kundelik + BilimClass + Автопилот):", reply_markup=InlineKeyboardMarkup(kb))
+            await _safe_edit(query, "💎 Введите Telegram ID для активации MAX:", reply_markup=InlineKeyboardMarkup(kb))
         elif data == "admin_deactivate_btn":
             context.user_data["step"] = "admin_deactivate"
             kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
@@ -271,16 +271,16 @@ class AdminHandler:
             try:
                 tg_id = int(text.strip())
                 await self.db.activate_subscription(tg_id, tier="max")
-                await message.reply_text(f"💎 Подписка MAX активирована для {tg_id}!\nВключено: Kundelik.kz, BilimClass, презентации, автопилот.")
+                await message.reply_text(f"💎 Подписка MAX активирована для {tg_id}!\nВключены автоматизация расписания и сводные отчёты.")
                 try:
                     await context.bot.send_message(
                         chat_id=tg_id,
                         text=(
                             "🎉 *Поздравляем! Вам активирован тариф MAX!*\n\n"
                             "💎 *Все премиальные функции доступны:*\n"
-                            "• Интеграция с Kundelik.kz и BilimClass (выставление оценок и расписание)\n"
-                            "• Безлимитная генерация документов и презентаций PowerPoint\n"
-                            "• Автопилот расписания и мониторинг"
+                            "• Безлимитная генерация документов\n"
+                            "• Автопилот расписания и мониторинг\n"
+                            "• Сводные отчёты по рабочим чатам"
                         ),
                         parse_mode=ParseMode.MARKDOWN
                     )
@@ -544,3 +544,4 @@ class AdminHandler:
         if len(text) > 3500:
             text = text[:3400] + "\n\n_...обрезано_"
         await _safe_edit(query, text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+
