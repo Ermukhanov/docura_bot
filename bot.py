@@ -22,7 +22,9 @@ from handlers.agent import AgentHandler
 from handlers.concierge import ConciergeHandler
 from handlers.kundelik_handler import KundelikHandler
 from handlers.query_adapter import MessageQueryAdapter
-from handlers.notifications import send_reminders, check_subscription_expirations, monitor_schedules
+from handlers.notifications import (
+    send_reminders, first_doc_reminder_loop, check_subscription_expirations, monitor_schedules,
+)
 from security import create_auth_token
 
 logging.basicConfig(
@@ -436,6 +438,7 @@ async def post_init(app: Application):
     # Храним ссылки на фоновые задачи: иначе сборщик мусора может прервать их молча.
     app.bot_data["bg_tasks"] = [
         asyncio.create_task(send_reminders(app, db, concierge)),
+        asyncio.create_task(first_doc_reminder_loop(app, db)),
         asyncio.create_task(check_subscription_expirations(app, db)),
         asyncio.create_task(monitor_schedules(app, db, app.bot_data["anthropic_key"])),
     ]

@@ -240,6 +240,56 @@ async def send_reminders(app: Application, db: Database, concierge=None):
         await asyncio.sleep(60)
 
 
+async def send_first_doc_reminders(app: Application, db: Database) -> int:
+    """Send one localized reminder to each eligible user without a first document."""
+    users = await db.get_users_due_first_doc_reminder()
+    sent = 0
+    for user in users:
+        tg_id = user["tg_id"]
+        if user.get("notifications_enabled") == 0:
+            continue
+        try:
+            memory = await db.get_agent_context(tg_id)
+            if memory.get("reminders_enabled") is False:
+                continue
+            lang = user.get("lang", "ru")
+            if lang == "kz":
+                text = (
+                    "👋 Сәлем! Сіз әлі алғашқы құжатыңызды жасамадыңыз. "
+                    "Құжат пен тілді таңдаңыз — мен қадамдап көмектесемін."
+                )
+                button = "📄 Құжат жасау"
+            else:
+                text = (
+                    "👋 Вы ещё не создали первый документ. Выберите документ и язык — "
+                    "я помогу пройти шаги и подготовить файл."
+                )
+                button = "📄 Создать документ"
+            await app.bot.send_message(
+                chat_id=tg_id,
+                text=text,
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton(button, callback_data="menu_create")
+                ]]),
+            )
+            await db.mark_first_doc_reminder_sent(tg_id)
+            sent += 1
+        except Exception as error:
+            logger.warning("First-document reminder failed for user %s: %s", tg_id, error)
+    return sent
+
+
+async def first_doc_reminder_loop(app: Application, db: Database):
+    """Poll hourly so the one-time reminder arrives shortly after the 24-hour mark."""
+    logger.info("🔔 First-document reminder scheduler active (hourly)")
+    while True:
+        try:
+            await send_first_doc_reminders(app, db)
+        except Exception:
+            logger.exception("First-document reminder scan failed")
+        await asyncio.sleep(60 * 60)
+
+
 async def check_subscription_expirations(app: Application, db: Database):
     """
     Отдельный фоновый цикл: снимает подписку PRO у тех, кто оплачивал сам через
