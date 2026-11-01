@@ -503,6 +503,10 @@ class Database:
                 "INSERT INTO documents (teacher_id, doc_type, doc_name, content, score) VALUES (?,?,?,?,?)",
                 (teacher_id, doc_type, doc_name, content, score)
             )
+            await db.execute(
+                "INSERT INTO funnel_events (tg_id, event, doc_type) VALUES (?, 'doc_generated', ?)",
+                (teacher_id, doc_type),
+            )
             await db.commit()
             return cursor.lastrowid
 

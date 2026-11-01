@@ -70,7 +70,7 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
     async def test_funnel_events_are_recorded_and_counted_by_type(self):
         await self.db.log_funnel_event(501, "start")
         await self.db.log_funnel_event(501, "doc_type_chosen", "lesson_plan")
-        await self.db.log_funnel_event(501, "doc_generated", "lesson_plan")
+        await self.db.save_document(501, "lesson_plan", "КСП", "готовый документ", 90)
 
         counts = await self.db.get_funnel_event_counts()
         self.assertEqual(
@@ -80,6 +80,15 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         )
         with self.assertRaises(ValueError):
             await self.db.log_funnel_event(501, "unknown")
+
+    async def test_document_and_generation_event_are_saved_together(self):
+        document_id = await self.db.save_document(502, "characteristic", "Характеристика", "текст", 95)
+        document = await self.db.get_document(document_id)
+        self.assertEqual(document["teacher_id"], 502)
+        counts = await self.db.get_funnel_event_counts()
+        self.assertIn(
+            {"event": "doc_generated", "doc_type": "characteristic", "count": 1}, counts
+        )
 
     async def test_first_document_reminder_is_due_once_only_for_eligible_users(self):
         old = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=25)).isoformat()
