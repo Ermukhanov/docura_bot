@@ -598,7 +598,10 @@ class Database:
                 """SELECT * FROM users WHERE
                    (notified_at IS NULL OR julianday('now') - julianday(notified_at) >= 3)
                    AND (notifications_enabled IS NULL OR notifications_enabled = 1)
-                   AND name IS NOT NULL""",
+                   AND name IS NOT NULL
+                   AND (COALESCE(free_used, 0) > 0 OR EXISTS (
+                       SELECT 1 FROM documents d WHERE d.teacher_id=users.tg_id
+                   ))""",
             ) as cur:
                 rows = await cur.fetchall()
                 return [dict(r) for r in rows]
@@ -611,7 +614,10 @@ class Database:
                 """SELECT * FROM users WHERE
                    (last_broadcast_at IS NULL OR julianday('now') - julianday(last_broadcast_at) >= ?)
                    AND (notifications_enabled IS NULL OR notifications_enabled = 1)
-                   AND name IS NOT NULL""",
+                   AND name IS NOT NULL
+                   AND (COALESCE(free_used, 0) > 0 OR EXISTS (
+                       SELECT 1 FROM documents d WHERE d.teacher_id=users.tg_id
+                   ))""",
                 (days,)
             ) as cur:
                 rows = await cur.fetchall()

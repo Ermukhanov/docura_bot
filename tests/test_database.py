@@ -103,6 +103,19 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(await self.db.mark_first_doc_reminder_sent(601))
         self.assertEqual(await self.db.get_users_due_first_doc_reminder(), [])
 
+    async def test_general_reminders_skip_users_without_a_first_document(self):
+        old = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=5)).isoformat()
+        await self.db.upsert_user(701, {"name": "Без документа", "created_at": old})
+        await self.db.upsert_user(702, {"name": "С документом", "created_at": old, "free_used": 1})
+        await self.db.save_document(702, "lesson_plan", "КСП", "готово", 90)
+
+        reminder_ids = {user["tg_id"] for user in await self.db.get_users_for_notification()}
+        broadcast_ids = {user["tg_id"] for user in await self.db.get_users_for_broadcast()}
+        self.assertNotIn(701, reminder_ids)
+        self.assertNotIn(701, broadcast_ids)
+        self.assertIn(702, reminder_ids)
+        self.assertIn(702, broadcast_ids)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
