@@ -2,6 +2,7 @@ import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
+from telegram.helpers import escape_markdown
 from handlers.texts import t
 from database import Database
 
@@ -18,8 +19,9 @@ class OnboardingHandler:
         user_id = update.effective_user.id
         user = await self.db.get_user(user_id)
 
-        # Зарегистрированным пользователям не показываем игровой онбординг снова.
-        if user and user.get("role") and ((user.get("role") == "kindergarten" and user.get("age_group")) or (user.get("role") == "teacher" and user.get("classes") and user.get("subject"))):
+        # После первого результата показываем обычное меню, сохраняя быстрый путь
+        # для тех, кто ещё не создал ни одного документа.
+        if user and user.get("role") and (user.get("free_used") or 0) > 0:
             context.user_data.clear()
             from handlers.main_menu import MainMenuHandler
             await MainMenuHandler(self.db).show(update, context)
@@ -41,19 +43,52 @@ class OnboardingHandler:
         if not message:
             return
 
+        telegram_lang = (getattr(update.effective_user, "language_code", "") or "").lower()
+        lang = (user or {}).get("lang") or ("kz" if telegram_lang.startswith(("kk", "kz")) else "ru")
+        await self.db.upsert_user(user_id, {"lang": lang, "lang_selected": 1})
+        await self.db.log_funnel_event(user_id, "start")
         context.user_data.clear()
         context.user_data["onboard_step"] = 0
+        context.user_data["onboard_quick_start"] = True
+        text = (
+            "👋 Привет! Я Docura — помогу подготовить документ Word.\n\n"
+            "Выберите, что нужно сделать. Затем выберите язык документа и ответьте на несколько коротких вопросов.\n\n"
+            "🎁 Первые 3 документа бесплатно"
+        ) if lang == "ru" else (
+            "👋 Сәлем! Мен Docura — Word құжатын дайындауға көмектесемін.\n\n"
+            "Қажетті құжатты таңдаңыз. Содан кейін құжат тілін таңдап, бірнеше қысқа сұраққа жауап беріңіз.\n\n"
+            "🎁 Алғашқы 3 құжат тегін"
+        )
         await message.reply_text(
-            "👋 Привет! Я *AI-агент Docura* — ваш персональный помощник для создания официальных документов.\n\n"
-            "📄 КСП, КТП, СОР/СОЧ — для учителей\n"
-            "🧸 Циклограммы, тематические планы — для воспитателей\n"
-            "📝 Характеристики, отчёты, заявления — всё по МОН РК\n\n"
-            "🎁 *3 документа бесплатно* — без карты\n\nСоздайте профиль чтобы начать:",
+            text,
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"), InlineKeyboardButton("🇰🇿 Қазақша", callback_data="lang_kz")],
-                [InlineKeyboardButton("🌐 Открыть сайт", url=SITE_URL)],
+                [InlineKeyboardButton("📘 КСП" if lang == "ru" else "📘 ҚМЖ", callback_data="onboard_doc_ksp")],
+                [InlineKeyboardButton("🧸 Циклограмма", callback_data="onboard_doc_cycle")],
+                [InlineKeyboardButton("👤 Характеристика", callback_data="onboard_doc_characteristic")],
+                [InlineKeyboardButton("📄 Другое" if lang == "ru" else "📄 Басқа құжат", callback_data="onboard_doc_other")],
             ]),
-            parse_mode=ParseMode.MARKDOWN,
+        )
+
+    async def _show_quick_role(self, query, lang):
+        text = (
+            "Чтобы подобрать нужный документ, выберите место работы:"
+            if lang == "ru" else
+            "Қажетті құжатты таңдау үшін жұмыс орныңызды көрсетіңіз:"
+        )
+        keyboard = [[
+            InlineKeyboardButton("🏫 Школа" if lang == "ru" else "🏫 Мектеп", callback_data="onboard_role_teacher"),
+            InlineKeyboardButton("🧸 Детский сад" if lang == "ru" else "🧸 Балабақша", callback_data="onboard_role_kindergarten"),
+        ], [InlineKeyboardButton("← Назад" if lang == "ru" else "← Артқа", callback_data="onboard_quick_back")]]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def _launch_first_document(self, query, context, user_id, lang, role, doc_type):
+        await self.db.upsert_user(user_id, {"lang": lang, "role": role})
+        context.user_data["onboard_role"] = role
+        context.user_data.pop("onboard_quick_doc", None)
+        user = await self.db.get_user(user_id) or {"tg_id": user_id, "lang": lang, "role": role}
+        from handlers.documents import DocumentHandler
+        await DocumentHandler(self.db, os.getenv("ANTHROPIC_API_KEY", ""))._start_doc(
+            query, context, user_id, user, lang, doc_type
         )
 
     async def _drop_chat_task(self, user_id: int):
@@ -88,6 +123,32 @@ class OnboardingHandler:
         user = await self.db.get_user(user_id)
         lang = user.get("lang", "ru") if user else "ru"
 
+        quick_docs = {
+            "onboard_doc_ksp": ("teacher", "lesson_plan"),
+            "onboard_doc_cycle": ("kindergarten", "kindergarten_cycle_schedule"),
+        }
+        if data in quick_docs:
+            role, doc_type = quick_docs[data]
+            await self._launch_first_document(query, context, user_id, lang, role, doc_type)
+            return
+        if data in {"onboard_doc_characteristic", "onboard_doc_other"}:
+            context.user_data["onboard_quick_doc"] = (
+                "characteristic" if data == "onboard_doc_characteristic" else "other"
+            )
+            await self._show_quick_role(query, lang)
+            return
+        if data == "onboard_quick_back":
+            await query.edit_message_text(
+                "Выберите документ:" if lang == "ru" else "Құжатты таңдаңыз:",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📘 КСП" if lang == "ru" else "📘 ҚМЖ", callback_data="onboard_doc_ksp")],
+                    [InlineKeyboardButton("🧸 Циклограмма", callback_data="onboard_doc_cycle")],
+                    [InlineKeyboardButton("👤 Характеристика", callback_data="onboard_doc_characteristic")],
+                    [InlineKeyboardButton("📄 Другое" if lang == "ru" else "📄 Басқа құжат", callback_data="onboard_doc_other")],
+                ]),
+            )
+            return
+
         # Единственный сценарий онбординга (пошаговый: язык → роль → как это
         # работает → анкета по полям → подтверждение профиля → финиш).
         if data in {"lang_ru", "lang_kz"}:
@@ -99,6 +160,19 @@ class OnboardingHandler:
             return
         if data.startswith("onboard_role_"):
             role = data.rsplit("_", 1)[1]
+            quick_choice = context.user_data.get("onboard_quick_doc")
+            if quick_choice:
+                if quick_choice == "other":
+                    await self.db.upsert_user(user_id, {"lang": lang, "role": role})
+                    context.user_data["onboard_role"] = role
+                    from handlers.documents import DocumentHandler
+                    await DocumentHandler(self.db, os.getenv("ANTHROPIC_API_KEY", ""))._show_categories(
+                        query, lang, await self.db.get_user(user_id)
+                    )
+                    return
+                doc_type = "characteristic" if role == "teacher" else "kg_child_characteristic"
+                await self._launch_first_document(query, context, user_id, lang, role, doc_type)
+                return
             await self.db.upsert_user(user_id, {"role": role})
             context.user_data["onboard_role"] = role
             context.user_data["onboard_step"] = 2
@@ -238,6 +312,7 @@ class OnboardingHandler:
         user = await self.db.get_user(user_id) or {}
         name_parts = (user.get("name") or "").split()
         name = name_parts[0] if name_parts else ("коллега" if lang == "ru" else "әріптес")
+        name = escape_markdown(name, version=1)
         context.user_data.clear()
         text = (f"🎉 *Добро пожаловать, {name}!*\n\nЯ — ваш AI-ассистент. Давайте прямо сейчас создадим ваш первый документ!\n\nПросто напишите мне, например:\n• «Сделай КСП по математике для 7 класса»\n• «Нужна характеристика на ученика»\n• «Создай циклограмму на эту неделю»\n\nИли выберите из меню 👇" if lang == "ru" else f"🎉 *Қош келдіңіз, {name}!*\n\nМен сіздің AI-көмекшіңізмін. Бірінші құжатты қазір жасайық!\n\nМаған жай жазыңыз, мысалы:\n• «7 сынып математикасына ҚМЖ жаса»\n• «Оқушыға мінездеме керек»\n• «Осы аптаға циклограмма жаса»\n\nНемесе мәзірден таңдаңыз 👇")
         await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN)

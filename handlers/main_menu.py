@@ -14,10 +14,7 @@ class MainMenuHandler:
     async def show(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         user = await self.db.get_user(user_id)
-        onboarding_done = user and user.get("role") and (
-            (user.get("role") == "kindergarten" and user.get("classes") and user.get("age_group")) or
-            (user.get("role") == "teacher" and user.get("classes") and user.get("subject"))
-        )
+        onboarding_done = user and user.get("role")
         if not onboarding_done:
             from handlers.onboarding import OnboardingHandler
             await OnboardingHandler(self.db).start(update, context)
@@ -83,7 +80,7 @@ class MainMenuHandler:
         user = await self.db.get_user(user_id) or {}
         is_kg = user.get("role") == "kindergarten"
         menu_text = self._build_menu_text(user, lang)
-        keyboard = self._main_keyboard(lang, is_kg)
+        keyboard = self._main_keyboard(lang, is_kg, show_extras=(user.get("free_used", 0) or 0) > 0)
         await context.bot.send_message(
             chat_id=chat_id,
             text=menu_text,
@@ -91,11 +88,14 @@ class MainMenuHandler:
             parse_mode=ParseMode.MARKDOWN
         )
 
-    def _main_keyboard(self, lang: str, is_kg: bool = False):
+    def _main_keyboard(self, lang: str, is_kg: bool = False, show_extras: bool = True):
+        create_button = [InlineKeyboardButton("📄 " + ("Создать документ" if lang == "ru" else "Құжат жасау"), callback_data="menu_create")]
+        if not show_extras:
+            return [create_button]
         students_title = "👥 " + ("Мои воспитанники" if is_kg and lang == "ru" else "Мои ученики" if lang == "ru" else "Менің оқушыларым")
         schedule_title = "📅 " + ("Режим дня" if is_kg and lang == "ru" else "Расписание" if lang == "ru" else "Кесте")
         return [
-            [InlineKeyboardButton("📄 " + ("Создать документ" if lang == "ru" else "Құжат жасау"), callback_data="menu_create")],
+            create_button,
             [
                 InlineKeyboardButton(students_title, callback_data="prof_students"),
                 InlineKeyboardButton(schedule_title, callback_data="agent_schedule"),
@@ -219,7 +219,9 @@ class MainMenuHandler:
 
         elif data == "menu_main":
             menu_text = self._build_menu_text(user, lang)
-            keyboard = self._main_keyboard(lang, user.get("role") == "kindergarten")
+            keyboard = self._main_keyboard(
+                lang, user.get("role") == "kindergarten", show_extras=(user.get("free_used", 0) or 0) > 0
+            )
             await query.edit_message_text(
                 menu_text,
                 reply_markup=InlineKeyboardMarkup(keyboard),
