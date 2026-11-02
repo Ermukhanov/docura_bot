@@ -84,14 +84,22 @@ class AdminHandler:
 
     async def callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
-        await query.answer()
         data  = query.data
+        answered = False
+
+        async def answer_once(*args, **kwargs):
+            nonlocal answered
+            if answered:
+                return None
+            answered = True
+            return await query.answer(*args, **kwargs)
 
         TIER_NAMES = {"pro": "PRO", "max": "MAX", "b2b": "B2B"}
 
         if not is_admin(update.effective_user.id):
-            await query.answer("⛔ Нет доступа", show_alert=True)
+            await answer_once("⛔ Нет доступа", show_alert=True)
             return
+        await answer_once()
 
         if data.startswith("admin_activate_") and data != "admin_activate_btn" and data != "admin_activate_max_btn":
             rest = data[len("admin_activate_"):]
@@ -104,7 +112,7 @@ class AdminHandler:
                     tier = tier_part if tier_part in TIER_NAMES else "pro"
                     tg_id = int(tg_id_part) if tg_id_part else int(rest)
             except ValueError:
-                await query.answer("❌ Некорректный ID", show_alert=True)
+                await answer_once("❌ Некорректный ID", show_alert=True)
                 return
 
             await self.db.activate_subscription(tg_id, tier=tier)
@@ -231,7 +239,6 @@ class AdminHandler:
         elif data.startswith("admin_sample_del_"):
             sample_id = int(data.split("_")[-1])
             await self.db.delete_sample(sample_id)
-            await query.answer("🗑 Удалено", show_alert=False)
             await self._show_samples_list(query)
         elif data.startswith("admin_sample_toggle_"):
             sample_id = int(data.split("_")[-1])
