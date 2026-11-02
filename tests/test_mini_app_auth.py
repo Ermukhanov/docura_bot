@@ -57,6 +57,7 @@ def test_profile_page_does_not_disable_mobile_zoom():
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
     assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
+    assert b"#authRequiredView { grid-column:1 / -1" in response.data
 
 
 def test_query_user_id_cannot_authenticate(monkeypatch):
