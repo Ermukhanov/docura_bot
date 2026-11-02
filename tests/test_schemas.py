@@ -69,5 +69,10 @@ for lg in ("kz", "en"):
     f = generate_word("", "Карта", "И", "П", monitoring_data={**data, "child_name": "Али"}, registry_doc_type="kg_individual_development_card", lang=lg)
     check(f"карта развития ({lg}) формируется", os.path.exists(f))
 
-print(f"\n{'ВСЁ ОК' if not fails else 'ЕСТЬ ОШИБКИ: ' + str(len(fails))}")
-sys.exit(1 if fails else 0)
+def test_document_schema_and_word_generation_checks():
+    assert not fails, "Ошибки проверки схем: " + ", ".join(fails)
+
+
+if __name__ == "__main__":
+    print(f"\n{'ВСЁ ОК' if not fails else 'ЕСТЬ ОШИБКИ: ' + str(len(fails))}")
+    sys.exit(1 if fails else 0)
