@@ -27,6 +27,14 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400 * 30  # 30 дней сессии
 
+
+@app.after_request
+def add_security_headers(response):
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    response.headers.setdefault('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+    return response
+
 DB_PATH = os.getenv('DB_PATH', os.path.join(os.path.dirname(__file__), 'docura.db'))
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
 
