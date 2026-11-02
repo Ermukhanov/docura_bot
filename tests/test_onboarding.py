@@ -133,6 +133,19 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("роли", query.edited[-1][0])
         self.assertEqual(await self.db.get_funnel_event_counts(), [])
 
+    async def test_kindergarten_user_cannot_start_school_document(self):
+        await self.db.upsert_user(708, {"lang": "ru", "role": "kindergarten"})
+        query = FakeQuery(user_id=708)
+        context = types.SimpleNamespace(user_data={})
+        document_handler = DocumentHandler(self.db, "")
+
+        await document_handler._start_doc(
+            query, context, 708, await self.db.get_user(708), "ru", "lesson_plan"
+        )
+
+        self.assertIn("роли", query.edited[-1][0])
+        self.assertEqual(await self.db.get_funnel_event_counts(), [])
+
     async def test_free_user_menu_shows_only_create_until_first_result(self):
         menu = MainMenuHandler(self.db)
         first = menu._main_keyboard("ru", show_extras=False)
