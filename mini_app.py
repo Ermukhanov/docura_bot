@@ -26,6 +26,7 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400 * 30  # 30 дней сессии
+MAX_RECEIPT_BYTES = 10 * 1024 * 1024
 
 
 @app.after_request
@@ -759,15 +760,36 @@ def api_verify_receipt():
     if not tg:
         return jsonify(error='Unauthorized'), 401
 
+    tier = request.form.get('tier', 'pro')
+    if tier not in ('pro', 'pro_promo', 'max', 'b2b'):
+        return jsonify(error='Выбран неизвестный тариф.'), 400
+    if request.content_length and request.content_length > MAX_RECEIPT_BYTES + 65536:
+        return jsonify(error='Файл слишком большой. Максимальный размер — 10 МБ.'), 413
+
     if 'receipt' not in request.files:
         return jsonify(error='Чек не прикреплен'), 400
     file = request.files['receipt']
     if not file or not file.filename:
         return jsonify(error='Файл чека не выбран'), 400
 
-    tier = request.form.get('tier', 'pro')
-    file_bytes = file.read()
-    receipt_hash = hashlib.sha256(file_bytes).hexdigest()[:16]
+    filename = file.filename.lower()
+    extension = os.path.splitext(filename)[1]
+    if extension not in ('.jpg', '.jpeg', '.png', '.pdf'):
+        return jsonify(error='Поддерживаются только JPG, PNG и PDF.'), 400
+    file_bytes = file.stream.read(MAX_RECEIPT_BYTES + 1)
+    if not file_bytes:
+        return jsonify(error='Файл чека пуст.'), 400
+    if len(file_bytes) > MAX_RECEIPT_BYTES:
+        return jsonify(error='Файл слишком большой. Максимальный размер — 10 МБ.'), 413
+    signatures = {
+        '.jpg': file_bytes.startswith(b'\xff\xd8\xff'),
+        '.jpeg': file_bytes.startswith(b'\xff\xd8\xff'),
+        '.png': file_bytes.startswith(b'\x89PNG\r\n\x1a\n'),
+        '.pdf': file_bytes.startswith(b'%PDF-'),
+    }
+    if not signatures[extension]:
+        return jsonify(error='Содержимое файла не соответствует формату чека.'), 400
+    receipt_hash = hashlib.sha256(file_bytes).hexdigest()
 
     with conn() as db:
         used = db.execute('SELECT 1 FROM receipts WHERE hash=?', (receipt_hash,)).fetchone()
@@ -788,7 +810,6 @@ def api_verify_receipt():
 
     try:
         b64_data = base64.standard_b64encode(file_bytes).decode('utf-8')
-        filename = file.filename.lower()
         media_type = 'application/pdf' if filename.endswith('.pdf') else 'image/jpeg' if filename.endswith(('.jpg', '.jpeg')) else 'image/png'
 
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -821,14 +842,20 @@ def api_verify_receipt():
         raw = re.sub(r"```[a-z]*", "", raw).strip("` \n")
         res_data = json.loads(raw)
 
-        if not res_data.get('valid'):
+        try:
+            verified_amount = int(res_data.get('amount'))
+        except (TypeError, ValueError):
+            verified_amount = None
+        if res_data.get('valid') is not True or verified_amount != expected_amount:
             reason = res_data.get('reason', 'не удалось подтвердить данные чека')
             return jsonify(error=f"Чек отклонён: {reason}. Убедитесь, что перевели {expected_amount} ₸ на номер {KASPI_NUMBER}."), 400
 
         clean_tier = "pro" if tier in ("pro", "pro_promo") else tier
         with conn() as db:
-            db.execute("INSERT OR IGNORE INTO receipts (hash, tg_id, tier, amount) VALUES (?,?,?,?)", (receipt_hash, tg['id'], clean_tier, expected_amount))
-            db.execute("""
+            inserted = db.execute("INSERT OR IGNORE INTO receipts (hash, tg_id, tier, amount) VALUES (?,?,?,?)", (receipt_hash, tg['id'], clean_tier, expected_amount))
+            if inserted.rowcount != 1:
+                return jsonify(error='Этот чек уже был использован для активации.'), 400
+            updated = db.execute("""
                 UPDATE users SET
                     subscribed=1,
                     sub_expires=datetime('now', '+30 days'),
@@ -836,11 +863,15 @@ def api_verify_receipt():
                     promo_used=CASE WHEN ?=1 THEN 1 ELSE promo_used END
                 WHERE tg_id=?
             """, (clean_tier, 1 if promo_available and tier in ('pro', 'pro_promo') else 0, tg['id']))
+            if updated.rowcount != 1:
+                db.rollback()
+                return jsonify(error='Пользователь не найден'), 404
             db.commit()
 
         return jsonify(ok=True, tier=clean_tier, message=f'Тариф Docura {clean_tier.upper()} успешно активирован на 30 дней!')
-    except Exception as e:
-        return jsonify(error=f"Ошибка проверки чека: {str(e)}"), 500
+    except Exception:
+        app.logger.exception("Payment receipt verification failed")
+        return jsonify(error="Не удалось проверить чек. Попробуйте позже."), 500
 
 
 # ── KUNDELIK.KZ / BILIMCLASS ИНТЕГРАЦИЯ (ТАРИФ MAX) ──

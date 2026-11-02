@@ -2,6 +2,7 @@ import mini_app
 import asyncio
 import hashlib
 import hmac
+import io
 import json
 import time
 from types import SimpleNamespace
@@ -359,6 +360,81 @@ def test_kundelik_grade_uses_only_a_student_from_live_roster(monkeypatch, tmp_pa
     assert accepted.status_code == 200
     assert FakeKundelikClient.posted == [(9988, "Әлия", "5А", 8)]
     assert rejected.status_code == 400
+
+
+def test_receipt_upload_rejects_unknown_tier_and_wrong_file_signature(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "receipt-input.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+    client = mini_app.app.test_client()
+
+    bad_tier = client.post("/api/payment/verify-receipt", data={
+        "tier": "admin", "receipt": (io.BytesIO(b"%PDF-1.4\ncheck"), "receipt.pdf")
+    })
+    wrong_signature = client.post("/api/payment/verify-receipt", data={
+        "tier": "pro", "receipt": (io.BytesIO(b"not a PDF"), "receipt.pdf")
+    })
+
+    assert bad_tier.status_code == 400
+    assert wrong_signature.status_code == 400
+
+
+def test_receipt_verification_requires_ai_amount_to_match_tier(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "receipt-amount.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+    monkeypatch.setattr(mini_app, "ANTHROPIC_API_KEY", "test-key")
+    with mini_app.conn() as db:
+        db.execute("INSERT INTO users (tg_id, role) VALUES (?, 'teacher')", (123456,))
+        db.commit()
+
+    class FakeClient:
+        def __init__(self, api_key):
+            self.messages = SimpleNamespace(create=lambda **kwargs: SimpleNamespace(content=[
+                SimpleNamespace(text=json.dumps({"valid": True, "amount": 999, "reason": ""}))
+            ]))
+
+    monkeypatch.setattr(mini_app.anthropic, "Anthropic", FakeClient)
+    response = mini_app.app.test_client().post("/api/payment/verify-receipt", data={
+        "tier": "pro", "receipt": (io.BytesIO(b"%PDF-1.4\ncheck"), "receipt.pdf")
+    })
+
+    assert response.status_code == 400
+    with mini_app.conn() as db:
+        user = db.execute("SELECT subscribed FROM users WHERE tg_id=?", (123456,)).fetchone()
+        assert user["subscribed"] == 0
+        assert db.execute("SELECT COUNT(*) FROM receipts").fetchone()[0] == 0
+
+
+def test_receipt_cannot_activate_two_accounts_after_concurrent_reuse(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "receipt-race.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+    monkeypatch.setattr(mini_app, "ANTHROPIC_API_KEY", "test-key")
+    receipt_bytes = b"%PDF-1.4\nshared-check"
+    receipt_hash = hashlib.sha256(receipt_bytes).hexdigest()
+    with mini_app.conn() as db:
+        db.execute("INSERT INTO users (tg_id, role) VALUES (?, 'teacher')", (123456,))
+        db.commit()
+
+    class FakeClient:
+        def __init__(self, api_key):
+            def verify_while_claiming(**kwargs):
+                with mini_app.conn() as db:
+                    db.execute("INSERT INTO receipts (hash, tg_id, tier, amount) VALUES (?, ?, ?, ?)",
+                               (receipt_hash, 654321, "pro", 4990))
+                    db.commit()
+                return SimpleNamespace(content=[SimpleNamespace(text=json.dumps({"valid": True, "amount": 4990}))])
+            self.messages = SimpleNamespace(create=verify_while_claiming)
+
+    monkeypatch.setattr(mini_app.anthropic, "Anthropic", FakeClient)
+    response = mini_app.app.test_client().post("/api/payment/verify-receipt", data={
+        "tier": "pro", "receipt": (io.BytesIO(receipt_bytes), "receipt.pdf")
+    })
+
+    assert response.status_code == 400
+    with mini_app.conn() as db:
+        assert db.execute("SELECT subscribed FROM users WHERE tg_id=?", (123456,)).fetchone()[0] == 0
 
 
 def test_kindergarten_account_cannot_use_school_kundelik_endpoints(monkeypatch, tmp_path):
