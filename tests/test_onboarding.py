@@ -10,9 +10,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from database import Database
-from handlers.documents import DocumentHandler
+from handlers.documents import DocumentHandler, limit_first_document_questions
 from handlers.main_menu import MainMenuHandler
 from handlers.onboarding import OnboardingHandler
+from handlers.rag_base import MON_RK_RULES, MON_RK_RULES_KG
 from handlers.texts import t
 
 
@@ -67,6 +68,23 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("МОН ҚР бұйрықтары бойынша", welcome)
             self.assertNotIn("строго по МОН РК", workflow)
             self.assertNotIn("мінсіз болғанша", workflow)
+        for rules in (MON_RK_RULES, MON_RK_RULES_KG):
+            self.assertIn("не подтвержд", rules)
+            self.assertNotIn("Приказ МОН РК №", rules)
+
+    async def test_first_document_quick_path_skips_optional_questions(self):
+        question_sets = {
+            "lesson_plan": ["subject_class", "topic", "duration", "goals"],
+            "kindergarten_cycle_schedule": ["group", "period", "week_topic", "events"],
+            "characteristic": ["student_name", "performance", "behavior", "activities", "purpose"],
+            "kg_child_characteristic": ["student_name", "performance", "behavior", "activities", "purpose"],
+        }
+        for doc_type, keys in question_sets.items():
+            questions = [{"key": key, "q": key} for key in keys]
+            quick = limit_first_document_questions(doc_type, questions, is_first_document=True)
+            regular = limit_first_document_questions(doc_type, questions, is_first_document=False)
+            self.assertLessEqual(len(quick), 3)
+            self.assertEqual(regular, questions)
 
     async def test_start_uses_telegram_language_and_shows_four_choices(self):
         user = types.SimpleNamespace(id=701, language_code="kk")

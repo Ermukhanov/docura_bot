@@ -599,6 +599,21 @@ CAT_DOCS_COMMON = {
 # независимо от роли (роль определяет только какое меню категорий показать)
 CAT_DOCS_ALL = {**CAT_DOCS, **CAT_DOCS_KG, **CAT_DOCS_COMMON}
 
+FIRST_DOC_OPTIONAL_QUESTION_KEYS = {
+    "lesson_plan": {"goals"},
+    "kindergarten_cycle_schedule": {"events"},
+    "characteristic": {"activities", "purpose"},
+    "kg_child_characteristic": {"activities", "purpose"},
+}
+
+
+def limit_first_document_questions(doc_type, questions, is_first_document):
+    """Skip optional detail questions on the first-document quick path."""
+    if not is_first_document:
+        return questions
+    optional_keys = FIRST_DOC_OPTIONAL_QUESTION_KEYS.get(doc_type, set())
+    return [question for question in questions if question.get("key") not in optional_keys]
+
 # Типы документов, для которых предлагается выбор ребёнка/ученика из базы
 STUDENT_LINKED_DOC_TYPES = [
     "characteristic", "absence_cert", "discipline_act", "gratitude_letter", "parent_letter",
@@ -868,6 +883,12 @@ class DocumentHandler:
                     "en": "✍️ Describe what you need in detail:",
                 }
                 qs = [{"key": "description", "q": fallback_q.get(doc_lang, "✍️ Describe:")}]
+            qs = limit_first_document_questions(
+                doc_type,
+                qs,
+                bool(context.user_data.get("onboard_quick_start"))
+                and not (user or {}).get("free_used", 0),
+            )
             profile_values = {
                 "age_group": user.get("age_group", ""), "group": user.get("age_group", ""),
                 "subject_class": ", ".join(x for x in [user.get("subject", ""), user.get("classes", "")] if x),
@@ -897,6 +918,12 @@ class DocumentHandler:
                 await self._start_development_monitoring(query, context, user, lang)
                 return
             qs = get_questions(doc_type, doc_lang, DOC_QUESTIONS, REGISTRY_QUESTIONS)
+            qs = limit_first_document_questions(
+                doc_type,
+                qs,
+                bool(context.user_data.get("onboard_quick_start"))
+                and not (user or {}).get("free_used", 0),
+            )
             context.user_data["questions"] = qs or [{"key": "description", "q": "✍️ Опишите, что нужно создать:"}]
             context.user_data["step"] = "waiting_answer"
             await self._ask_question(query.message, context, lang, 0, edit=True, query=query, doc_name=DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, doc_type))
@@ -1132,6 +1159,12 @@ class DocumentHandler:
             {"key": "week_topic", "q": "Какая тема недели? Например: Домашние животные, Лето, Транспорт" if lang == "ru" else "Аптаның тақырыбы қандай? Мысалы: Үй жануарлары, Жаз, Көлік"},
             {"key": "events", "q": "Есть обязательные занятия, праздники или мероприятия на этой неделе? Если нет, напиши: нет" if lang == "ru" else "Осы аптада міндетті сабақтар, мерекелер немесе іс-шаралар бар ма? Егер жоқ болса, «жоқ» деп жазыңыз"},
         ])
+        questions = limit_first_document_questions(
+            KINDERGARTEN_CYCLE_SCHEDULE,
+            questions,
+            bool(context.user_data.get("onboard_quick_start"))
+            and not (user or {}).get("free_used", 0),
+        )
 
         context.user_data["doc_type"] = KINDERGARTEN_CYCLE_SCHEDULE
         # ВАЖНО: здесь НЕ должно быть user.get("document_lang")/user.get("doc_language") —
@@ -1780,7 +1813,7 @@ class DocumentHandler:
             f"{schedule_ctx}\n"
             f"{samples_ctx}\n\n"
             f"Данные для этого документа:\n{answers_text}\n\n"
-            f"Используй профиль автоматически. Если данных не хватает — пиши [уточнить], не выдумывай."
+            f"Используй только данные из профиля и ответов. Неизвестные поля оставляй пустыми, не выдумывай и не подставляй «[уточнить]»."
         )
 
         # Схема документа на языке документа: заголовки, шапки таблиц, дни недели.
