@@ -175,6 +175,26 @@ def test_profile_and_schedule_writes_persist_for_authenticated_user(monkeypatch,
     ]
 
 
+def test_schedule_lesson_validates_fields_and_avoids_duplicate_entries(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "lesson-validation.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+    client = mini_app.app.test_client()
+
+    invalid = client.post("/api/schedule/lesson", json={
+        "day": ["Понедельник"], "time": "09:00", "subject": "Математика", "class": "5А"
+    })
+    payload = {"day": "Понедельник", "time": "09:00", "subject": "Математика", "class": "5А"}
+    first = client.post("/api/schedule/lesson", json=payload)
+    duplicate = client.post("/api/schedule/lesson", json=payload)
+
+    assert invalid.status_code == 400
+    assert first.status_code == 200
+    assert duplicate.status_code == 200
+    assert duplicate.get_json()["duplicate"] is True
+    assert len(duplicate.get_json()["schedule"]["Понедельник"]) == 1
+
+
 def test_memory_add_and_clear_persist_for_authenticated_user(monkeypatch, tmp_path):
     monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "memory.db"))
     monkeypatch.setattr(mini_app, "_schema_initialized", False)

@@ -478,17 +478,35 @@ def api_add_lesson():
     if not tg:
         return jsonify(error='Unauthorized'), 401
     data = request.get_json(silent=True) or {}
-    day = data.get('day', 'Понедельник')
-    time_val = data.get('time', '08:30')
-    subject = data.get('subject', 'Занятие')
-    class_val = data.get('class', '')
+    day = data.get('day')
+    time_val = data.get('time')
+    subject = data.get('subject')
+    class_val = data.get('class')
+    allowed_days = {'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'}
+    if not all(isinstance(value, str) for value in (day, time_val, subject, class_val)):
+        return jsonify(error='Заполните день, время, занятие и класс или группу.'), 400
+    day, time_val, subject, class_val = (value.strip() for value in (day, time_val, subject, class_val))
+    if day not in allowed_days or not time_val or not subject or not class_val:
+        return jsonify(error='Проверьте день, время, занятие и класс или группу.'), 400
+    if len(time_val) > 40 or len(subject) > 160 or len(class_val) > 100:
+        return jsonify(error='Одно из полей расписания слишком длинное.'), 400
 
     with conn() as db:
         row = db.execute('SELECT schedule_data FROM schedules WHERE tg_id=?', (tg['id'],)).fetchone()
-        schedule = json.loads(row['schedule_data']) if row and row['schedule_data'] else {}
+        try:
+            schedule = json.loads(row['schedule_data']) if row and row['schedule_data'] else {}
+        except (TypeError, json.JSONDecodeError):
+            return jsonify(error='Сохраненное расписание повреждено. Обратитесь в поддержку.'), 409
+        if not isinstance(schedule, dict):
+            return jsonify(error='Сохраненное расписание повреждено. Обратитесь в поддержку.'), 409
         if day not in schedule or not isinstance(schedule[day], list):
             schedule[day] = []
-        schedule[day].append({'time': time_val, 'subject': subject, 'class': class_val})
+        lesson = {'time': time_val, 'subject': subject, 'class': class_val}
+        if lesson in schedule[day]:
+            return jsonify(ok=True, schedule=schedule, duplicate=True)
+        if len(schedule[day]) >= 30:
+            return jsonify(error='На один день можно добавить не более 30 занятий.'), 400
+        schedule[day].append(lesson)
         new_json = json.dumps(schedule, ensure_ascii=False)
         db.execute(
             '''INSERT INTO schedules (tg_id, schedule_data, updated_at)
