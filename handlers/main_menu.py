@@ -101,7 +101,6 @@ class MainMenuHandler:
                 InlineKeyboardButton(schedule_title, callback_data="agent_schedule"),
             ],
             [
-                InlineKeyboardButton("🧠 " + ("Память ИИ" if lang == "ru" else "ЖИ жады"), callback_data="agent_memory_menu"),
                 InlineKeyboardButton("💻 " + ("Личный кабинет" if lang == "ru" else "Жеке кабинет"), callback_data="prof_cabinet"),
             ],
             [InlineKeyboardButton("⭐ " + ("Подписка и PRO" if lang == "ru" else "Жазылым және PRO"), callback_data="prof_sub")],

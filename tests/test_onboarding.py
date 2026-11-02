@@ -140,6 +140,8 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(first), 1)
         self.assertEqual(first[0][0].callback_data, "menu_create")
         self.assertGreater(len(after), 1)
+        callbacks = [button.callback_data for row in after for button in row]
+        self.assertNotIn("agent_memory_menu", callbacks)
 
     async def test_markdown_special_name_is_escaped_in_welcome(self):
         await self.db.upsert_user(704, {"name": "A_B*`[C]", "role": "teacher", "lang": "ru"})
