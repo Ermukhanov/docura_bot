@@ -140,6 +140,28 @@ def test_student_update_is_available_to_owner_and_scoped(monkeypatch, tmp_path):
         assert db.execute("SELECT name FROM students WHERE id=?", (other_id,)).fetchone()["name"] == "B"
 
 
+def test_profile_and_schedule_writes_persist_for_authenticated_user(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "profile-schedule.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+    with mini_app.conn() as db:
+        db.execute("INSERT INTO users (tg_id, role) VALUES (?, 'teacher')", (123456,))
+        db.commit()
+    client = mini_app.app.test_client()
+
+    profile_response = client.post("/api/profile", json={"name": "Учитель", "school": "Школа 7"})
+    schedule_response = client.post("/api/schedule/lesson", json={
+        "day": "Понедельник", "time": "09:00", "subject": "Математика", "class": "5А"
+    })
+
+    assert profile_response.status_code == 200
+    assert profile_response.get_json()["user"]["name"] == "Учитель"
+    assert schedule_response.status_code == 200
+    assert schedule_response.get_json()["schedule"]["Понедельник"] == [
+        {"time": "09:00", "subject": "Математика", "class": "5А"}
+    ]
+
+
 def test_kindergarten_account_cannot_use_school_kundelik_endpoints(monkeypatch, tmp_path):
     monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "kindergarten.db"))
     monkeypatch.setattr(mini_app, "_schema_initialized", False)

@@ -4356,15 +4356,14 @@ async function submitAddLesson(e) {
       body: JSON.stringify(payload)
     });
     const data = await res.json();
-    if (data.ok && data.schedule) {
-      STATE.schedule = data.schedule;
-    } else {
-      if (!STATE.schedule[day]) STATE.schedule[day] = [];
-      STATE.schedule[day].push({ time, subject, class: classVal });
+    if (!res.ok || !data.ok || !data.schedule) {
+      showToast(data.error || (STATE.lang === 'kz' ? 'Кестені сақтау мүмкін болмады' : STATE.lang === 'en' ? 'Could not save schedule' : 'Не удалось сохранить расписание'), '❌');
+      return;
     }
+    STATE.schedule = data.schedule;
   } catch(err) {
-    if (!STATE.schedule[day]) STATE.schedule[day] = [];
-    STATE.schedule[day].push({ time, subject, class: classVal });
+    showToast(STATE.lang === 'kz' ? 'Сервермен байланыс қатесі' : STATE.lang === 'en' ? 'Server connection error' : 'Ошибка связи с сервером', '❌');
+    return;
   }
 
   closeModal('modalAddLesson');
@@ -4398,13 +4397,14 @@ async function submitEditProfile(e) {
       body: JSON.stringify(payload)
     });
     const data = await res.json();
-    if (data.ok && data.user) {
-      STATE.user = { ...STATE.user, ...data.user };
-    } else {
-      STATE.user = { ...STATE.user, ...payload };
+    if (!res.ok || !data.ok || !data.user) {
+      showToast(data.error || (STATE.lang === 'kz' ? 'Профильді сақтау мүмкін болмады' : STATE.lang === 'en' ? 'Could not save profile' : 'Не удалось сохранить профиль'), '❌');
+      return;
     }
+    STATE.user = { ...STATE.user, ...data.user };
   } catch(e) {
-    STATE.user = { ...STATE.user, ...payload };
+    showToast(STATE.lang === 'kz' ? 'Сервермен байланыс қатесі' : STATE.lang === 'en' ? 'Server connection error' : 'Ошибка связи с сервером', '❌');
+    return;
   }
 
   closeModal('modalEditProfile');
