@@ -106,14 +106,23 @@ def test_student_delete_does_not_remove_another_users_record(monkeypatch, tmp_pa
             (654321, "Private student", "5A"),
         )
         student_id = cursor.lastrowid
+        own_id = db.execute(
+            "INSERT INTO students (teacher_id, name, class_name) VALUES (?, ?, ?)",
+            (123456, "Owned student", "5B"),
+        ).lastrowid
         db.commit()
     client = mini_app.app.test_client()
 
     response = client.post(f"/api/students/{student_id}/delete")
+    own_response = client.post(f"/api/students/{own_id}/delete")
 
-    assert response.status_code == 200
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Запись не найдена"
+    assert own_response.status_code == 200
+    assert own_response.get_json()["ok"] is True
     with mini_app.conn() as db:
         assert db.execute("SELECT 1 FROM students WHERE id=?", (student_id,)).fetchone()
+        assert db.execute("SELECT 1 FROM students WHERE id=?", (own_id,)).fetchone() is None
 
 
 def test_student_update_is_available_to_owner_and_scoped(monkeypatch, tmp_path):

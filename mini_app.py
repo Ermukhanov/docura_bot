@@ -393,7 +393,9 @@ def api_delete_student(student_id):
     if not tg:
         return jsonify(error='Unauthorized'), 401
     with conn() as db:
-        db.execute('DELETE FROM students WHERE id=? AND teacher_id=?', (student_id, tg['id']))
+        cur = db.execute('DELETE FROM students WHERE id=? AND teacher_id=?', (student_id, tg['id']))
+        if cur.rowcount == 0:
+            return jsonify(error='Запись не найдена'), 404
         db.commit()
     return jsonify(ok=True)
 
