@@ -40,6 +40,30 @@ def _esc(text) -> str:
     return text
 
 
+def _funnel_step_label(step):
+    if not step:
+        return "не зафиксирован"
+    labels = {
+        "doc_generated": "документ создан",
+        "registration_confirmation": "подтверждение анкеты",
+        "first_document_role_choice": "выбор школы или детского сада",
+        "first_document_language_choice": "выбор языка первого документа",
+        "document_language_choice": "выбор языка документа",
+        "document_monitoring_observations": "ввод наблюдений для мониторинга",
+    }
+    if step in labels:
+        return labels[step]
+    if step.startswith("registration_question_"):
+        return f"анкета, вопрос {step.rsplit('_', 1)[-1]}"
+    if step.startswith("onboarding_step_"):
+        return f"онбординг, шаг {step.rsplit('_', 1)[-1]}"
+    if step.startswith("document_") and "_question_" in step:
+        document, question = step[len("document_"):].split("_question_", 1)
+        doc_name = DOC_NAMES.get("ru", {}).get(document, document)
+        return f"{doc_name}, вопрос {question.replace('_of_', ' из ')}"
+    return str(step)
+
+
 async def _safe_edit(query, text, **kwargs):
     """edit_message_text, который не падает на типичных ошибках Telegram:
     «message is not modified» (повторное нажатие) и ошибке разбора Markdown."""
@@ -552,6 +576,7 @@ class AdminHandler:
             f"Регистрация: {'завершена' if user.get('name') else 'не завершена'}",
             f"Имя: {_esc(user.get('name') or '—')} | роль: {_esc(user.get('role') or '—')}",
             f"Последний визит: {_esc(user.get('last_active_at') or 'не записан')}",
+            f"Последний шаг воронки: {_esc(_funnel_step_label(user.get('funnel_step')))}",
             "",
             "*Последний зафиксированный этап:*",
         ]

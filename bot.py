@@ -407,7 +407,27 @@ async def _route_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def _track_user_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = getattr(update, "effective_user", None)
     if user:
-        await context.application.bot_data["db"].update_last_active(user.id)
+        state = context.user_data
+        step = state.get("step")
+        funnel_step = None
+        if step == "onboard_registration":
+            funnel_step = f"registration_question_{int(state.get('onboard_reg_index', 0)) + 1}"
+        elif step == "onboard_confirmation":
+            funnel_step = "registration_confirmation"
+        elif step == "waiting_answer":
+            questions = state.get("questions", [])
+            index = int(state.get("q_index", 0))
+            doc_type = str(state.get("doc_type") or "document")
+            funnel_step = f"document_{doc_type}_question_{min(index + 1, max(len(questions), 1))}_of_{max(len(questions), 1)}"
+        elif step == "monitoring_data":
+            funnel_step = "document_monitoring_observations"
+        elif step == "onboard_quick_doc":
+            funnel_step = "first_document_role_choice"
+        elif state.get("doc_type") and not state.get("doc_lang"):
+            funnel_step = "first_document_language_choice" if state.get("onboard_quick_start") else "document_language_choice"
+        elif state.get("onboard_step") is not None:
+            funnel_step = f"onboarding_step_{int(state['onboard_step'])}"
+        await context.application.bot_data["db"].update_last_active(user.id, funnel_step=funnel_step)
 
 
 _last_admin_alert = 0.0

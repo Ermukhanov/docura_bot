@@ -507,6 +507,10 @@ class Database:
                 "INSERT INTO funnel_events (tg_id, event, doc_type) VALUES (?, 'doc_generated', ?)",
                 (teacher_id, doc_type),
             )
+            await db.execute(
+                "UPDATE users SET funnel_step='doc_generated' WHERE tg_id=?",
+                (teacher_id,),
+            )
             await db.commit()
             return cursor.lastrowid
 
@@ -664,9 +668,15 @@ class Database:
             await db.execute("UPDATE users SET notified_at=? WHERE tg_id=?", (datetime.now().isoformat(), tg_id))
             await db.commit()
 
-    async def update_last_active(self, tg_id: int):
+    async def update_last_active(self, tg_id: int, funnel_step: str | None = None):
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("UPDATE users SET last_active_at=? WHERE tg_id=?", (datetime.now().isoformat(), tg_id))
+            if funnel_step:
+                await db.execute(
+                    "UPDATE users SET last_active_at=?, funnel_step=? WHERE tg_id=?",
+                    (datetime.now().isoformat(), funnel_step[:120], tg_id),
+                )
+            else:
+                await db.execute("UPDATE users SET last_active_at=? WHERE tg_id=?", (datetime.now().isoformat(), tg_id))
             await db.commit()
 
     async def update_broadcast_sent(self, tg_id: int):

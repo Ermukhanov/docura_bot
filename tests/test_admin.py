@@ -2,10 +2,16 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from handlers.admin import AdminHandler
+from handlers.admin import AdminHandler, _funnel_step_label
 
 
 class AdminCallbackTests(unittest.IsolatedAsyncioTestCase):
+    def test_funnel_step_is_shown_as_a_readable_stage(self):
+        self.assertEqual(
+            _funnel_step_label("document_lesson_plan_question_2_of_3"),
+            "Краткосрочный план (КСП), вопрос 2 из 3",
+        )
+
     async def test_admin_document_view_sends_stored_document_content(self):
         db = SimpleNamespace(get_document=AsyncMock(return_value={
             "id": 12, "teacher_id": 123, "doc_name": "КСП", "content": "Полный текст документа",

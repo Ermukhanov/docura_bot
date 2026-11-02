@@ -68,7 +68,7 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         await self.db.upsert_user(253, {"name": "Учитель"})
         await self.db.log_funnel_event(253, "start")
         await self.db.log_funnel_event(253, "doc_type_chosen", "lesson_plan")
-        await self.db.update_last_active(253)
+        await self.db.update_last_active(253, funnel_step="document_lesson_plan_question_1_of_2")
 
         events = await self.db.get_user_funnel_events(253)
         user = await self.db.get_user(253)
@@ -76,6 +76,7 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([event["event"] for event in events], ["doc_type_chosen", "start"])
         self.assertEqual(events[0]["doc_type"], "lesson_plan")
         self.assertTrue(user["last_active_at"])
+        self.assertEqual(user["funnel_step"], "document_lesson_plan_question_1_of_2")
 
     async def test_new_document_sample_archives_previous_active_version(self):
         await self.db.add_sample("lesson_plan", "ru", "old content", "Old", 1)
