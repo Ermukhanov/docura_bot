@@ -900,7 +900,9 @@ def api_kundelik_connect():
                 auth_res = loop.run_until_complete(
                     KundelikClient.login_with_credentials(login, password, provider, user_info=user_info)
                 )
-                token = auth_res.get('token', f'session_{provider}')
+                if not auth_res.get('ok') or not auth_res.get('token'):
+                    return jsonify(error=auth_res.get('error', 'Не удалось подтвердить вход в журнал.')), 400
+                token = auth_res['token']
             else:
                 token = f'demo_{provider}_token'
 

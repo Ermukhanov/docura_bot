@@ -133,13 +133,8 @@ class KundelikClient:
         self.provider = provider.lower()
         self.user_info = user_info or {}
         self.is_mock = (
-            not self.token or
             self.token.startswith("demo_") or
-            "demo" in self.token.lower() or
-            self.token.startswith("session_") or
-            self.token.startswith("auth_") or
-            self.token == "test" or
-            len(self.token) < 15
+            self.token == "test"
         )
         self.base_url = KUNDELIK_API_BASE if self.provider == "kundelik" else BILIMCLASS_API_BASE
 
@@ -191,15 +186,10 @@ class KundelikClient:
             except Exception as e:
                 logger.info("BilimClass live request note (using authenticated secure session): %s", e)
 
-        # Безопасная персональная сессия для учителя в Docura
-        session_hash = abs(hash(f"{login_clean}_{pwd_clean}")) % 10000000
-        session_token = f"auth_{provider}_{login_clean[:8]}_{session_hash}"
         return {
-            "ok": True,
-            "token": session_token,
+            "ok": False,
             "provider": provider,
-            "school_name": school_target,
-            "message": f"Авторизация в {provider.capitalize()} успешно выполнена!"
+            "error": "Не удалось подтвердить вход. Проверьте адрес сервиса и данные учетной записи."
         }
 
     async def get_profile(self) -> Dict[str, Any]:
@@ -231,41 +221,19 @@ class KundelikClient:
                     if resp.status == 200 and "application/json" in ct:
                         data = await resp.json()
                         return {"ok": True, "provider": self.provider, "data": data}
-                    return {"ok": True, "provider": self.provider, "data": prof}
+                    return {"ok": False, "provider": self.provider, "error": f"API returned HTTP {resp.status}"}
         except Exception as e:
-            logger.warning("BilimClass get_profile error: %s, using profile data", e)
-            return {"ok": True, "provider": self.provider, "data": prof}
+            logger.warning("Kundelik get_profile error: %s", e)
+            return {"ok": False, "provider": self.provider, "error": "Не удалось получить профиль из журнала."}
 
     async def get_classes(self) -> List[Dict[str, Any]]:
         """Получение списка классов учителя."""
         mock_data = MOCK_BILIMCLASS_DATA if self.provider == "bilimclass" else MOCK_KUNDELIK_DATA
         base_classes = mock_data["classes"]
 
-        # Если у учителя указан предмет — адаптируем предметы в классах
         subject = (self.user_info.get("subject") or "").strip()
-        classes_str = (self.user_info.get("classes") or "").strip()
-
-        result_classes = []
-        if classes_str:
-            # Учитель указал свои классы (например "7А, 8Б, 9А")
-            names = [c.strip() for c in classes_str.replace(";", ",").split(",") if c.strip()]
-            for idx, cname in enumerate(names):
-                result_classes.append({
-                    "id": 600 + idx + 1,
-                    "name": cname,
-                    "subject": f"{subject} (BilimClass)" if subject else "BilimClass",
-                    "students_count": 22 + (idx % 5)
-                })
-        elif subject:
-            for cls in base_classes:
-                c_copy = dict(cls)
-                c_copy["subject"] = f"{subject} (BilimClass)"
-                result_classes.append(c_copy)
-        else:
-            result_classes = list(base_classes)
-
         if self.is_mock:
-            return result_classes
+            return list(base_classes)
 
         url = f"{self.base_url}/edu-groups"
         try:
@@ -279,15 +247,14 @@ class KundelikClient:
                             res.append({
                                 "id": grp.get("id"),
                                 "name": grp.get("name") or grp.get("title", ""),
-                                "subject": grp.get("subject", subject or "BilimClass"),
+                                "subject": grp.get("subject", subject),
                                 "students_count": grp.get("students_count", 0)
                             })
-                        if res:
-                            return res
-                    return result_classes
+                        return res
+                    return []
         except Exception as e:
-            logger.warning("BilimClass get_classes error: %s, using fallback", e)
-            return result_classes
+            logger.warning("Kundelik get_classes error: %s", e)
+            return []
 
     async def get_students_for_class(self, class_id: int) -> List[Dict[str, Any]]:
         """Получение списка учеников конкретного класса."""
@@ -311,16 +278,15 @@ class KundelikClient:
                                 "id": st.get("id") or st.get("person_id"),
                                 "name": st.get("name") or f"{st.get('last_name', '')} {st.get('first_name', '')}".strip(),
                                 "class_name": st.get("class_name", ""),
-                                "avg_mark": st.get("avg_mark", 8.5),
-                                "absences": st.get("absences", 0),
+                                "avg_mark": st.get("avg_mark"),
+                                "absences": st.get("absences"),
                                 "recent_marks": st.get("recent_marks", [])
                             })
-                        if res:
-                            return res
-                    return fallback_students
+                        return res
+                    return []
         except Exception as e:
-            logger.warning("Kundelik get_students error: %s, using fallback", e)
-            return fallback_students
+            logger.warning("Kundelik get_students error: %s", e)
+            return []
 
     async def get_schedule(self) -> List[Dict[str, Any]]:
         """Получение расписания уроков на неделю."""
@@ -337,12 +303,11 @@ class KundelikClient:
                     if resp.status == 200:
                         data = await resp.json()
                         sched = data if isinstance(data, list) else data.get("schedules", [])
-                        if sched:
-                            return sched
-                    return fallback_sched
+                        return sched
+                    return []
         except Exception as e:
-            logger.warning("Kundelik get_schedule error: %s, using fallback", e)
-            return fallback_sched
+            logger.warning("Kundelik get_schedule error: %s", e)
+            return []
 
     async def post_mark(self, student_id: int, student_name: str, class_name: str,
                           mark_val: int, mark_type: str = "ФО",
@@ -382,11 +347,11 @@ class KundelikClient:
                         return {"ok": True, "posted": True, "data": data}
                     else:
                         text = await resp.text()
-                        logger.warning("Kundelik post_mark failed HTTP %d: %s, using simulated mark record", resp.status, text[:200])
-                        return simulated_ok
+                        logger.warning("Kundelik post_mark failed HTTP %d: %s", resp.status, text[:200])
+                        return {"ok": False, "error": f"Журнал не принял оценку (HTTP {resp.status})."}
         except Exception as e:
-            logger.warning("Kundelik post_mark exception: %s, using simulated mark record", e)
-            return simulated_ok
+            logger.warning("Kundelik post_mark exception: %s", e)
+            return {"ok": False, "error": "Не удалось связаться с журналом. Оценка не отправлена."}
 
 
 # Предопределённые методические дескрипторы для формативного оценивания (ФО)
