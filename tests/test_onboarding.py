@@ -13,6 +13,7 @@ from database import Database
 from handlers.documents import DocumentHandler
 from handlers.main_menu import MainMenuHandler
 from handlers.onboarding import OnboardingHandler
+from handlers.texts import t
 
 
 class FakeMessage:
@@ -57,6 +58,15 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         self.temp_dir.cleanup()
+
+    async def test_onboarding_does_not_claim_unverified_official_compliance(self):
+        for lang in ("ru", "kz"):
+            welcome = t(lang, "onboard_1_text")
+            workflow = t(lang, "onboard_2_text")
+            self.assertNotIn("по приказам МОН РК", welcome)
+            self.assertNotIn("МОН ҚР бұйрықтары бойынша", welcome)
+            self.assertNotIn("строго по МОН РК", workflow)
+            self.assertNotIn("мінсіз болғанша", workflow)
 
     async def test_start_uses_telegram_language_and_shows_four_choices(self):
         user = types.SimpleNamespace(id=701, language_code="kk")
