@@ -9,6 +9,19 @@ def test_auth_token_is_signed_and_rejects_tampering():
     assert verify_auth_token(token + "x") is None
 
 
+def test_browser_login_token_can_only_be_consumed_once(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "web-auth.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    client = mini_app.app.test_client()
+    token = create_auth_token(123456)
+
+    first_login = client.get(f"/auth?token={token}")
+    replay = client.get(f"/auth?token={token}")
+
+    assert first_login.status_code == 302
+    assert replay.status_code == 401
+
+
 def test_query_user_id_cannot_authenticate(monkeypatch):
     monkeypatch.setattr(mini_app, "verify_auth_token", lambda token: None)
     client = mini_app.app.test_client()

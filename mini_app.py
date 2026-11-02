@@ -140,6 +140,10 @@ def ensure_schema(c):
                 descriptor TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
+            CREATE TABLE IF NOT EXISTS consumed_auth_tokens (
+                token_hash TEXT PRIMARY KEY,
+                consumed_at INTEGER NOT NULL
+            );
         """)
         c.commit()
     except Exception:
@@ -153,6 +157,23 @@ def conn():
     return c
 
 
+def consume_auth_token(token):
+    """Atomically mark a valid short-lived login token as used exactly once."""
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    now = int(time.time())
+    try:
+        with conn() as db:
+            db.execute("DELETE FROM consumed_auth_tokens WHERE consumed_at < ?", (now - 86400,))
+            db.execute(
+                "INSERT INTO consumed_auth_tokens (token_hash, consumed_at) VALUES (?, ?)",
+                (token_hash, now),
+            )
+            db.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+
+
 def telegram_user():
     """Безопасная аутентификация пользователя.
     1. Проверяет Telegram WebApp initData (криптографическая подпись бот-токеном).
@@ -163,7 +184,7 @@ def telegram_user():
     token = request.args.get('token') or request.headers.get('X-Auth-Token')
     if token:
         token_uid = verify_auth_token(token)
-        if token_uid:
+        if token_uid and consume_auth_token(token):
             session.permanent = True
             session['user_id'] = token_uid
             return {'id': token_uid}
@@ -192,7 +213,7 @@ def auth_route():
     """Вход в личный кабинет по одноразовой защищённой ссылке из Telegram-бота."""
     token = request.args.get('token', '')
     user_id = verify_auth_token(token)
-    if not user_id:
+    if not user_id or not consume_auth_token(token):
         return render_template(
             'auth_error.html',
             error="Срок действия ссылки для входа истёк или токен недействителен. Пожалуйста, откройте личный кабинет через Telegram-бота @docurakz_bot заново."
