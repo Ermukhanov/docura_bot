@@ -679,6 +679,77 @@ def _doc_lang_name(doc_lang):
     return {"ru": "🇷🇺 Русский", "kz": "🇰🇿 Қазақша", "en": "🇬🇧 English"}.get(doc_lang, doc_lang)
 
 
+def _monitoring_data_prompt(lang):
+    messages = {
+        "ru": (
+            "Есть реальные наблюдения по ребёнку? Для заполнения отправь 5 строк в таком порядке: "
+            "физические качества, коммуникативные навыки, познавательные и интеллектуальные навыки, "
+            "творческие навыки и исследовательская деятельность, социально-эмоциональные навыки. "
+            "В каждой строке укажи 4 значения через |: первичное наблюдение (октябрь–декабрь) | "
+            "промежуточное (февраль–апрель) | итоговое (июнь–август) | уровень I/II/III.\n"
+            "ФИО, год рождения, возраст и группу можно указать отдельными строками, например «ФИО: ...». "
+            "Неизвестные поля оставь пустыми."
+        ),
+        "kz": (
+            "Бала бойынша нақты бақылауларыңыз бар ма? Толтыру үшін осы ретпен 5 жол жіберіңіз: "
+            "физикалық қасиеттер, коммуникативтік дағдылар, танымдық және зияткерлік дағдылар, "
+            "шығармашылық және зерттеу дағдылары, әлеуметтік-эмоциялық дағдылар. "
+            "Әр жолда | арқылы 4 мән болсын: бастапқы бақылау (қазан–желтоқсан) | "
+            "аралық (ақпан–сәуір) | қорытынды (маусым–тамыз) | I/II/III деңгей.\n"
+            "Баланың аты-жөнін, туған жылын, жасын және тобын бөлек жолдармен көрсетуге болады, мысалы: «Аты-жөні: ...». "
+            "Белгісіз өрістерді бос қалдырыңыз."
+        ),
+        "en": (
+            "Do you have real observations for the child? Send 5 lines in this order: "
+            "physical qualities, communication skills, cognitive and intellectual skills, "
+            "creative and research skills, social-emotional skills. "
+            "Each line must contain 4 values separated by |: initial (Oct–Dec) | intermediate (Feb–Apr) | "
+            "final (Jun–Aug) | level I/II/III.\n"
+            "You may add the child's name, birth year, age, and group on separate lines, for example “Name: ...”. "
+            "Leave unknown fields blank."
+        ),
+    }
+    labels = {
+        "ru": ("Отправить наблюдения", "Сделать пустой бланк", "Отмена"),
+        "kz": ("Бақылауларды жіберу", "Бос бланк жасау", "Бас тарту"),
+        "en": ("Send observations", "Create blank form", "Cancel"),
+    }
+    text = messages.get(lang, messages["ru"])
+    yes_label, blank_label, cancel_label = labels.get(lang, labels["ru"])
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(yes_label, callback_data="doc_monitoring_data_yes")],
+        [InlineKeyboardButton(blank_label, callback_data="doc_monitoring_data_no")],
+        [InlineKeyboardButton(cancel_label, callback_data="doc_cancel")],
+    ])
+    return text, keyboard
+
+
+def _parse_monitoring_submission(text):
+    field_labels = {
+        "child_name": {"фио", "фио ребёнка", "фио ребенка", "аты-жөні", "баланың аты-жөні", "name"},
+        "birth_year": {"год рождения", "туған жылы", "birth year"},
+        "age": {"возраст", "баланың жасы", "age"},
+        "group": {"группа", "тобы", "group"},
+    }
+    label_to_key = {label: key for key, labels in field_labels.items() for label in labels}
+    answers = {}
+    rows = []
+    for line in text.splitlines():
+        if ":" in line:
+            label, value = line.split(":", 1)
+            key = label_to_key.get(label.strip().lower().replace("ё", "е"))
+            if key and value.strip():
+                answers[key] = value.strip()
+                continue
+        cells = [cell.strip() for cell in line.split("|")]
+        if line.count("|") >= 3:
+            if ":" in cells[0]:
+                cells[0] = cells[0].split(":", 1)[1].strip()
+            rows.append(cells[:4])
+    answers["rows"] = rows
+    return answers
+
+
 def _pop_concierge_prefill(context, allowed_keys=None) -> dict:
     """Забирает данные, которые ИИ-агент concierge извлёк из свободного сообщения
     пользователя (например «КСП по математике для 7 класса» → subject_class).
@@ -857,10 +928,13 @@ class DocumentHandler:
             return
         if data == "doc_monitoring_data_yes":
             context.user_data["step"] = "monitoring_data"
-            await query.edit_message_text("Отправь данные строками: ФИО | физическое | коммуникативное | познавательное | творческое | социально-эмоциональное | примечание" if lang == "ru" else "Деректерді жолдармен жіберіңіз: Аты-жөні | дене | коммуникативтік | танымдық | шығармашылық | әлеуметтік-эмоциялық | ескертпе")
+            prompt, keyboard = _monitoring_data_prompt(lang)
+            await query.edit_message_text(prompt, reply_markup=keyboard)
             return
         if data == "doc_monitoring_data_no":
             context.user_data["doc_answers"]["rows"] = []
+            context.user_data["doc_answers"]["children"] = "пустой"
+            context.user_data["step"] = None
             await self._generate_monitoring(query.message, context, lang)
             return
 
@@ -1203,12 +1277,8 @@ class DocumentHandler:
             "q_index": 0,
             "step": None,
         })
-        if query and hasattr(query, "edit_message_text"):
-            try:
-                await query.edit_message_text("⏳ Начинаю генерацию..." if lang == "ru" else "⏳ Жасалуда...")
-            except Exception:
-                pass
-        await self._generate_monitoring(query.message, context, doc_lang)
+        prompt, keyboard = _monitoring_data_prompt(lang)
+        await query.edit_message_text(prompt, reply_markup=keyboard)
 
     async def _use_student_data(self, query, context, user_id, user, lang, student_id):
         doc_type = context.user_data.get("doc_type", "")
@@ -1374,16 +1444,23 @@ class DocumentHandler:
             if doc_type == DEVELOPMENT_MONITORING and idx + 1 >= len(qs) and text.strip().lower() in {"пустой", "бос", "blank", "empty"}:
                 await self._generate_monitoring(message, context, lang)
             elif doc_type == DEVELOPMENT_MONITORING and idx + 1 >= len(qs):
-                await message.reply_text("У тебя есть реальные наблюдения и уровни развития по детям?" if lang == "ru" else "Балалар бойынша нақты бақылаулар мен даму деңгейлері бар ма?", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Да, отправлю данные" if lang == "ru" else "Иә, деректерді жіберемін", callback_data="doc_monitoring_data_yes")], [InlineKeyboardButton("Нет, нужен пустой бланк" if lang == "ru" else "Жоқ, бос бланк керек", callback_data="doc_monitoring_data_no")], [InlineKeyboardButton("Отмена" if lang == "ru" else "Бас тарту", callback_data="doc_cancel")]]))
+                prompt, keyboard = _monitoring_data_prompt(lang)
+                await message.reply_text(prompt, reply_markup=keyboard)
             else:
                 await self._ask_question(message, context, lang, idx + 1, doc_name=doc_name)
 
         elif step == "monitoring_data":
-            rows = []
-            for line in text.splitlines():
-                cells = [c.strip() for c in line.split("|")]
-                if cells and cells[0]: rows.append(cells[:7])
-            context.user_data["doc_answers"]["rows"] = rows
+            parsed = _parse_monitoring_submission(text)
+            if len(parsed["rows"]) != 5:
+                retry_text = {
+                    "ru": "Не получилось распознать 5 строк наблюдений. Отправь ровно 5 строк, по одной на каждую область, по 4 значения через |.",
+                    "kz": "Бақылаудың 5 жолын тану мүмкін болмады. Әр салаға бір жолдан, | арқылы 4 мәнмен, дәл 5 жол жіберіңіз.",
+                    "en": "I couldn't read 5 observation rows. Send exactly 5 lines, one per area, with 4 values separated by |.",
+                }.get(lang, "Send exactly 5 observation rows with 4 values separated by |.")
+                await message.reply_text(retry_text)
+                return
+            context.user_data["doc_answers"].update(parsed)
+            context.user_data["step"] = None
             await self._generate_monitoring(message, context, lang)
 
         elif step == "help_write":
@@ -1516,10 +1593,11 @@ class DocumentHandler:
                 if x.strip() and x.strip().lower() not in {"автоматически", "автоматты", "automatic"}
             ]
         )
+        rows = answers.get("rows", [])
 
         # Автоматически подтягиваем воспитанников из базы, если список не задан вручную
         children_records = []
-        if not is_blank and not children and not answers.get("child_name"):
+        if not is_blank and not children and not answers.get("child_name") and not rows:
             try:
                 students = await self.db.get_students(message.chat_id)
                 for s in students or []:
@@ -1531,7 +1609,6 @@ class DocumentHandler:
             except Exception:
                 pass
 
-        rows = answers.get("rows", [])
         doc_title = DOC_NAMES.get(lang, DOC_NAMES["ru"]).get(doc_type, DOC_NAMES["ru"][DEVELOPMENT_MONITORING])
         filename = generate_word(
             "",

@@ -5,12 +5,13 @@ import sys
 import tempfile
 import types
 import unittest
+from unittest.mock import AsyncMock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from database import Database
-from handlers.documents import DocumentHandler, limit_first_document_questions
+from handlers.documents import DocumentHandler, _parse_monitoring_submission, limit_first_document_questions
 from handlers.main_menu import MainMenuHandler
 from handlers.onboarding import OnboardingHandler
 from handlers.profile import students_section_intro
@@ -163,6 +164,96 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.context.user_data["doc_answers"]["topic"] = "Дроби"
         await document_handler._ask_question(message, self.context, "ru", 2, doc_name="КСП")
         self.assertIn("Вопрос 2 из 2", message.sent[-1][0])
+
+    async def test_monitoring_submission_maps_five_rows_to_table_columns(self):
+        submitted = """ФИО: Айгуль Тестова
+Год рождения: 2021
+Возраст: 5
+Группа: Ботақан
+Физические: начальный | промежуточный | итоговый | III
+Коммуникативные: 1 | 2 | 3 | II
+Познавательные: 1 | 2 | 3 | I
+Творческие: 1 | 2 | 3 | III
+Социальные: 1 | 2 | 3 | II"""
+
+        parsed = _parse_monitoring_submission(submitted)
+
+        self.assertEqual(parsed["child_name"], "Айгуль Тестова")
+        self.assertEqual(parsed["birth_year"], "2021")
+        self.assertEqual(parsed["age"], "5")
+        self.assertEqual(parsed["group"], "Ботақан")
+        self.assertEqual(len(parsed["rows"]), 5)
+        self.assertEqual(parsed["rows"][0], ["начальный", "промежуточный", "итоговый", "III"])
+
+    async def test_monitoring_language_choice_offers_observations_or_blank_form(self):
+        document_handler = DocumentHandler(self.db, "")
+        document_handler._generate_monitoring = AsyncMock()
+        await self.db.upsert_user(707, {"lang": "kz", "role": "kindergarten"})
+        self.context.user_data.update({"doc_type": "development_monitoring"})
+        query = FakeQuery("doc_lang_kz", 707)
+        update = types.SimpleNamespace(callback_query=query, effective_user=query.from_user)
+
+        await document_handler.callback(update, self.context)
+
+        self.assertEqual(self.context.user_data["doc_lang"], "kz")
+        self.assertTrue(query.edited[-1][0].startswith("Бала бойынша"))
+        buttons = [button for row in query.edited[-1][1]["reply_markup"].inline_keyboard for button in row]
+        self.assertEqual(
+            [button.callback_data for button in buttons],
+            ["doc_monitoring_data_yes", "doc_monitoring_data_no", "doc_cancel"],
+        )
+        document_handler._generate_monitoring.assert_not_awaited()
+
+    async def test_blank_monitoring_choice_disables_database_child_prefill(self):
+        document_handler = DocumentHandler(self.db, "")
+        document_handler._generate_monitoring = AsyncMock()
+        self.context.user_data["doc_answers"] = {"rows": []}
+        query = FakeQuery("doc_monitoring_data_no", 708)
+        update = types.SimpleNamespace(callback_query=query, effective_user=query.from_user)
+
+        await document_handler.callback(update, self.context)
+
+        self.assertEqual(self.context.user_data["doc_answers"]["children"], "пустой")
+        document_handler._generate_monitoring.assert_awaited_once()
+
+    async def test_monitoring_reprompts_instead_of_generating_partial_observations(self):
+        document_handler = DocumentHandler(self.db, "")
+        document_handler._generate_monitoring = AsyncMock()
+        await self.db.upsert_user(709, {"lang": "ru", "role": "kindergarten"})
+        self.context.user_data.update({
+            "step": "monitoring_data",
+            "doc_answers": {},
+        })
+        invalid_submissions = [
+            "only one | partial | row | here",
+            "\n".join(f"Area {index}: a | b | c | III" for index in range(6)),
+        ]
+        for submission in invalid_submissions:
+            message = FakeMessage(709, submission)
+            update = types.SimpleNamespace(effective_user=types.SimpleNamespace(id=709), effective_message=message)
+            await document_handler.handle_text(update, self.context)
+            self.assertIn("ровно 5 строк", message.sent[-1][0])
+        self.assertEqual(self.context.user_data["step"], "monitoring_data")
+        document_handler._generate_monitoring.assert_not_awaited()
+
+    async def test_valid_monitoring_submission_generates_once_and_clears_input_step(self):
+        document_handler = DocumentHandler(self.db, "")
+        document_handler._generate_monitoring = AsyncMock()
+        await self.db.upsert_user(710, {"lang": "ru", "role": "kindergarten"})
+        self.context.user_data.update({"step": "monitoring_data", "doc_answers": {}})
+        message = FakeMessage(710, """ФИО: Айгуль Тестова
+Физические: начальный | промежуточный | итоговый | III
+Коммуникативные: 1 | 2 | 3 | II
+Познавательные: 1 | 2 | 3 | I
+Творческие: 1 | 2 | 3 | III
+Социальные: 1 | 2 | 3 | II""")
+        update = types.SimpleNamespace(effective_user=types.SimpleNamespace(id=710), effective_message=message)
+
+        await document_handler.handle_text(update, self.context)
+
+        self.assertEqual(self.context.user_data["doc_answers"]["child_name"], "Айгуль Тестова")
+        self.assertEqual(self.context.user_data["step"], None)
+        document_handler._generate_monitoring.assert_awaited_once()
 
     async def test_school_user_cannot_start_kindergarten_document(self):
         await self.db.upsert_user(706, {"lang": "ru", "role": "teacher"})
