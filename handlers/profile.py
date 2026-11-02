@@ -632,7 +632,7 @@ class ProfileHandler:
 
         keyboard = [
             [InlineKeyboardButton(pro_btn_title, callback_data="prof_choose_pro_promo" if (promo_available and not is_sub) else "prof_choose_pro")],
-            [InlineKeyboardButton(f"🚀 MAX с презентациями и агентом ({max_price:,} тг)".replace(",", " ") if lang == "ru" else f"🚀 MAX презентация және агентпен ({max_price:,} тг)".replace(",", " "), callback_data="prof_choose_max")],
+            [InlineKeyboardButton(f"🚀 MAX с ИИ-агентом ({max_price:,} тг)".replace(",", " ") if lang == "ru" else f"🚀 MAX ЖИ-агентпен ({max_price:,} тг)".replace(",", " "), callback_data="prof_choose_max")],
             [InlineKeyboardButton(f"🏢 B2B MAX для школы/садика ({b2b_price:,} тг)".replace(",", " ") if lang == "ru" else f"🏢 Мектеп/бақшаға B2B MAX ({b2b_price:,} тг)".replace(",", " "), callback_data="prof_choose_b2b")],
             [BACK_BTN(lang, "menu_profile")],
             [MENU_BTN(lang)],
