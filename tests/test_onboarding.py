@@ -13,6 +13,7 @@ from database import Database
 from handlers.documents import DocumentHandler, limit_first_document_questions
 from handlers.main_menu import MainMenuHandler
 from handlers.onboarding import OnboardingHandler
+from handlers.profile import students_section_intro
 from handlers.rag_base import MON_RK_RULES, MON_RK_RULES_KG
 from handlers.texts import t
 
@@ -85,6 +86,19 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
             regular = limit_first_document_questions(doc_type, questions, is_first_document=False)
             self.assertLessEqual(len(quick), 3)
             self.assertEqual(regular, questions)
+
+    async def test_student_section_intro_uses_school_and_kindergarten_terms(self):
+        for lang in ("ru", "kz"):
+            kindergarten_intro = students_section_intro(lang, is_kg=True).lower()
+            school_intro = students_section_intro(lang, is_kg=False).lower()
+            self.assertNotIn("оценк", kindergarten_intro)
+            self.assertNotIn("бағал", kindergarten_intro)
+            if lang == "ru":
+                self.assertIn("учен", school_intro)
+                self.assertIn("воспитан", kindergarten_intro)
+            else:
+                self.assertIn("оқушы", school_intro)
+                self.assertIn("тәрбиеленуш", kindergarten_intro)
 
     async def test_start_uses_telegram_language_and_shows_four_choices(self):
         user = types.SimpleNamespace(id=701, language_code="kk")
