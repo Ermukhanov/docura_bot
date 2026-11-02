@@ -591,9 +591,10 @@ async def run():
     def _run_mini_app():
         try:
             from mini_app import app as flask_app
+            from waitress import serve
             port = int(os.environ.get("PORT", 8080))
             logger.info("🌐 Веб-кабинет Mini App запускается на порту %d", port)
-            flask_app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+            serve(flask_app, host="0.0.0.0", port=port, threads=8)
         except OSError:
             # Порт уже занят (например, mini_app.py запущен в отдельном процессе локально)
             pass
