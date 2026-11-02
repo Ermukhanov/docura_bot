@@ -27,6 +27,7 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400 * 30  # 30 дней сессии
 MAX_RECEIPT_BYTES = 10 * 1024 * 1024
+MAX_SCHEDULE_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 @app.after_request
@@ -568,13 +569,46 @@ def api_upload_schedule_file():
         return jsonify(error='Файл не выбран'), 400
 
     filename = f.filename.lower()
+    extension = os.path.splitext(filename)[1]
+    if extension not in ('.png', '.jpg', '.jpeg', '.webp', '.pdf', '.docx'):
+        return jsonify(error='Поддерживаются форматы: JPG, PNG, WEBP, PDF, DOCX'), 400
+    if request.content_length and request.content_length > MAX_SCHEDULE_UPLOAD_BYTES + 65536:
+        return jsonify(error='Файл слишком большой. Максимальный размер — 10 МБ.'), 413
+    file_bytes = f.stream.read(MAX_SCHEDULE_UPLOAD_BYTES + 1)
+    if not file_bytes:
+        return jsonify(error='Файл пуст.'), 400
+    if len(file_bytes) > MAX_SCHEDULE_UPLOAD_BYTES:
+        return jsonify(error='Файл слишком большой. Максимальный размер — 10 МБ.'), 413
+    signatures = {
+        '.png': file_bytes.startswith(b'\x89PNG\r\n\x1a\n'),
+        '.jpg': file_bytes.startswith(b'\xff\xd8\xff'),
+        '.jpeg': file_bytes.startswith(b'\xff\xd8\xff'),
+        '.webp': len(file_bytes) >= 12 and file_bytes.startswith(b'RIFF') and file_bytes[8:12] == b'WEBP',
+        '.pdf': file_bytes.startswith(b'%PDF-'),
+    }
+    if extension == '.docx':
+        import zipfile
+        try:
+            with zipfile.ZipFile(io.BytesIO(file_bytes)) as archive:
+                entries = archive.infolist()
+                valid_docx = (
+                    len(entries) <= 500
+                    and sum(entry.file_size for entry in entries) <= 50 * 1024 * 1024
+                    and '[Content_Types].xml' in archive.namelist()
+                    and 'word/document.xml' in archive.namelist()
+                )
+        except (OSError, zipfile.BadZipFile):
+            valid_docx = False
+        signatures['.docx'] = valid_docx
+    if not signatures[extension]:
+        return jsonify(error='Содержимое файла не соответствует формату.'), 400
+
     with conn() as db:
         user = db.execute('SELECT * FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
     is_kg = bool(user and user['role'] == 'kindergarten')
     if not ANTHROPIC_API_KEY:
         return jsonify(error='ANTHROPIC_API_KEY не настроен на сервере'), 500
 
-    file_bytes = f.read()
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
     try:
@@ -622,6 +656,8 @@ def api_upload_schedule_file():
         elif filename.endswith('.pdf'):
             import pypdf
             reader = pypdf.PdfReader(io.BytesIO(file_bytes))
+            if len(reader.pages) > 50:
+                return jsonify(error='PDF содержит слишком много страниц (максимум 50).'), 400
             text_content = "\n".join(page.extract_text() or '' for page in reader.pages)
             prompt = f"Преобразуй это расписание/режим дня из PDF в JSON строго по дням недели (Понедельник-Суббота): {text_content}"
             response = client.messages.create(
@@ -645,8 +681,9 @@ def api_upload_schedule_file():
             )
             db.commit()
         return jsonify(ok=True, schedule=parsed)
-    except Exception as e:
-        return jsonify(error=f"Ошибка обработки файла: {str(e)}"), 500
+    except Exception:
+        app.logger.exception("Schedule upload processing failed")
+        return jsonify(error='Не удалось обработать файл. Проверьте его формат и попробуйте ещё раз.'), 500
 
 
 # ── ОБНОВЛЕНИЕ ПРОФИЛЯ ──

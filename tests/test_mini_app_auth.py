@@ -437,6 +437,27 @@ def test_receipt_cannot_activate_two_accounts_after_concurrent_reuse(monkeypatch
         assert db.execute("SELECT subscribed FROM users WHERE tg_id=?", (123456,)).fetchone()[0] == 0
 
 
+def test_schedule_upload_rejects_unsupported_oversized_and_mislabeled_files(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "schedule-upload.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+    client = mini_app.app.test_client()
+
+    unsupported = client.post("/api/schedule/upload", data={
+        "file": (io.BytesIO(b"text"), "schedule.txt")
+    })
+    mislabeled = client.post("/api/schedule/upload", data={
+        "file": (io.BytesIO(b"not really a PDF"), "schedule.pdf")
+    })
+    oversized = client.post("/api/schedule/upload", data={
+        "file": (io.BytesIO(b"%PDF-" + b"x" * (mini_app.MAX_SCHEDULE_UPLOAD_BYTES + 1)), "large.pdf")
+    })
+
+    assert unsupported.status_code == 400
+    assert mislabeled.status_code == 400
+    assert oversized.status_code == 413
+
+
 def test_kindergarten_account_cannot_use_school_kundelik_endpoints(monkeypatch, tmp_path):
     monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "kindergarten.db"))
     monkeypatch.setattr(mini_app, "_schema_initialized", False)
