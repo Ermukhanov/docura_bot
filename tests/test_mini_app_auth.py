@@ -49,6 +49,13 @@ def test_telegram_init_data_rejects_expired_auth_date():
     assert verify_telegram_init_data(expired, bot_token) is None
 
 
+def test_profile_page_does_not_disable_mobile_zoom():
+    response = mini_app.app.test_client().get("/")
+
+    assert response.status_code == 200
+    assert b"user-scalable=no" not in response.data
+
+
 def test_query_user_id_cannot_authenticate(monkeypatch):
     monkeypatch.setattr(mini_app, "verify_auth_token", lambda token: None)
     client = mini_app.app.test_client()
