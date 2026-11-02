@@ -4428,10 +4428,15 @@ async function addMemoryNote() {
       body: JSON.stringify({ note, tg_id: STATE.tg_id, date: new Date().toISOString() })
     });
     const data = await res.json();
-    if (data.ok) {
-      STATE.memory = { context_data: JSON.stringify(data.context) };
+    if (!res.ok || !data.ok) {
+      showToast(data.error || (STATE.lang === 'kz' ? 'Жазбаны сақтау мүмкін болмады' : STATE.lang === 'en' ? 'Could not save note' : 'Не удалось сохранить заметку'), '❌');
+      return;
     }
-  } catch(e) {}
+    STATE.memory = { context_data: JSON.stringify(data.context) };
+  } catch(e) {
+    showToast(STATE.lang === 'kz' ? 'Сервермен байланыс қатесі' : STATE.lang === 'en' ? 'Server connection error' : 'Ошибка связи с сервером', '❌');
+    return;
+  }
 
   inp.value = '';
   renderMemory();
@@ -4442,7 +4447,7 @@ async function clearMemory() {
   const i18 = I18N[STATE.lang] || I18N.ru;
   if (!confirm(i18.confirmClearMemory)) return;
   try {
-    await fetch('/api/memory/clear', {
+    const res = await fetch('/api/memory/clear', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -4450,7 +4455,15 @@ async function clearMemory() {
       },
       body: JSON.stringify({ tg_id: STATE.tg_id })
     });
-  } catch(e) {}
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      showToast(data.error || (STATE.lang === 'kz' ? 'Жадты тазарту мүмкін болмады' : STATE.lang === 'en' ? 'Could not clear memory' : 'Не удалось очистить память'), '❌');
+      return;
+    }
+  } catch(e) {
+    showToast(STATE.lang === 'kz' ? 'Сервермен байланыс қатесі' : STATE.lang === 'en' ? 'Server connection error' : 'Ошибка связи с сервером', '❌');
+    return;
+  }
   STATE.memory = null;
   renderMemory();
   showToast(i18.toastMemoryCleared);

@@ -162,6 +162,24 @@ def test_profile_and_schedule_writes_persist_for_authenticated_user(monkeypatch,
     ]
 
 
+def test_memory_add_and_clear_persist_for_authenticated_user(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "memory.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+    client = mini_app.app.test_client()
+
+    add_response = client.post("/api/memory/add", json={"note": "Use short explanations"})
+    assert add_response.status_code == 200
+    assert add_response.get_json()["context"]["user_preferences"][0]["text"] == "Use short explanations"
+    with mini_app.conn() as db:
+        assert db.execute("SELECT 1 FROM agent_memory WHERE tg_id=?", (123456,)).fetchone()
+
+    clear_response = client.post("/api/memory/clear")
+    assert clear_response.status_code == 200
+    with mini_app.conn() as db:
+        assert db.execute("SELECT 1 FROM agent_memory WHERE tg_id=?", (123456,)).fetchone() is None
+
+
 def test_kindergarten_account_cannot_use_school_kundelik_endpoints(monkeypatch, tmp_path):
     monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "kindergarten.db"))
     monkeypatch.setattr(mini_app, "_schema_initialized", False)
