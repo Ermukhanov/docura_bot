@@ -578,9 +578,9 @@ CAT_DOCS = {
 
 # Категории документов садика (полностью отдельный набор — НЕ школьные типы)
 CAT_DOCS_KG = {
-    "kg_planning": ["kg_thematic_plan", "kg_activity_summary", "kg_individual_development_card", "kindergarten_cycle_schedule", "kg_perspective_plan", "kg_matinee_script"],
+    "kg_planning": ["kg_thematic_plan", "kg_activity_summary", "kindergarten_cycle_schedule", "kg_perspective_plan", "kg_matinee_script"],
     "kg_reports":  ["kg_monthly_report"],
-    "kg_children": ["kg_child_characteristic", "kg_parent_letter", "kg_absence_cert", "development_monitoring"],
+    "kg_children": ["kg_child_characteristic", "kg_parent_letter", "kg_absence_cert", "kg_individual_development_card"],
     "kg_personal": ["kg_vacation_request", "kg_explanation", "kg_announcement"],
 }
 

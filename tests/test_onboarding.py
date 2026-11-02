@@ -11,7 +11,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from database import Database
-from handlers.documents import DocumentHandler, _parse_monitoring_submission, limit_first_document_questions
+from handlers.documents import CAT_DOCS_KG, DocumentHandler, _parse_monitoring_submission, limit_first_document_questions
 from handlers.main_menu import MainMenuHandler
 from handlers.onboarding import OnboardingHandler
 from handlers.profile import students_section_intro
@@ -89,6 +89,17 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
             regular = limit_first_document_questions(doc_type, questions, is_first_document=False)
             self.assertLessEqual(len(quick), 3)
             self.assertEqual(regular, questions)
+
+    async def test_kindergarten_menu_shows_one_development_card_under_children(self):
+        category_by_type = {
+            doc_type: category
+            for category, doc_types in CAT_DOCS_KG.items()
+            for doc_type in doc_types
+        }
+
+        self.assertEqual(category_by_type["kg_individual_development_card"], "kg_children")
+        self.assertNotIn("development_monitoring", category_by_type)
+        self.assertNotIn("kg_monitoring", category_by_type)
 
     async def test_student_section_intro_uses_school_and_kindergarten_terms(self):
         for lang in ("ru", "kz"):
