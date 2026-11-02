@@ -60,6 +60,7 @@ def test_query_user_id_cannot_authenticate(monkeypatch):
 
 def test_authenticated_user_cannot_read_another_profile(monkeypatch):
     monkeypatch.setattr(mini_app, "verify_auth_token", lambda token: None)
+    monkeypatch.setitem(mini_app.app.config, "SESSION_COOKIE_SECURE", False)
     client = mini_app.app.test_client()
     with client.session_transaction() as session:
         session["user_id"] = 123456
