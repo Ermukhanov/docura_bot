@@ -93,6 +93,26 @@ def test_student_creation_rejects_invalid_absence_count(monkeypatch, tmp_path):
     assert response.get_json()["error"]
 
 
+def test_student_delete_does_not_remove_another_users_record(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "student-owner.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+    with mini_app.conn() as db:
+        cursor = db.execute(
+            "INSERT INTO students (teacher_id, name, class_name) VALUES (?, ?, ?)",
+            (654321, "Private student", "5A"),
+        )
+        student_id = cursor.lastrowid
+        db.commit()
+    client = mini_app.app.test_client()
+
+    response = client.post(f"/api/students/{student_id}/delete")
+
+    assert response.status_code == 200
+    with mini_app.conn() as db:
+        assert db.execute("SELECT 1 FROM students WHERE id=?", (student_id,)).fetchone()
+
+
 def test_kindergarten_account_cannot_use_school_kundelik_endpoints(monkeypatch, tmp_path):
     monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "kindergarten.db"))
     monkeypatch.setattr(mini_app, "_schema_initialized", False)

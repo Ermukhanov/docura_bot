@@ -4268,10 +4268,7 @@ async function submitAddStudent(e) {
       showToast(data.error || 'Ошибка сохранения', '❌');
     }
   } catch(err) {
-    STATE.students.push({ id: Date.now(), name, class_name, behavior, grades, absences });
-    closeModal('modalAddStudent');
-    renderUI();
-    showToast(isKg ? i18.toastStudentSavedKg : i18.toastStudentSaved);
+    showToast(STATE.lang === 'kz' ? 'Сервермен байланыс қатесі' : STATE.lang === 'en' ? 'Could not save student' : 'Не удалось сохранить запись', '❌');
   }
 }
 
@@ -4280,7 +4277,7 @@ async function deleteStudent(id) {
   const i18 = I18N[STATE.lang] || I18N.ru;
   if (!confirm(isKg ? i18.confirmDeleteStudentKg : i18.confirmDeleteStudent)) return;
   try {
-    await fetch(`/api/students/${id}/delete`, {
+    const res = await fetch(`/api/students/${id}/delete`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -4288,7 +4285,15 @@ async function deleteStudent(id) {
       },
       body: JSON.stringify({ tg_id: STATE.tg_id })
     });
-  } catch(e) {}
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      showToast(data.error || (STATE.lang === 'kz' ? 'Жазбаны өшіру мүмкін болмады' : STATE.lang === 'en' ? 'Could not delete record' : 'Не удалось удалить запись'), '❌');
+      return;
+    }
+  } catch(e) {
+    showToast(STATE.lang === 'kz' ? 'Сервермен байланыс қатесі' : STATE.lang === 'en' ? 'Server connection error' : 'Ошибка связи с сервером', '❌');
+    return;
+  }
   STATE.students = STATE.students.filter(s => s.id !== id);
   renderUI();
   showToast(isKg ? i18.toastStudentDeletedKg : i18.toastStudentDeleted);
