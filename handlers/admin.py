@@ -150,9 +150,48 @@ class AdminHandler:
             await self._show_users(query, filt="free")
         elif data == "admin_users_kg":
             await self._show_users(query, filt="kg")
+        elif data == "admin_users_unregistered":
+            await self._show_users(query, filt="unregistered")
+        elif data.startswith("admin_user_"):
+            await self._show_user_detail(query, int(data[len("admin_user_"):]))
+        elif data.startswith("admin_doc_"):
+            await self._show_document(query, int(data[len("admin_doc_"):]))
+        elif data == "admin_broadcast_unregistered":
+            users = await self.db.get_unregistered_users()
+            ru_count = sum(1 for user in users if user.get("lang") == "ru")
+            kz_count = len(users) - ru_count
+            context.user_data["step"] = None
+            text = (
+                f"📨 *Приглашение незарегистрированным*\n\n"
+                f"Получателей: *{len(users)}* (русский: {ru_count}, қазақша: {kz_count})\n\n"
+                "🇷🇺 Здравствуйте! Завершите регистрацию в Docura, чтобы создавать документы для школы или детского сада. Нажмите /start и следуйте шагам бота.\n\n"
+                "🇰🇿 Сәлеметсіз бе! Мектепке немесе балабақшаға арналған құжаттарды жасау үшін Docura тіркеуін аяқтаңыз. /start түймесін басып, бот қадамдарын орындаңыз."
+            )
+            kb = [[InlineKeyboardButton("✅ Отправить", callback_data="admin_broadcast_unregistered_confirm")],
+                  [InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
+            await _safe_edit(query, text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+        elif data == "admin_broadcast_unregistered_confirm":
+            users = await self.db.get_unregistered_users()
+            await query.edit_message_reply_markup(reply_markup=None)
+            sent = failed = 0
+            for user in users:
+                lang = user.get("lang")
+                text = (
+                    "Здравствуйте! Завершите регистрацию в Docura, чтобы создавать документы для школы или детского сада. Нажмите /start и следуйте шагам бота."
+                    if lang == "ru" else
+                    "Сәлеметсіз бе! Мектепке немесе балабақшаға арналған құжаттарды жасау үшін Docura тіркеуін аяқтаңыз. /start түймесін басып, бот қадамдарын орындаңыз."
+                )
+                try:
+                    await context.bot.send_message(chat_id=user["tg_id"], text=text)
+                    sent += 1
+                except Exception:
+                    failed += 1
+                await asyncio.sleep(0.05)
+            await _safe_edit(query, f"📨 Рассылка завершена. Доставлено: {sent}; не доставлено: {failed}.",
+                             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Админ-панель", callback_data="admin_menu")]]))
         elif data.startswith("admin_users_page_"):
             _, _, _, filt, page = data.split("_", 4)
-            if filt in {"all", "pro", "max", "free", "kg"} and page.isdigit():
+            if filt in {"all", "pro", "max", "free", "kg", "unregistered"} and page.isdigit():
                 await self._show_users(query, filt=filt, page=int(page))
         elif data == "admin_docs":
             await self._show_recent_docs(query)
@@ -402,7 +441,9 @@ class AdminHandler:
             [InlineKeyboardButton("⭐ PRO", callback_data="admin_users_pro"),
              InlineKeyboardButton("🆓 Free", callback_data="admin_users_free")],
             [InlineKeyboardButton("🧸 Садики", callback_data="admin_users_kg")],
+            [InlineKeyboardButton("⏳ Не завершили регистрацию", callback_data="admin_users_unregistered")],
             [InlineKeyboardButton("📄 Последние документы", callback_data="admin_docs")],
+            [InlineKeyboardButton("📨 Пригласить незарегистрированных", callback_data="admin_broadcast_unregistered")],
             [InlineKeyboardButton("🎓 Обучить бота (образцы)", callback_data="admin_samples")],
             [InlineKeyboardButton("📢 Рассылка", callback_data="admin_broadcast")],
             [InlineKeyboardButton("💳 Активировать PRO", callback_data="admin_activate_btn"),
@@ -438,6 +479,7 @@ class AdminHandler:
             "max": "💎 MAX пользователи",
             "free": "🆓 Бесплатные пользователи",
             "kg": "🧸 Воспитатели садиков",
+            "unregistered": "⏳ Не завершили регистрацию",
         }
         title = titles.get(filt, titles["all"])
         users = await self.db.get_all_users(limit=page_size + 1, offset=page * page_size, filt=filt)
@@ -462,6 +504,10 @@ class AdminHandler:
              InlineKeyboardButton("🆓 Free", callback_data="admin_users_free")],
             [InlineKeyboardButton("🧸 Садики", callback_data="admin_users_kg"),
              InlineKeyboardButton("👥 Все", callback_data="admin_users")],
+            [InlineKeyboardButton("⏳ Не завершили регистрацию", callback_data="admin_users_unregistered")],
+        ]
+        kb.extend([[InlineKeyboardButton(f"👤 {u['tg_id']}", callback_data=f"admin_user_{u['tg_id']}")] for u in users])
+        kb += [
             [InlineKeyboardButton("💳 Активировать PRO", callback_data="admin_activate_btn"),
              InlineKeyboardButton("💎 Активировать MAX", callback_data="admin_activate_max_btn")],
             [InlineKeyboardButton("← Назад", callback_data="admin_menu")],
@@ -492,6 +538,47 @@ class AdminHandler:
         if len(text) > 4000:
             text = text[:3900] + "\n\n_...обрезано_"
         await _safe_edit(query, text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+
+    async def _show_user_detail(self, query, tg_id):
+        user = await self.db.get_user(tg_id)
+        if not user:
+            await _safe_edit(query, "Пользователь не найден.")
+            return
+        docs = await self.db.get_history(tg_id, limit=10)
+        events = await self.db.get_user_funnel_events(tg_id, limit=10)
+        event_names = {"start": "старт", "doc_type_chosen": "выбор документа", "doc_generated": "документ создан"}
+        lines = [
+            f"👤 *Пользователь* `{tg_id}`",
+            f"Регистрация: {'завершена' if user.get('name') else 'не завершена'}",
+            f"Имя: {_esc(user.get('name') or '—')} | роль: {_esc(user.get('role') or '—')}",
+            f"Последний визит: {_esc(user.get('last_active_at') or 'не записан')}",
+            "",
+            "*Последний зафиксированный этап:*",
+        ]
+        if events:
+            for event in events[:5]:
+                extra = f" — {_esc(event.get('doc_type'))}" if event.get("doc_type") else ""
+                lines.append(f"• {event_names.get(event['event'], event['event'])}{extra} · {str(event.get('created_at') or '')[:16]}")
+        else:
+            lines.append("• Событий пока нет")
+        lines.extend(["", "*Документы пользователя:*"])
+        kb = []
+        for doc in docs:
+            lines.append(f"• {_esc(doc.get('doc_name'))} · {str(doc.get('created_at') or '')[:16]}")
+            kb.append([InlineKeyboardButton(f"📄 {doc['id']} · {str(doc.get('doc_name') or 'Документ')[:30]}", callback_data=f"admin_doc_{doc['id']}")])
+        kb.append([InlineKeyboardButton("← К пользователям", callback_data="admin_users")])
+        await _safe_edit(query, "\n".join(lines)[:3900], reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+
+    async def _show_document(self, query, document_id):
+        document = await self.db.get_document(document_id)
+        if not document:
+            await _safe_edit(query, "Документ не найден.")
+            return
+        body = str(document.get("content") or "")
+        header = f"📄 {document.get('doc_name') or 'Документ'} · ID {document_id}\nПользователь: {document.get('teacher_id')}\n\n"
+        chunks = [header + body[i:i + 3500] for i in range(0, max(len(body), 1), 3500)]
+        for chunk in chunks:
+            await query.message.reply_text(chunk)
 
     async def _show_samples_menu(self, query):
         samples = await self.db.get_all_samples(limit=200)

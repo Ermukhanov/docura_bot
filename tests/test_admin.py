@@ -6,6 +6,17 @@ from handlers.admin import AdminHandler
 
 
 class AdminCallbackTests(unittest.IsolatedAsyncioTestCase):
+    async def test_admin_document_view_sends_stored_document_content(self):
+        db = SimpleNamespace(get_document=AsyncMock(return_value={
+            "id": 12, "teacher_id": 123, "doc_name": "КСП", "content": "Полный текст документа",
+        }))
+        query = SimpleNamespace(message=SimpleNamespace(reply_text=AsyncMock()))
+
+        await AdminHandler(db=db)._show_document(query, 12)
+
+        query.message.reply_text.assert_awaited_once()
+        self.assertIn("Полный текст документа", query.message.reply_text.await_args.args[0])
+
     async def test_unauthorized_callback_is_answered_once(self):
         query = SimpleNamespace(data="admin_stats", answer=AsyncMock())
         update = SimpleNamespace(

@@ -9,7 +9,7 @@ load_dotenv()
 from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
-    MessageHandler, filters, ContextTypes
+    MessageHandler, TypeHandler, filters, ContextTypes
 )
 from database import Database
 from handlers.onboarding import OnboardingHandler
@@ -404,6 +404,12 @@ async def _route_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await concierge.handle_text(update, context)
 
 
+async def _track_user_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = getattr(update, "effective_user", None)
+    if user:
+        await context.application.bot_data["db"].update_last_active(user.id)
+
+
 _last_admin_alert = 0.0
 
 
@@ -553,6 +559,9 @@ async def run():
 
     # Текст
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.UpdateType.MESSAGE, _route_text))
+
+    # Run after normal handlers so successful starts are persisted first.
+    app.add_handler(TypeHandler(Update, _track_user_activity), group=1)
 
     app.add_error_handler(on_error)
 

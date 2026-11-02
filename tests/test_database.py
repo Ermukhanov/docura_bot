@@ -53,6 +53,30 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await self.db.get_all_users(filt="invalid")
 
+    async def test_unregistered_audience_excludes_named_profiles_and_notification_opt_outs(self):
+        await self.db.upsert_user(250, {"lang": "ru"})
+        await self.db.upsert_user(251, {"name": "Зарегистрирован", "lang": "ru"})
+        await self.db.upsert_user(252, {"lang": "kz", "notifications_enabled": 0})
+
+        audience = await self.db.get_unregistered_users()
+        listed = await self.db.get_all_users(limit=20, filt="unregistered")
+
+        self.assertEqual([user["tg_id"] for user in audience], [250])
+        self.assertEqual([user["tg_id"] for user in listed], [252, 250])
+
+    async def test_user_funnel_events_and_last_activity_are_available_for_admin_detail(self):
+        await self.db.upsert_user(253, {"name": "Учитель"})
+        await self.db.log_funnel_event(253, "start")
+        await self.db.log_funnel_event(253, "doc_type_chosen", "lesson_plan")
+        await self.db.update_last_active(253)
+
+        events = await self.db.get_user_funnel_events(253)
+        user = await self.db.get_user(253)
+
+        self.assertEqual([event["event"] for event in events], ["doc_type_chosen", "start"])
+        self.assertEqual(events[0]["doc_type"], "lesson_plan")
+        self.assertTrue(user["last_active_at"])
+
     async def test_new_document_sample_archives_previous_active_version(self):
         await self.db.add_sample("lesson_plan", "ru", "old content", "Old", 1)
         await self.db.add_sample("lesson_plan", "ru", "new content", "New", 1)

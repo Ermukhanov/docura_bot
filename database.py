@@ -590,6 +590,7 @@ class Database:
             "max": "WHERE subscribed=1 AND tier='max'",
             "free": "WHERE COALESCE(subscribed, 0)=0",
             "kg": "WHERE role='kindergarten'",
+            "unregistered": "WHERE (name IS NULL OR trim(name)='')",
         }
         if filt not in filters:
             raise ValueError("Unsupported user filter")
@@ -601,6 +602,29 @@ class Database:
             ) as cur:
                 rows = await cur.fetchall()
                 return [dict(r) for r in rows]
+
+    async def get_unregistered_users(self, limit=100000):
+        """Users without a profile name; notification opt-outs are excluded."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """SELECT * FROM users
+                   WHERE (name IS NULL OR trim(name)='')
+                     AND COALESCE(notifications_enabled, 1)=1
+                   ORDER BY created_at, tg_id LIMIT ?""",
+                (max(1, min(int(limit), 100000)),),
+            ) as cur:
+                return [dict(row) for row in await cur.fetchall()]
+
+    async def get_user_funnel_events(self, tg_id: int, limit=20):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """SELECT event, doc_type, created_at FROM funnel_events
+                   WHERE tg_id=? ORDER BY id DESC LIMIT ?""",
+                (tg_id, max(1, min(int(limit), 100))),
+            ) as cur:
+                return [dict(row) for row in await cur.fetchall()]
 
     async def get_users_for_notification(self):
         """Пользователи которым не отправляли уведомление 3+ дня и у которых не отключены уведомления"""
