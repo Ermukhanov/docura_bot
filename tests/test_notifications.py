@@ -7,7 +7,14 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from handlers.notifications import send_first_doc_reminders
+from handlers.notifications import _inactive_reminder_text, send_first_doc_reminders
+
+
+class InactiveReminderCopyTests(unittest.TestCase):
+    def test_russian_copy_matches_three_day_reminder_interval(self):
+        text = _inactive_reminder_text("Айгуль", "ru")
+        self.assertIn("несколько дней", text)
+        self.assertNotIn("неделю", text)
 
 
 class FakeBot:

@@ -37,6 +37,12 @@ def _smart_reminder(user: dict, lang: str):
     return None
 
 
+def _inactive_reminder_text(name: str, lang: str) -> str:
+    if lang == "kz":
+        return f"Сәлеметсіз бе, {name}! Біраз уақыт кірмедіңіз. 1 минутта есеп немесе жоспар дайындап берейін бе?"
+    return f"Здравствуйте, {name}! Не заходили несколько дней. Сделать отчёт за 1 минуту?"
+
+
 TARGET_HOUR = 18  # Каждый день ровно в 18:00 по местному времени
 
 
@@ -171,11 +177,7 @@ async def send_reminders(app: Application, db: Database, concierge=None):
 
                     # 2. Если не заходил 3+ дней — сообщение с выгодой
                     if _due_since_last_active_or_notified(user, min_days=3):
-                        text = (
-                            f"Сәлеметсіз бе, {name}! Біраз уақыт кірмедіңіз. 1 минутта есеп немесе жоспар дайындап берейін бе?"
-                            if lang == "kz" else
-                            f"Здравствуйте, {name}! Не заходили неделю. Сделать отчёт за 1 минуту?"
-                        )
+                        text = _inactive_reminder_text(name, lang)
                         keyboard = InlineKeyboardMarkup([
                             [
                                 InlineKeyboardButton("Да, сделать" if lang == "ru" else "Иә, жасау", callback_data="menu_create"),
