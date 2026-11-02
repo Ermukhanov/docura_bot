@@ -305,6 +305,53 @@ def test_kundelik_connect_rejects_unverified_credentials(monkeypatch, tmp_path):
         assert db.execute("SELECT 1 FROM kundelik_integrations WHERE tg_id=?", (123456,)).fetchone() is None
 
 
+def test_kundelik_grade_uses_only_a_student_from_live_roster(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "kundelik-roster.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+
+    class FakeKundelikClient:
+        posted = []
+
+        def __init__(self, token, provider, user_info=None):
+            pass
+
+        async def get_classes(self):
+            return [{"id": 77, "name": "5А"}]
+
+        async def get_students_for_class(self, class_id):
+            return [{"id": 9988, "name": "Әлия", "class_name": "5А"}]
+
+        async def post_mark(self, student_id, student_name, class_name, mark_val, mark_type, descriptor):
+            self.posted.append((student_id, student_name, class_name, mark_val))
+            return {"ok": True}
+
+    FakeKundelikClient.posted = []
+    monkeypatch.setattr(kundelik_api, "KundelikClient", FakeKundelikClient)
+    with mini_app.conn() as db:
+        db.execute("INSERT INTO users (tg_id, role, tier) VALUES (?, 'teacher', 'max')", (123456,))
+        db.execute(
+            "INSERT INTO kundelik_integrations (tg_id, provider, token) VALUES (?, ?, ?)",
+            (123456, "kundelik", "real-token"),
+        )
+        db.commit()
+    client = mini_app.app.test_client()
+
+    status = client.get("/api/kundelik/status")
+    assert "token" not in status.get_json()["integration"]
+    accepted = client.post("/api/kundelik/grade", json={
+        "student_id": "9988", "student_name": "Attacker supplied name", "class_name": "5А", "mark": 8
+    })
+    rejected = client.post("/api/kundelik/grade", json={
+        "student_id": "1234", "student_name": "Fake", "class_name": "5А", "mark": 8
+    })
+
+    assert status.get_json()["students"] == [{"id": "9988", "name": "Әлия", "class_name": "5А"}]
+    assert accepted.status_code == 200
+    assert FakeKundelikClient.posted == [(9988, "Әлия", "5А", 8)]
+    assert rejected.status_code == 400
+
+
 def test_kindergarten_account_cannot_use_school_kundelik_endpoints(monkeypatch, tmp_path):
     monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "kindergarten.db"))
     monkeypatch.setattr(mini_app, "_schema_initialized", False)

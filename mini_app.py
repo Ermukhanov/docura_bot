@@ -852,15 +852,45 @@ def api_kundelik_status():
         return jsonify(error='Интеграция Kundelik доступна только профилям школы.'), 403
     with conn() as db:
         user = db.execute('SELECT tier, subscribed FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
-        row = db.execute('SELECT provider, school_id, school_name, person_id, synced_at FROM kundelik_integrations WHERE tg_id=?', (tg['id'],)).fetchone()
+        row = db.execute('SELECT provider, token, school_id, school_name, person_id, synced_at FROM kundelik_integrations WHERE tg_id=?', (tg['id'],)).fetchone()
         marks = db.execute('SELECT id, student_id, student_name, class_name, mark, mark_type, descriptor, created_at FROM kundelik_marks WHERE teacher_id=? ORDER BY id DESC LIMIT 20', (tg['id'],)).fetchall()
-    
+
+    students = []
+    if row:
+        import asyncio
+        from handlers.kundelik_api import KundelikClient
+        client = KundelikClient(row['token'], row['provider'])
+        loop = asyncio.new_event_loop()
+        try:
+            asyncio.set_event_loop(loop)
+            classes = loop.run_until_complete(client.get_classes())
+            for class_info in classes:
+                class_id = class_info.get('id')
+                if class_id is None:
+                    continue
+                roster = loop.run_until_complete(client.get_students_for_class(class_id))
+                for student in roster:
+                    student_id = student.get('id')
+                    name = (student.get('name') or '').strip()
+                    if student_id is not None and name:
+                        students.append({
+                            'id': str(student_id),
+                            'name': name,
+                            'class_name': student.get('class_name') or class_info.get('name', ''),
+                        })
+        except Exception as e:
+            app.logger.warning('Kundelik roster lookup failed: %s', e)
+            students = []
+        finally:
+            loop.close()
+
     tier = (user['tier'] if user and user['tier'] else 'free').lower()
     return jsonify(
         is_max=(tier == 'max'),
         tier=tier,
         connected=bool(row),
-        integration=dict(row) if row else None,
+        integration={key: row[key] for key in ('provider', 'school_id', 'school_name', 'person_id', 'synced_at')} if row else None,
+        students=students,
         marks=[dict(m) for m in marks]
     )
 
@@ -970,10 +1000,16 @@ def api_kundelik_grade():
             return jsonify(error='Kundelik не подключён. Сначала подключите интеграцию.'), 400
 
     data = request.get_json(silent=True) or {}
-    student_id = data.get('student_id', 1001)
-    student_name = data.get('student_name', 'Ученик')
-    class_name = data.get('class_name', '7 «А»')
-    mark_val = int(data.get('mark', 9))
+    student_id = str(data.get('student_id') or '').strip()
+    class_name = (data.get('class_name') or '').strip()
+    if not student_id or not class_name:
+        return jsonify(error='Выберите ученика из подключенного журнала.'), 400
+    try:
+        mark_val = int(data.get('mark', 9))
+    except (TypeError, ValueError):
+        return jsonify(error='Оценка должна быть числом от 1 до 10.'), 400
+    if not 1 <= mark_val <= 10:
+        return jsonify(error='Оценка должна быть числом от 1 до 10.'), 400
     mark_type = data.get('mark_type', 'ФО')
     descriptor = data.get('descriptor', 'Жарайсың! Тақырыпты жақсы меңгердің.')
 
@@ -984,9 +1020,20 @@ def api_kundelik_grade():
     loop = asyncio.new_event_loop()
     try:
         asyncio.set_event_loop(loop)
-        res = loop.run_until_complete(
-            client.post_mark(student_id, student_name, class_name, mark_val, mark_type, descriptor)
-        )
+        classes = loop.run_until_complete(client.get_classes())
+        matching_class = next((c for c in classes if str(c.get('name', '')).strip() == class_name), None)
+        if not matching_class or matching_class.get('id') is None:
+            return jsonify(error='Класс не найден в подключенном журнале.'), 400
+        roster = loop.run_until_complete(client.get_students_for_class(matching_class['id']))
+        student = next((s for s in roster if str(s.get('id')) == student_id and str(s.get('class_name') or class_name).strip() == class_name), None)
+        if not student:
+            return jsonify(error='Ученик не найден в выбранном классе журнала.'), 400
+        student_name = (student.get('name') or '').strip()
+        if not student_name:
+            return jsonify(error='В журнале не указано имя ученика.'), 400
+        res = loop.run_until_complete(client.post_mark(
+            student.get('id'), student_name, class_name, mark_val, mark_type, descriptor
+        ))
     finally:
         loop.close()
 

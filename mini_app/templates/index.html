@@ -2171,6 +2171,7 @@ const STATE = {
   kaspi_number: '+7 771 451 4717',
   documents: [],
   students: [],
+  kundelikStudents: [],
   schedule: {},
   memory: null,
   referrals: 0,
@@ -4505,7 +4506,9 @@ async function openKundelikModal() {
     const res = await fetch('/api/kundelik/status', {
       headers: tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {}
     });
+    if (!res.ok) throw new Error('Kundelik status unavailable');
     const data = await res.json();
+    STATE.kundelikStudents = Array.isArray(data.students) ? data.students : [];
     if (data.connected && data.integration) {
       document.getElementById('kdStatusCard').style.display = 'block';
       document.getElementById('kdConnectForm').style.display = 'none';
@@ -4518,6 +4521,7 @@ async function openKundelikModal() {
       document.getElementById('kdGradeSection').style.display = 'none';
     }
   } catch(e) {
+    STATE.kundelikStudents = [];
     document.getElementById('kdStatusCard').style.display = 'none';
     document.getElementById('kdConnectForm').style.display = 'block';
     document.getElementById('kdGradeSection').style.display = 'none';
@@ -4527,20 +4531,26 @@ async function openKundelikModal() {
   const sel = document.getElementById('kdStudentSelect');
   if (sel) {
     sel.innerHTML = '';
-    const stList = STATE.students && STATE.students.length > 0 ? STATE.students : [
-      { id: 1001, name: 'Аманжолов Арман', class_name: '7 «А»' },
-      { id: 1002, name: 'Берік Аружан', class_name: '7 «А»' },
-      { id: 1003, name: 'Данияров Дамир', class_name: '7 «А»' },
-      { id: 1004, name: 'Жұмағали Дильназ', class_name: '7 «А»' }
-    ];
+    const stList = STATE.kundelikStudents;
+    const gradeButton = document.getElementById('btnKdPostMark');
+    if (!stList.length) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.disabled = true;
+      opt.selected = true;
+      opt.textContent = STATE.lang === 'kz' ? 'Журналда оқушылар табылмады' : STATE.lang === 'en' ? 'No students found in journal' : 'В журнале нет доступных учеников';
+      sel.appendChild(opt);
+      if (gradeButton) gradeButton.disabled = true;
+    }
     stList.forEach(st => {
       const opt = document.createElement('option');
-      opt.value = st.id || st.name;
+      opt.value = st.id;
       opt.dataset.name = st.name;
       opt.dataset.className = st.class_name;
       opt.textContent = `${st.name} (${st.class_name})`;
       sel.appendChild(opt);
     });
+    if (stList.length && gradeButton) gradeButton.disabled = false;
   }
   selectKdMark(9);
 }
@@ -4676,8 +4686,9 @@ async function connectKundelik() {
 async function submitKundelikGrade() {
   const sel = document.getElementById('kdStudentSelect');
   const opt = sel.options[sel.selectedIndex];
-  const studentName = opt?.dataset.name || opt?.textContent || 'Ученик';
-  const className = opt?.dataset.className || '7 «А»';
+  if (!opt?.value) return;
+  const studentName = opt.dataset.name;
+  const className = opt.dataset.className;
   const descriptor = document.getElementById('kdDescriptorInput').value.trim();
 
   const btn = document.getElementById('btnKdPostMark');
@@ -4692,7 +4703,7 @@ async function submitKundelikGrade() {
         ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
       },
       body: JSON.stringify({
-        student_id: sel.value || 1001,
+        student_id: sel.value,
         student_name: studentName,
         class_name: className,
         mark: selectedKdMarkVal,
