@@ -379,6 +379,26 @@ def test_receipt_upload_rejects_unknown_tier_and_wrong_file_signature(monkeypatc
     assert wrong_signature.status_code == 400
 
 
+def test_receipt_rejects_hashes_written_by_previous_short_hash_format(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "legacy-receipt.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+    receipt_bytes = b"%PDF-1.4\nold-check"
+    old_hash = hashlib.sha256(receipt_bytes).hexdigest()[:16]
+    with mini_app.conn() as db:
+        db.execute("INSERT INTO users (tg_id, role) VALUES (?, 'teacher')", (123456,))
+        db.execute("INSERT INTO receipts (hash, tg_id, tier, amount) VALUES (?, ?, ?, ?)",
+                   (old_hash, 654321, "pro", 4990))
+        db.commit()
+
+    response = mini_app.app.test_client().post("/api/payment/verify-receipt", data={
+        "tier": "pro", "receipt": (io.BytesIO(receipt_bytes), "receipt.pdf")
+    })
+
+    assert response.status_code == 400
+    assert "уже был использован" in response.get_json()["error"]
+
+
 def test_receipt_verification_requires_ai_amount_to_match_tier(monkeypatch, tmp_path):
     monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "receipt-amount.db"))
     monkeypatch.setattr(mini_app, "_schema_initialized", False)

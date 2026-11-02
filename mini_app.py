@@ -827,9 +827,12 @@ def api_verify_receipt():
     if not signatures[extension]:
         return jsonify(error='Содержимое файла не соответствует формату чека.'), 400
     receipt_hash = hashlib.sha256(file_bytes).hexdigest()
+    legacy_receipt_hash = receipt_hash[:16]
 
     with conn() as db:
-        used = db.execute('SELECT 1 FROM receipts WHERE hash=?', (receipt_hash,)).fetchone()
+        used = db.execute(
+            'SELECT 1 FROM receipts WHERE hash IN (?, ?)', (receipt_hash, legacy_receipt_hash)
+        ).fetchone()
         if used:
             return jsonify(error='Этот чек уже был использован для активации.'), 400
 
