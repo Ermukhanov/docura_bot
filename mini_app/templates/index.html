@@ -4746,26 +4746,15 @@ async function init() {
   try {
     const urlParams = new URLSearchParams(window.location.search);
     const isDemo = urlParams.get('demo') === '1';
-    let tgId = urlParams.get('tg_id');
     const pathParts = window.location.pathname.split('/');
     const profileId = pathParts.includes('profile') ? pathParts[pathParts.indexOf('profile') + 1] : null;
-
-    if (!tgId && profileId && !isNaN(profileId)) {
-      tgId = profileId;
-    }
-    if (!tgId && window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
-      tgId = String(window.Telegram.WebApp.initDataUnsafe.user.id);
-    }
-    STATE.tg_id = tgId;
+    STATE.tg_id = window.Telegram?.WebApp?.initDataUnsafe?.user?.id
+      ? String(window.Telegram.WebApp.initDataUnsafe.user.id)
+      : null;
 
     const authToken = urlParams.get('token');
 
-    let apiUrl = '/api/me';
-    if (profileId && !isNaN(profileId)) {
-      apiUrl = '/api/profile/' + profileId;
-    } else if (tgId && !isNaN(tgId)) {
-      apiUrl = '/api/me?tg_id=' + tgId;
-    }
+    let apiUrl = profileId && /^\d+$/.test(profileId) ? '/api/profile/' + profileId : '/api/me';
     if (authToken) {
       apiUrl += (apiUrl.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(authToken);
     }
