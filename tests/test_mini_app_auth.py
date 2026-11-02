@@ -478,6 +478,32 @@ def test_schedule_upload_rejects_unsupported_oversized_and_mislabeled_files(monk
     assert oversized.status_code == 413
 
 
+def test_schedule_text_limits_input_and_rejects_invalid_ai_shape(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "schedule-text.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+    monkeypatch.setattr(mini_app, "ANTHROPIC_API_KEY", "test-key")
+    with mini_app.conn() as db:
+        db.execute("INSERT INTO users (tg_id, role) VALUES (?, 'teacher')", (123456,))
+        db.commit()
+
+    class FakeClient:
+        def __init__(self, api_key):
+            self.messages = SimpleNamespace(create=lambda **kwargs: SimpleNamespace(content=[
+                SimpleNamespace(text="[]")
+            ]))
+
+    monkeypatch.setattr(mini_app.anthropic, "Anthropic", FakeClient)
+    client = mini_app.app.test_client()
+    oversized = client.post("/api/schedule/parse-text", json={"text": "x" * (mini_app.MAX_SCHEDULE_TEXT_CHARS + 1)})
+    malformed = client.post("/api/schedule/parse-text", json={"text": "Понедельник, математика"})
+
+    assert oversized.status_code == 413
+    assert malformed.status_code == 502
+    with mini_app.conn() as db:
+        assert db.execute("SELECT 1 FROM schedules WHERE tg_id=?", (123456,)).fetchone() is None
+
+
 def test_kindergarten_account_cannot_use_school_kundelik_endpoints(monkeypatch, tmp_path):
     monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "kindergarten.db"))
     monkeypatch.setattr(mini_app, "_schema_initialized", False)

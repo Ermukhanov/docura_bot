@@ -28,6 +28,7 @@ app.config['SESSION_COOKIE_SECURE'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400 * 30  # 30 дней сессии
 MAX_RECEIPT_BYTES = 10 * 1024 * 1024
 MAX_SCHEDULE_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_SCHEDULE_TEXT_CHARS = 20000
 
 
 @app.after_request
@@ -505,10 +506,14 @@ def api_parse_schedule_text():
     tg = telegram_user()
     if not tg:
         return jsonify(error='Unauthorized'), 401
+    if request.content_length and request.content_length > 256 * 1024:
+        return jsonify(error='Запрос расписания слишком большой.'), 413
     data = request.get_json(silent=True) or {}
     text = (data.get('text') or '').strip()
     if not text:
         return jsonify(error='Текст расписания пуст'), 400
+    if len(text) > MAX_SCHEDULE_TEXT_CHARS:
+        return jsonify(error='Текст расписания превышает лимит 20 000 символов.'), 413
 
     with conn() as db:
         user = db.execute('SELECT * FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
@@ -541,6 +546,13 @@ def api_parse_schedule_text():
         raw = response.content[0].text.strip() if response.content else "{}"
         raw = re.sub(r"```[a-z]*", "", raw).strip("` \n")
         parsed = json.loads(raw)
+        allowed_days = {'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'}
+        if not isinstance(parsed, dict) or not parsed or any(day not in allowed_days for day in parsed):
+            return jsonify(error='ИИ вернул расписание в неподдерживаемом формате. Попробуйте другой текст.'), 502
+        if any(not isinstance(lessons, list) or len(lessons) > 30 for lessons in parsed.values()):
+            return jsonify(error='ИИ вернул некорректное число занятий.'), 502
+        if any(not isinstance(lesson, dict) for lessons in parsed.values() for lesson in lessons):
+            return jsonify(error='ИИ вернул некорректные данные занятий.'), 502
 
         with conn() as db:
             db.execute(
@@ -551,8 +563,9 @@ def api_parse_schedule_text():
             )
             db.commit()
         return jsonify(ok=True, schedule=parsed)
-    except Exception as e:
-        return jsonify(error=f"Ошибка распознавания: {str(e)}"), 500
+    except Exception:
+        app.logger.exception("Schedule text parsing failed")
+        return jsonify(error='Не удалось распознать расписание. Проверьте текст и попробуйте снова.'), 500
 
 
 @app.post('/api/schedule/upload')
