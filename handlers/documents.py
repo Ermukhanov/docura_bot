@@ -60,10 +60,6 @@ DOC_QUESTIONS = {
             {"key": "topic",         "q": "📖 Тема урока?"},
             {"key": "key_points",    "q": "🔑 Ключевые моменты?\n\n_Или напишите «автоматически»_"},
         ],
-        "presentation": [
-            {"key": "subject_class", "q": "📚 Предмет и класс?\n\n_Пример: Физика, 8А_"},
-            {"key": "topic",         "q": "📖 Тема презентации к уроку?\n\n_Пример: Закон Ома для участка цепи_"},
-        ],
         "chat_digest": [
             {"key": "messages_text", "q": "📑 Перешлите сообщения из рабочих чатов (WhatsApp/Telegram) или вставьте текст сюда одним сообщением:"},
         ],
@@ -278,10 +274,6 @@ DOC_QUESTIONS = {
             {"key": "topic",         "q": "📖 Тақырып?"},
             {"key": "key_points",    "q": "🔑 Негізгі тұстар немесе «автоматты»?"},
         ],
-        "presentation": [
-            {"key": "subject_class", "q": "📚 Пән және сынып?\n\n_Мысалы: Физика, 8А_"},
-            {"key": "topic",         "q": "📖 Сабақ тақырыбы?\n\n_Мысалы: Тізбек бөлігі үшін Ом заңы_"},
-        ],
         "chat_digest": [
             {"key": "messages_text", "q": "📑 Жұмыс чаттарындағы (WhatsApp/Telegram) хабарламаларды бағыттаңыз немесе осында жазыңыз:"},
         ],
@@ -433,10 +425,6 @@ DOC_QUESTIONS = {
             {"key": "duration",      "q": "⏱ Duration?\n\n_Example: 45 minutes_"},
             {"key": "goals",         "q": "🎯 Learning objectives?\n\n_Or write «automatic»_"},
         ],
-        "presentation": [
-            {"key": "subject_class", "q": "📚 Subject and class?\n\n_Example: Physics, Grade 8A_"},
-            {"key": "topic",         "q": "📖 Lesson topic for presentation?\n\n_Example: Ohm's Law_"},
-        ],
         "chat_digest": [
             {"key": "messages_text", "q": "📑 Forward or paste work chat messages here:"},
         ],
@@ -460,7 +448,6 @@ DOC_QUESTIONS = {
 DOC_NAMES = {
     "ru": {
         "lesson_plan": "Краткосрочный план (КСП)",
-        "presentation": "Презентация к уроку (.pptx)",
         "calendar_plan": "Календарно-тематический план (КТП)",
         "lesson_summary": "Конспект урока",
         "monthly_report": "Отчёт учителя",
@@ -501,7 +488,6 @@ DOC_NAMES = {
     },
     "kz": {
         "lesson_plan": "Қысқамерзімді жоспар (ҚМЖ)",
-        "presentation": "Сабаққа арналған слайд (.pptx)",
         "calendar_plan": "Күнтізбелік-тақырыптық жоспар (КТЖ)",
         "lesson_summary": "Сабақ конспектісі",
         "monthly_report": "Мұғалім есебі",
@@ -542,7 +528,6 @@ DOC_NAMES = {
     },
     "en": {
         "lesson_plan": "Lesson Plan",
-        "presentation": "Lesson Presentation (.pptx)",
         "calendar_plan": "Calendar-Thematic Plan",
         "lesson_summary": "Lesson Summary",
         "monthly_report": "Teacher Report",
@@ -585,7 +570,7 @@ register_titles(DOC_NAMES)
 
 # Категории документов учителя (школа)
 CAT_DOCS = {
-    "planning": ["lesson_plan", "presentation", "calendar_plan", "lesson_summary"],
+    "planning": ["lesson_plan", "calendar_plan", "lesson_summary"],
     "reports":  ["monthly_report", "chat_digest", "control_analysis", "sor_soch", "sor_soch_analysis"],
     "students": ["characteristic", "absence_cert", "discipline_act", "gratitude_letter", "parent_letter"],
     "personal": ["vacation_request", "explanation", "announcement"],
@@ -1555,70 +1540,6 @@ class DocumentHandler:
         context.user_data.clear()
         await self._send_post_document_actions(message, context, lang, user, doc_type, document_id)
 
-    async def _generate_presentation(self, message, context, lang, user):
-        from handlers.presentation_generator import PresentationGenerator
-        answers = context.user_data.get("doc_answers", {})
-        doc_lang = context.user_data.get("doc_lang", lang)
-        topic = answers.get("topic") or "Тема урока"
-        subj_raw = (answers.get("subject_class") or "").strip()
-        subj_parts = [p.strip() for p in subj_raw.split(",") if p.strip()]
-        subject = subj_parts[0] if subj_parts else (user.get("subject") or "Предмет")
-        grade = subj_parts[-1] if len(subj_parts) > 1 else (user.get("classes") or "Класс")
-
-        wait_msg = await message.reply_text(
-            "🎨 *Генерирую интерактивную презентацию PowerPoint (.pptx)...*\n\n"
-            "• Формирую структуру слайдов по стандартам МОН РК\n"
-            "• Оформляю цели, ключевые понятия и дескрипторы"
-            if lang == "ru" else
-            "🎨 *Интерактивті PowerPoint (.pptx) слайдтары жасалуда...*\n\n"
-            "• ҚР Оқу-ағарту мин. стандартына сәйкестендіру\n"
-            "• Мақсаттар мен дескрипторларды әзірлеу",
-            parse_mode=ParseMode.MARKDOWN
-        )
-        try:
-            pg = PresentationGenerator(api_key=self.api_key)
-            out_pptx = await pg.generate_lesson_presentation(
-                topic=topic,
-                subject=subject,
-                grade=grade,
-                lang=doc_lang,
-                teacher_name=user.get("name", ""),
-                school=user.get("school", "")
-            )
-            safe_name = f"Презентация_{datetime.now().strftime('%d%m%Y_%H%M')}.pptx"
-            with open(out_pptx, "rb") as f:
-                await message.reply_document(
-                    document=f,
-                    filename=safe_name,
-                    caption=(
-                        f"✅ *Презентация к уроку готова!*\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"📚 *Тема:* {topic}\n"
-                        f"📊 *Слайдов:* 6–7 слайдов (16:9)\n"
-                        f"📎 Файл PowerPoint (.pptx) прикреплён."
-                    ) if lang == "ru" else (
-                        f"✅ *Сабаққа арналған слайд дайын!*\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"📚 *Тақырыбы:* {topic}\n"
-                        f"📊 *Слайдтар саны:* 6–7 слайд (16:9)\n"
-                        f"📎 PowerPoint (.pptx) файлы тіркелді."
-                    ),
-                    parse_mode=ParseMode.MARKDOWN
-                )
-            if os.path.exists(out_pptx):
-                os.remove(out_pptx)
-            await wait_msg.delete()
-            document_id = await self.db.save_document(message.chat_id, "presentation", f"Презентация: {topic}", "", 100)
-            await self.db.log_analytics(message.chat_id, "presentation", 100, doc_lang)
-            if user and not user.get("subscribed"):
-                await self.db.increment_free(message.chat_id)
-            context.user_data.clear()
-            await self._send_post_document_actions(message, context, lang, user, "presentation", document_id)
-        except Exception as e:
-            print(f"Presentation error: {e}")
-            await wait_msg.delete()
-            await message.reply_text("❌ Ошибка при создании презентации. Попробуйте еще раз.")
-
     async def _generate_chat_digest(self, message, context, lang, user):
         from handlers.chat_digest import ChatDigestHandler
         answers = context.user_data.get("doc_answers", {})
@@ -1783,10 +1704,6 @@ class DocumentHandler:
 
         if doc_type in {DEVELOPMENT_MONITORING, "kg_individual_development_card", "kg_monitoring"}:
             await self._generate_monitoring(message, context, lang)
-            return
-
-        if doc_type == "presentation":
-            await self._generate_presentation(message, context, lang, user)
             return
 
         if doc_type == "chat_digest":

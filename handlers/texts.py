@@ -73,7 +73,6 @@ TEXTS = {
         # ДОКУМЕНТЫ — ТИПЫ
         "docs_planning": {
             "lesson_plan":    "📋 Краткосрочный план (КСП)",
-            "presentation":   "🎨 Презентация к уроку (.pptx)",
             "calendar_plan":  "📅 Календарный план на месяц",
             "lesson_summary": "📖 Конспект урока",
         },
@@ -287,7 +286,6 @@ TEXTS = {
 
         "docs_planning": {
             "lesson_plan":    "📋 Қысқамерзімді жоспар (ҚМЖ)",
-            "presentation":   "🎨 Сабаққа арналған слайд (.pptx)",
             "calendar_plan":  "📅 Айлық күнтізбелік жоспар",
             "lesson_summary": "📖 Сабақ конспектісі",
         },
