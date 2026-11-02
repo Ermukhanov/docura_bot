@@ -34,6 +34,25 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(user["lang"], "ru")
         self.assertEqual(user["school"], "Школа № 4")
 
+    async def test_admin_user_list_paginates_and_filters_in_database(self):
+        for user_id in range(201, 226):
+            await self.db.upsert_user(user_id, {
+                "name": str(user_id), "role": "kindergarten" if user_id % 2 else "teacher",
+                "subscribed": 1 if user_id % 3 else 0,
+                "tier": "max" if user_id % 3 else None,
+            })
+
+        first_page = await self.db.get_all_users(limit=10, offset=0)
+        second_page = await self.db.get_all_users(limit=10, offset=10)
+        kindergartens = await self.db.get_all_users(limit=30, filt="kg")
+
+        self.assertEqual(len(first_page), 10)
+        self.assertEqual(len(second_page), 10)
+        self.assertTrue(set(u["tg_id"] for u in first_page).isdisjoint(u["tg_id"] for u in second_page))
+        self.assertTrue(all(u["role"] == "kindergarten" for u in kindergartens))
+        with self.assertRaises(ValueError):
+            await self.db.get_all_users(filt="invalid")
+
     async def test_user_upsert_rejects_unknown_sql_identifier(self):
         with self.assertRaises(ValueError):
             await self.db.upsert_user(202, {"name=role": "admin"})

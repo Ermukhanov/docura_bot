@@ -142,6 +142,10 @@ class AdminHandler:
             await self._show_users(query, filt="free")
         elif data == "admin_users_kg":
             await self._show_users(query, filt="kg")
+        elif data.startswith("admin_users_page_"):
+            _, _, _, filt, page = data.split("_", 4)
+            if filt in {"all", "pro", "max", "free", "kg"} and page.isdigit():
+                await self._show_users(query, filt=filt, page=int(page))
         elif data == "admin_docs":
             await self._show_recent_docs(query)
         elif data == "admin_broadcast":
@@ -418,28 +422,24 @@ class AdminHandler:
         kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
         await _safe_edit(query, text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
-    async def _show_users(self, query, filt="all"):
-        users = await self.db.get_all_users(limit=500)
-        if filt == "pro":
-            users = [u for u in users if u.get("subscribed") and (u.get("tier") == "pro" or not u.get("tier"))]
-            title = "⭐ PRO пользователи"
-        elif filt == "max":
-            users = [u for u in users if u.get("subscribed") and u.get("tier") == "max"]
-            title = "💎 MAX пользователи"
-        elif filt == "free":
-            users = [u for u in users if not u.get("subscribed")]
-            title = "🆓 Бесплатные пользователи"
-        elif filt == "kg":
-            users = [u for u in users if u.get("role") == "kindergarten"]
-            title = "🧸 Воспитатели садиков"
-        else:
-            title = "👥 Все пользователи"
-
-        users = users[:25]
+    async def _show_users(self, query, filt="all", page=0):
+        page = max(0, page)
+        page_size = 20
+        titles = {
+            "all": "👥 Все пользователи",
+            "pro": "⭐ PRO пользователи",
+            "max": "💎 MAX пользователи",
+            "free": "🆓 Бесплатные пользователи",
+            "kg": "🧸 Воспитатели садиков",
+        }
+        title = titles.get(filt, titles["all"])
+        users = await self.db.get_all_users(limit=page_size + 1, offset=page * page_size, filt=filt)
+        has_next = len(users) > page_size
+        users = users[:page_size]
         if not users:
             lines = [f"{title}\n\nНикого не найдено."]
         else:
-            lines = [f"*{title}* ({len(users)})\n"]
+            lines = [f"*{title}* · стр. {page + 1}\n"]
             for u in users:
                 tier = (u.get("tier") or "pro").upper() if u.get("subscribed") else ""
                 sub = f"💎{tier}" if tier == "MAX" else "⭐PRO" if tier == "PRO" else "🆓"
@@ -459,6 +459,13 @@ class AdminHandler:
              InlineKeyboardButton("💎 Активировать MAX", callback_data="admin_activate_max_btn")],
             [InlineKeyboardButton("← Назад", callback_data="admin_menu")],
         ]
+        page_buttons = []
+        if page > 0:
+            page_buttons.append(InlineKeyboardButton("◀️", callback_data=f"admin_users_page_{filt}_{page - 1}"))
+        if has_next:
+            page_buttons.append(InlineKeyboardButton("▶️", callback_data=f"admin_users_page_{filt}_{page + 1}"))
+        if page_buttons:
+            kb.insert(0, page_buttons)
         text = "\n".join(lines)
         if len(text) > 4000:
             text = text[:3900] + "\n\n_...обрезано_"

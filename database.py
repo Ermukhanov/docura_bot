@@ -583,10 +583,22 @@ class Database:
             "revenue": revenue
         }
 
-    async def get_all_users(self, limit=50):
+    async def get_all_users(self, limit=50, offset=0, filt="all"):
+        filters = {
+            "all": "",
+            "pro": "WHERE subscribed=1 AND (tier='pro' OR tier IS NULL OR tier='')",
+            "max": "WHERE subscribed=1 AND tier='max'",
+            "free": "WHERE COALESCE(subscribed, 0)=0",
+            "kg": "WHERE role='kindergarten'",
+        }
+        if filt not in filters:
+            raise ValueError("Unsupported user filter")
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM users ORDER BY created_at DESC LIMIT ?", (limit,)) as cur:
+            async with db.execute(
+                f"SELECT * FROM users {filters[filt]} ORDER BY created_at DESC, tg_id DESC LIMIT ? OFFSET ?",
+                (max(1, min(int(limit), 1000)), max(0, int(offset))),
+            ) as cur:
                 rows = await cur.fetchall()
                 return [dict(r) for r in rows]
 
