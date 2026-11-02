@@ -91,3 +91,23 @@ def test_student_creation_rejects_invalid_absence_count(monkeypatch, tmp_path):
 
     assert response.status_code == 400
     assert response.get_json()["error"]
+
+
+def test_kindergarten_account_cannot_use_school_kundelik_endpoints(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "kindergarten.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+    with mini_app.conn() as db:
+        db.execute("INSERT INTO users (tg_id, role, tier) VALUES (?, 'kindergarten', 'max')", (123456,))
+        db.commit()
+    client = mini_app.app.test_client()
+
+    for method, path, payload in (
+        ("get", "/api/kundelik/status", None),
+        ("post", "/api/kundelik/connect", {"token": "unused"}),
+        ("post", "/api/kundelik/grade", {"mark": 9}),
+        ("post", "/api/kundelik/disconnect", {}),
+    ):
+        response = getattr(client, method)(path, json=payload)
+        assert response.status_code == 403
+        assert "только профилям школы" in response.get_json()["error"]

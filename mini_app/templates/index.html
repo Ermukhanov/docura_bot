@@ -4436,6 +4436,7 @@ function selectKdMark(val) {
 }
 
 async function openKundelikModal() {
+  if (STATE.is_kg || STATE.user?.role === 'kindergarten') return;
   openModal('modalKundelik');
   const userTier = (STATE.user?.tier || '').toLowerCase();
   const isMax = (userTier === 'max' || userTier === 'b2b') || (window.location.search.includes('demo=1'));
@@ -4783,6 +4784,9 @@ async function init() {
 
     STATE.user = data.user;
     STATE.is_kg = Boolean(data.is_kg);
+    document.querySelectorAll('#btnKundelikSyncStudents, #btnKundelikSyncSchedule').forEach(button => {
+      button.hidden = STATE.is_kg;
+    });
     STATE.promo_available = Boolean(data.promo_available);
     if (data.prices) STATE.prices = data.prices;
     if (data.kaspi_number) STATE.kaspi_number = data.kaspi_number;

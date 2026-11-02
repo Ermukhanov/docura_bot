@@ -166,6 +166,13 @@ def conn():
     return c
 
 
+def is_school_user(user_id):
+    """Kundelik is a school-only feature; deny access when role is unknown."""
+    with conn() as db:
+        user = db.execute('SELECT role FROM users WHERE tg_id=?', (user_id,)).fetchone()
+    return bool(user and user['role'] != 'kindergarten')
+
+
 def consume_auth_token(token):
     """Atomically mark a valid short-lived login token as used exactly once."""
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
@@ -801,6 +808,8 @@ def api_kundelik_status():
     tg = telegram_user()
     if not tg:
         return jsonify(error='Unauthorized'), 401
+    if not is_school_user(tg['id']):
+        return jsonify(error='Интеграция Kundelik доступна только профилям школы.'), 403
     with conn() as db:
         user = db.execute('SELECT tier, subscribed FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
         row = db.execute('SELECT provider, school_id, school_name, person_id, synced_at FROM kundelik_integrations WHERE tg_id=?', (tg['id'],)).fetchone()
@@ -821,6 +830,8 @@ def api_kundelik_connect():
     tg = telegram_user()
     if not tg:
         return jsonify(error='Unauthorized'), 401
+    if not is_school_user(tg['id']):
+        return jsonify(error='Интеграция Kundelik доступна только профилям школы.'), 403
     
     with conn() as db:
         user = db.execute('SELECT tier, subscribed FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
@@ -916,6 +927,8 @@ def api_kundelik_grade():
     tg = telegram_user()
     if not tg:
         return jsonify(error='Unauthorized'), 401
+    if not is_school_user(tg['id']):
+        return jsonify(error='Интеграция Kundelik доступна только профилям школы.'), 403
 
     with conn() as db:
         user = db.execute('SELECT tier FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
@@ -965,6 +978,8 @@ def api_kundelik_disconnect():
     tg = telegram_user()
     if not tg:
         return jsonify(error='Unauthorized'), 401
+    if not is_school_user(tg['id']):
+        return jsonify(error='Интеграция Kundelik доступна только профилям школы.'), 403
     with conn() as db:
         db.execute('DELETE FROM kundelik_integrations WHERE tg_id=?', (tg['id'],))
         db.commit()
