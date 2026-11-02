@@ -398,6 +398,46 @@ def api_delete_student(student_id):
     return jsonify(ok=True)
 
 
+@app.put('/api/students/<int:student_id>')
+def api_update_student(student_id):
+    tg = telegram_user()
+    if not tg:
+        return jsonify(error='Unauthorized'), 401
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    class_name = (data.get('class_name') or '').strip()
+    if not name or not class_name:
+        return jsonify(error='Имя и класс или группа обязательны'), 400
+
+    behavior = data.get('behavior', 'хорошее')
+    raw_absences = data.get('absences') or 0
+    if isinstance(raw_absences, bool):
+        return jsonify(error='Число пропусков должно быть целым неотрицательным числом'), 400
+    try:
+        absences = int(raw_absences)
+    except (TypeError, ValueError):
+        return jsonify(error='Число пропусков должно быть целым неотрицательным числом'), 400
+    if absences < 0 or (isinstance(raw_absences, float) and not raw_absences.is_integer()):
+        return jsonify(error='Число пропусков должно быть целым неотрицательным числом'), 400
+    grades = data.get('grades', '')
+    if isinstance(grades, dict):
+        grades = json.dumps(grades, ensure_ascii=False)
+    parents = data.get('parents', '')
+
+    with conn() as db:
+        cur = db.execute(
+            '''UPDATE students SET name=?, class_name=?, behavior=?, absences=?, grades=?, parents=?
+               WHERE id=? AND teacher_id=?''',
+            (name, class_name, behavior, absences, grades, parents, student_id, tg['id']),
+        )
+        if cur.rowcount == 0:
+            return jsonify(error='Запись не найдена'), 404
+        db.commit()
+        student = db.execute('SELECT * FROM students WHERE id=?', (student_id,)).fetchone()
+    return jsonify(ok=True, student=dict(student) if student else {})
+
+
 # ── РАСПИСАНИЕ И РЕЖИМ ДНЯ (CRUD + РАСПОЗНАВАНИЕ ИИ) ──
 
 @app.post('/api/schedule')

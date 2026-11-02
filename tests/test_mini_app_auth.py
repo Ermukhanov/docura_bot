@@ -113,6 +113,33 @@ def test_student_delete_does_not_remove_another_users_record(monkeypatch, tmp_pa
         assert db.execute("SELECT 1 FROM students WHERE id=?", (student_id,)).fetchone()
 
 
+def test_student_update_is_available_to_owner_and_scoped(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "student-update.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+    with mini_app.conn() as db:
+        own_id = db.execute(
+            "INSERT INTO students (teacher_id, name, class_name) VALUES (?, ?, ?)",
+            (123456, "A", "5A"),
+        ).lastrowid
+        other_id = db.execute(
+            "INSERT INTO students (teacher_id, name, class_name) VALUES (?, ?, ?)",
+            (654321, "B", "6B"),
+        ).lastrowid
+        db.commit()
+    client = mini_app.app.test_client()
+    payload = {"name": "Updated", "class_name": "7C", "behavior": "good", "absences": 2, "grades": "Math", "parents": "Parent"}
+
+    own_response = client.put(f"/api/students/{own_id}", json=payload)
+    foreign_response = client.put(f"/api/students/{other_id}", json=payload)
+
+    assert own_response.status_code == 200
+    assert own_response.get_json()["student"]["name"] == "Updated"
+    assert foreign_response.status_code == 404
+    with mini_app.conn() as db:
+        assert db.execute("SELECT name FROM students WHERE id=?", (other_id,)).fetchone()["name"] == "B"
+
+
 def test_kindergarten_account_cannot_use_school_kundelik_endpoints(monkeypatch, tmp_path):
     monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "kindergarten.db"))
     monkeypatch.setattr(mini_app, "_schema_initialized", False)

@@ -3813,6 +3813,7 @@ function renderStudentsList(filter = '') {
           </div>
         </div>
       </div>
+      <button type="button" class="student-delete-btn" onclick="editStudent(${Number(s.id)})" aria-label="${lang === 'kz' ? 'Өңдеу' : lang === 'en' ? 'Edit' : 'Изменить'}" title="${lang === 'kz' ? 'Өңдеу' : lang === 'en' ? 'Edit' : 'Изменить'}">✎</button>
       <button onclick="deleteStudent(${s.id})" class="student-delete-btn" title="✕" aria-label="Delete"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 14h12l1-14M9 7V4h6v3"/></svg></button>
     </div>
   `).join('');
@@ -3936,7 +3937,10 @@ function renderMemory() {
 }
 
 // ── MODAL OPENS ──
+let editingStudentId = null;
+
 function openAddStudentModal() {
+  editingStudentId = null;
   document.getElementById('addStudentForm').reset();
   const isKg = STATE.is_kg || (STATE.user?.role === 'kindergarten');
   const lang = STATE.lang || 'ru';
@@ -3957,7 +3961,30 @@ function openAddStudentModal() {
     document.getElementById('studentSchoolFields').style.display = 'block';
     document.getElementById('studentKgFields').style.display = 'none';
   }
+  document.getElementById('btnSubmitAddStudent').textContent = i18.btnSubmitAddStudent;
   openModal('modalAddStudent');
+}
+
+function editStudent(id) {
+  const student = STATE.students.find(item => Number(item.id) === Number(id));
+  if (!student) return;
+  openAddStudentModal();
+  editingStudentId = Number(student.id);
+  const lang = STATE.lang || 'ru';
+  const isKg = STATE.is_kg || (STATE.user?.role === 'kindergarten');
+  document.getElementById('studentModalTitle').textContent = lang === 'kz' ? 'Жазбаны өңдеу' : lang === 'en' ? 'Edit record' : 'Изменить запись';
+  document.getElementById('btnSubmitAddStudent').textContent = lang === 'kz' ? 'Өзгерістерді сақтау' : lang === 'en' ? 'Save changes' : 'Сохранить изменения';
+  document.getElementById('newStudentName').value = student.name || '';
+  document.getElementById('newStudentClass').value = student.class_name || '';
+  document.getElementById('newStudentParents').value = student.parents || '';
+  if (isKg) {
+    document.getElementById('newStudentKgLevel').value = student.behavior || 'II - Средний';
+    document.getElementById('newStudentKgFeatures').value = student.grades || '';
+  } else {
+    document.getElementById('newStudentBehavior').value = student.behavior || 'хорошее';
+    document.getElementById('newStudentGrades').value = student.grades || '';
+    document.getElementById('newStudentAbsences').value = student.absences || 0;
+  }
 }
 
 function openAddLessonModal() {
@@ -4250,8 +4277,9 @@ async function submitAddStudent(e) {
   const i18 = I18N[STATE.lang] || I18N.ru;
 
   try {
-    const res = await fetch('/api/students', {
-      method: 'POST',
+    const isEditing = editingStudentId !== null;
+    const res = await fetch(isEditing ? `/api/students/${editingStudentId}` : '/api/students', {
+      method: isEditing ? 'PUT' : 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
@@ -4260,8 +4288,13 @@ async function submitAddStudent(e) {
     });
     const data = await res.json();
     if (data.ok) {
-      STATE.students.push(data.student || { id: Date.now(), name, class_name, behavior, grades, absences });
+      if (isEditing) {
+        STATE.students = STATE.students.map(student => Number(student.id) === editingStudentId ? data.student : student);
+      } else {
+        STATE.students.push(data.student || { id: Date.now(), name, class_name, behavior, grades, absences });
+      }
       closeModal('modalAddStudent');
+      editingStudentId = null;
       renderUI();
       showToast(isKg ? i18.toastStudentSavedKg : i18.toastStudentSaved);
     } else {
