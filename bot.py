@@ -30,6 +30,10 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+# httpx logs complete request URLs at INFO; Telegram Bot API URLs contain the
+# bot token, so keep transport request logging at WARNING in production.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 TELEGRAM_TOKEN    = os.getenv("TELEGRAM_TOKEN")

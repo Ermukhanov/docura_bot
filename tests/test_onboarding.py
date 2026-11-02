@@ -17,6 +17,7 @@ from handlers.onboarding import OnboardingHandler
 from handlers.profile import students_section_intro
 from handlers.rag_base import MON_RK_RULES, MON_RK_RULES_KG
 from handlers.texts import t
+from telegram.error import NetworkError
 
 
 class FakeMessage:
@@ -140,6 +141,18 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.context.user_data["doc_type"], "kindergarten_cycle_schedule")
         self.assertTrue(query.edited)
         self.assertIn("doc_lang_kz", str(query.edited[-1][1]["reply_markup"]))
+
+    async def test_quick_cyclegram_continues_if_callback_ack_network_fails(self):
+        await self.db.upsert_user(709, {"lang": "ru"})
+        query = FakeQuery("onboard_doc_cycle", 709)
+        query.answer = AsyncMock(side_effect=NetworkError("temporary connection failure"))
+        update = types.SimpleNamespace(callback_query=query, effective_user=query.from_user)
+
+        await self.handler.callback(update, self.context)
+
+        user = await self.db.get_user(709)
+        self.assertEqual(user["role"], "kindergarten")
+        self.assertEqual(self.context.user_data["doc_type"], "kindergarten_cycle_schedule")
 
     async def test_ambiguous_characteristic_asks_role_in_one_step(self):
         await self.db.upsert_user(703, {"lang": "ru"})

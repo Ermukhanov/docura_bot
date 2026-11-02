@@ -3,6 +3,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from telegram.helpers import escape_markdown
+from telegram.error import NetworkError
 from handlers.texts import t
 from database import Database
 
@@ -160,7 +161,13 @@ class OnboardingHandler:
 
     async def callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
-        await query.answer()
+        try:
+            await query.answer()
+        except NetworkError as exc:
+            # A transient Bot API connection failure while acknowledging the
+            # tap must not discard the user's onboarding choice.
+            import logging
+            logging.getLogger(__name__).warning("Could not acknowledge onboarding callback: %s", type(exc).__name__)
         data = query.data
         user_id = update.effective_user.id
         user = await self.db.get_user(user_id)
