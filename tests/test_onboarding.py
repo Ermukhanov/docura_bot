@@ -79,6 +79,8 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
             "kindergarten_cycle_schedule": ["group", "period", "week_topic", "events"],
             "characteristic": ["student_name", "performance", "behavior", "activities", "purpose"],
             "kg_child_characteristic": ["student_name", "performance", "behavior", "activities", "purpose"],
+            "calendar_plan": ["subject_class", "period", "textbook", "hours_per_week"],
+            "monthly_report": ["period", "classes", "performance", "extra"],
         }
         for doc_type, keys in question_sets.items():
             questions = [{"key": key, "q": key} for key in keys]

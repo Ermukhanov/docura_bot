@@ -608,11 +608,12 @@ FIRST_DOC_OPTIONAL_QUESTION_KEYS = {
 
 
 def limit_first_document_questions(doc_type, questions, is_first_document):
-    """Skip optional detail questions on the first-document quick path."""
+    """Keep the first-document path to three questions, deferring extra details."""
     if not is_first_document:
         return questions
     optional_keys = FIRST_DOC_OPTIONAL_QUESTION_KEYS.get(doc_type, set())
-    return [question for question in questions if question.get("key") not in optional_keys]
+    trimmed = [question for question in questions if question.get("key") not in optional_keys]
+    return trimmed[:3]
 
 # Типы документов, для которых предлагается выбор ребёнка/ученика из базы
 STUDENT_LINKED_DOC_TYPES = [
