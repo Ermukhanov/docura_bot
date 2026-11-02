@@ -53,6 +53,18 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await self.db.get_all_users(filt="invalid")
 
+    async def test_new_document_sample_archives_previous_active_version(self):
+        await self.db.add_sample("lesson_plan", "ru", "old content", "Old", 1)
+        await self.db.add_sample("lesson_plan", "ru", "new content", "New", 1)
+
+        active = await self.db.get_samples_for_type("lesson_plan", "ru", limit=10)
+        history = await self.db.get_all_samples(limit=10)
+
+        self.assertEqual([sample["content"] for sample in active], ["new content"])
+        self.assertEqual(len(history), 2)
+        archived = next(sample for sample in history if sample["content"] == "old content")
+        self.assertEqual(archived["is_active"], 0)
+
     async def test_user_upsert_rejects_unknown_sql_identifier(self):
         with self.assertRaises(ValueError):
             await self.db.upsert_user(202, {"name=role": "admin"})

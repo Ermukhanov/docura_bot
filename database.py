@@ -786,6 +786,12 @@ class Database:
     # ===== SAMPLES (образцы документов для обучения генерации) =====
     async def add_sample(self, doc_type: str, lang: str, content: str, title: str, added_by: int):
         async with aiosqlite.connect(self.db_path) as db:
+            # Keep one active version per document type and language; older rows
+            # stay available in admin history as archived versions.
+            await db.execute(
+                "UPDATE samples SET is_active=0 WHERE doc_type=? AND lang=? AND is_active=1",
+                (doc_type, lang),
+            )
             await db.execute(
                 """INSERT INTO samples (doc_type, lang, content, title, added_by)
                    VALUES (?,?,?,?,?)""",
