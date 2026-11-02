@@ -75,3 +75,15 @@ def test_authenticated_user_cannot_read_another_profile(monkeypatch):
     response = client.get("/api/profile/654321")
 
     assert response.status_code == 403
+
+
+def test_student_creation_rejects_invalid_absence_count(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "students.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+    client = mini_app.app.test_client()
+
+    response = client.post("/api/students", json={"name": "Test", "class_name": "5A", "absences": "many"})
+
+    assert response.status_code == 400
+    assert response.get_json()["error"]

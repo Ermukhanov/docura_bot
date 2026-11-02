@@ -343,7 +343,15 @@ def api_add_student(user_id=None):
         return jsonify(error='Имя обязательно для заполнения'), 400
 
     behavior = data.get('behavior', 'хорошее')
-    absences = int(data.get('absences') or 0)
+    raw_absences = data.get('absences') or 0
+    if isinstance(raw_absences, bool):
+        return jsonify(error='Число пропусков должно быть целым неотрицательным числом'), 400
+    try:
+        absences = int(raw_absences)
+    except (TypeError, ValueError):
+        return jsonify(error='Число пропусков должно быть целым неотрицательным числом'), 400
+    if absences < 0 or (isinstance(raw_absences, float) and not raw_absences.is_integer()):
+        return jsonify(error='Число пропусков должно быть целым неотрицательным числом'), 400
     grades = data.get('grades', '')
     if isinstance(grades, dict):
         grades = json.dumps(grades, ensure_ascii=False)
