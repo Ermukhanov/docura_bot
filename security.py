@@ -49,6 +49,10 @@ def verify_telegram_init_data(raw_init_data: str, bot_token: str = "") -> dict |
         received_hash = data.pop("hash", "")
         if not received_hash:
             return None
+        auth_date = int(data.get("auth_date", "0"))
+        now = time.time()
+        if auth_date <= 0 or now - auth_date > 86400 or auth_date > now + 60:
+            return None
         check_string = "\n".join(f"{k}={data[k]}" for k in sorted(data))
         secret_key = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
         expected_hash = hmac.new(secret_key, check_string.encode(), hashlib.sha256).hexdigest()

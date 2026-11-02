@@ -1,5 +1,11 @@
 import mini_app
+import hashlib
+import hmac
+import json
+import time
+from urllib.parse import urlencode
 from security import create_auth_token, verify_auth_token
+from security import verify_telegram_init_data
 
 
 def test_auth_token_is_signed_and_rejects_tampering():
@@ -20,6 +26,27 @@ def test_browser_login_token_can_only_be_consumed_once(monkeypatch, tmp_path):
 
     assert first_login.status_code == 302
     assert replay.status_code == 401
+
+
+def _signed_init_data(bot_token, auth_date):
+    fields = {
+        "auth_date": str(auth_date),
+        "user": json.dumps({"id": 246810}, separators=(",", ":")),
+    }
+    check_string = "\n".join(f"{key}={fields[key]}" for key in sorted(fields))
+    secret = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
+    fields["hash"] = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
+    return urlencode(fields)
+
+
+def test_telegram_init_data_rejects_expired_auth_date():
+    bot_token = "test-bot-token"
+    current = int(time.time())
+    fresh = _signed_init_data(bot_token, current)
+    expired = _signed_init_data(bot_token, current - 86401)
+
+    assert verify_telegram_init_data(fresh, bot_token) == {"id": 246810}
+    assert verify_telegram_init_data(expired, bot_token) is None
 
 
 def test_query_user_id_cannot_authenticate(monkeypatch):
