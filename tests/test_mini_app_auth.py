@@ -180,6 +180,41 @@ def test_memory_add_and_clear_persist_for_authenticated_user(monkeypatch, tmp_pa
         assert db.execute("SELECT 1 FROM agent_memory WHERE tg_id=?", (123456,)).fetchone() is None
 
 
+def test_kundelik_connect_never_creates_fake_student_records(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "kundelik-connect.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+
+    class FakeKundelikClient:
+        def __init__(self, token, provider, user_info=None):
+            self.provider = provider
+
+        async def get_profile(self):
+            return {"ok": True, "data": {"schools": [{"id": 5, "name": "Школа 5"}], "person_id": 7}}
+
+        async def get_classes(self):
+            return [{"id": 9, "name": "5А"}]
+
+        async def get_schedule(self):
+            return [{"day": "Понедельник", "time": "09:00", "subject": "Математика", "class": "5А"}]
+
+    monkeypatch.setattr("handlers.kundelik_api.KundelikClient", FakeKundelikClient)
+    with mini_app.conn() as db:
+        db.execute("INSERT INTO users (tg_id, role, tier) VALUES (?, 'teacher', 'max')", (123456,))
+        db.commit()
+    client = mini_app.app.test_client()
+
+    response = client.post("/api/kundelik/connect", json={"token": "real-token", "provider": "kundelik"})
+
+    assert response.status_code == 200
+    assert response.get_json()["classes_count"] == 1
+    with mini_app.conn() as db:
+        assert db.execute("SELECT COUNT(*) FROM students WHERE teacher_id=?", (123456,)).fetchone()[0] == 0
+        saved_schedule = db.execute("SELECT schedule_data FROM schedules WHERE tg_id=?", (123456,)).fetchone()
+        assert saved_schedule
+        assert '"class": "5А"' in saved_schedule["schedule_data"]
+
+
 def test_kindergarten_account_cannot_use_school_kundelik_endpoints(monkeypatch, tmp_path):
     monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "kindergarten.db"))
     monkeypatch.setattr(mini_app, "_schema_initialized", False)

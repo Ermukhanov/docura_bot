@@ -939,26 +939,13 @@ def api_kundelik_connect():
                 ON CONFLICT(tg_id) DO UPDATE SET schedule_data=excluded.schedule_data, updated_at=datetime('now')
             """, (tg['id'], json.dumps(sched, ensure_ascii=False)))
 
-        for cls in classes:
-            st_list = [
-                {"name": "Аманжолов Арман", "class_name": cls.get("name", "7 «А»"), "avg": 8.7, "abs": 1},
-                {"name": "Берік Аружан", "class_name": cls.get("name", "7 «А»"), "avg": 9.4, "abs": 0},
-                {"name": "Данияров Дамир", "class_name": cls.get("name", "7 «А»"), "avg": 6.8, "abs": 3},
-                {"name": "Жұмағали Дильназ", "class_name": cls.get("name", "7 «А»"), "avg": 9.8, "abs": 0},
-                {"name": "Ибрагимов Санжар", "class_name": cls.get("name", "7 «А»"), "avg": 7.5, "abs": 2},
-            ]
-            for s in st_list:
-                db.execute("""
-                    INSERT OR IGNORE INTO students (teacher_id, name, class_name, absences, notes)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (tg['id'], s['name'], s['class_name'], s['abs'], f"BilimClass (ср. {s['avg']})"))
         db.commit()
 
     return jsonify(
         ok=True,
         school=school_name,
         classes_count=len(classes),
-        message=f'BilimClass успешно подключён! Импортировано классов: {len(classes)}.'
+        message=f'Интеграция подключена. Найдено классов: {len(classes)}.'
     )
 
 
