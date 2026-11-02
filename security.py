@@ -5,7 +5,7 @@ import hashlib
 import json
 from urllib.parse import parse_qsl
 
-SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("TELEGRAM_TOKEN") or "docura-secure-secret-key-2026-production"
+SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("TELEGRAM_TOKEN") or os.urandom(32).hex()
 
 def create_auth_token(user_id: int) -> str:
     """Генерирует криптографически подписанный одноразовый токен для безопасного входа из бота в браузер."""

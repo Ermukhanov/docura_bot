@@ -1,4 +1,12 @@
 import mini_app
+from security import create_auth_token, verify_auth_token
+
+
+def test_auth_token_is_signed_and_rejects_tampering():
+    token = create_auth_token(123456)
+
+    assert verify_auth_token(token) == 123456
+    assert verify_auth_token(token + "x") is None
 
 
 def test_query_user_id_cannot_authenticate(monkeypatch):
