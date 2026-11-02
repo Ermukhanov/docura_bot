@@ -345,6 +345,15 @@ def api_me(user_id=None):
 
 # ── СТУДЕНТЫ / ВОСПИТАННИКИ (CRUD) ──
 
+def _student_text_field(data, key, default='', max_length=500):
+    value = data.get(key, default)
+    if value is None:
+        value = default
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value if len(value) <= max_length else None
+
 @app.post('/api/students')
 @app.post('/api/profile/<int:user_id>/students')
 def api_add_student(user_id=None):
@@ -355,12 +364,17 @@ def api_add_student(user_id=None):
         return jsonify(error='Forbidden'), 403
 
     data = request.get_json(silent=True) or request.form.to_dict()
-    name = (data.get('name') or '').strip()
-    class_name = (data.get('class_name') or '').strip()
-    if not name:
-        return jsonify(error='Имя обязательно для заполнения'), 400
+    name = _student_text_field(data, 'name', max_length=200)
+    class_name = _student_text_field(data, 'class_name', max_length=100)
+    behavior = _student_text_field(data, 'behavior', 'хорошее', 100)
+    parents = _student_text_field(data, 'parents', max_length=500)
+    parent_phone = _student_text_field(data, 'parent_phone', max_length=50)
+    birth_date = _student_text_field(data, 'birth_date', max_length=30)
+    if any(value is None for value in (name, class_name, behavior, parents, parent_phone, birth_date)):
+        return jsonify(error='Проверьте текстовые поля ученика или воспитанника.'), 400
+    if not name or not class_name:
+        return jsonify(error='Имя и класс или группа обязательны'), 400
 
-    behavior = data.get('behavior', 'хорошее')
     raw_absences = data.get('absences') or 0
     if isinstance(raw_absences, bool):
         return jsonify(error='Число пропусков должно быть целым неотрицательным числом'), 400
@@ -371,11 +385,10 @@ def api_add_student(user_id=None):
     if absences < 0 or (isinstance(raw_absences, float) and not raw_absences.is_integer()):
         return jsonify(error='Число пропусков должно быть целым неотрицательным числом'), 400
     grades = data.get('grades', '')
-    if isinstance(grades, dict):
+    if isinstance(grades, (dict, list)):
         grades = json.dumps(grades, ensure_ascii=False)
-    parents = data.get('parents', '')
-    parent_phone = data.get('parent_phone', '')
-    birth_date = data.get('birth_date', '')
+    elif not isinstance(grades, str) or len(grades) > 10000:
+        return jsonify(error='Поле успеваемости или особенностей слишком длинное либо имеет неверный тип.'), 400
 
     with conn() as db:
         cur = db.execute(
@@ -410,12 +423,15 @@ def api_update_student(student_id):
         return jsonify(error='Unauthorized'), 401
 
     data = request.get_json(silent=True) or {}
-    name = (data.get('name') or '').strip()
-    class_name = (data.get('class_name') or '').strip()
+    name = _student_text_field(data, 'name', max_length=200)
+    class_name = _student_text_field(data, 'class_name', max_length=100)
+    behavior = _student_text_field(data, 'behavior', 'хорошее', 100)
+    parents = _student_text_field(data, 'parents', max_length=500)
+    if any(value is None for value in (name, class_name, behavior, parents)):
+        return jsonify(error='Проверьте текстовые поля ученика или воспитанника.'), 400
     if not name or not class_name:
         return jsonify(error='Имя и класс или группа обязательны'), 400
 
-    behavior = data.get('behavior', 'хорошее')
     raw_absences = data.get('absences') or 0
     if isinstance(raw_absences, bool):
         return jsonify(error='Число пропусков должно быть целым неотрицательным числом'), 400
@@ -426,9 +442,10 @@ def api_update_student(student_id):
     if absences < 0 or (isinstance(raw_absences, float) and not raw_absences.is_integer()):
         return jsonify(error='Число пропусков должно быть целым неотрицательным числом'), 400
     grades = data.get('grades', '')
-    if isinstance(grades, dict):
+    if isinstance(grades, (dict, list)):
         grades = json.dumps(grades, ensure_ascii=False)
-    parents = data.get('parents', '')
+    elif not isinstance(grades, str) or len(grades) > 10000:
+        return jsonify(error='Поле успеваемости или особенностей слишком длинное либо имеет неверный тип.'), 400
 
     with conn() as db:
         cur = db.execute(

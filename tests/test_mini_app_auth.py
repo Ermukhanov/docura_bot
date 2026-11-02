@@ -97,6 +97,26 @@ def test_student_creation_rejects_invalid_absence_count(monkeypatch, tmp_path):
     assert response.get_json()["error"]
 
 
+def test_student_creation_rejects_invalid_text_fields(monkeypatch, tmp_path):
+    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "invalid-students.db"))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
+    client = mini_app.app.test_client()
+
+    invalid_payloads = [
+        {"name": "Student", "class_name": ""},
+        {"name": 123, "class_name": "5A"},
+        {"name": "Student", "class_name": ["5A"]},
+        {"name": "S" * 201, "class_name": "5A"},
+    ]
+    for payload in invalid_payloads:
+        response = client.post("/api/students", json=payload)
+        assert response.status_code == 400
+
+    with mini_app.conn() as db:
+        assert db.execute("SELECT COUNT(*) FROM students WHERE teacher_id=?", (123456,)).fetchone()[0] == 0
+
+
 def test_student_delete_does_not_remove_another_users_record(monkeypatch, tmp_path):
     monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "student-owner.db"))
     monkeypatch.setattr(mini_app, "_schema_initialized", False)
