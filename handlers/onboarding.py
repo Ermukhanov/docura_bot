@@ -233,8 +233,8 @@ class OnboardingHandler:
                 if quick_choice == "other":
                     await self.db.upsert_user(user_id, {"lang": lang, "role": role})
                     context.user_data["onboard_role"] = role
-                    from handlers.documents import DocumentHandler
-                    await DocumentHandler(self.db, os.getenv("ANTHROPIC_API_KEY", ""))._show_categories(
+                    from handlers.main_menu import MainMenuHandler
+                    await MainMenuHandler(self.db)._show_categories(
                         query, lang, await self.db.get_user(user_id)
                     )
                     return

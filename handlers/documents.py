@@ -1067,7 +1067,8 @@ class DocumentHandler:
     async def _show_doc_list(self, query, lang, cat, user):
         role_cats = CAT_DOCS_KG if (user or {}).get("role") == "kindergarten" else CAT_DOCS
         if cat not in role_cats and cat != "common":
-            await self._show_categories(query, lang, user or {})
+            from handlers.main_menu import MainMenuHandler
+            await MainMenuHandler(self.db)._show_categories(query, lang, user or {})
             return
         docs  = CAT_DOCS_ALL.get(cat, [])
         names = DOC_NAMES.get(lang, DOC_NAMES["ru"])

@@ -169,6 +169,29 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         await self.handler.callback(update, self.context)
         self.assertEqual(self.context.user_data["doc_type"], "characteristic")
 
+    async def test_quick_other_choice_opens_role_specific_categories(self):
+        await self.db.upsert_user(710, {"lang": "ru"})
+        self.context.user_data["onboard_quick_doc"] = "other"
+        query = FakeQuery("onboard_role_teacher", 710)
+        update = types.SimpleNamespace(callback_query=query, effective_user=query.from_user)
+
+        await self.handler.callback(update, self.context)
+
+        self.assertTrue(query.edited)
+        keyboard = query.edited[-1][1]["reply_markup"].inline_keyboard
+        callbacks = [button.callback_data for row in keyboard for button in row]
+        self.assertIn("cat_planning", callbacks)
+        self.assertNotIn("cat_kg_planning", callbacks)
+
+    async def test_invalid_document_category_returns_to_role_categories(self):
+        query = FakeQuery()
+        await DocumentHandler(self.db, "")._show_doc_list(query, "ru", "unknown", {"role": "kindergarten"})
+
+        self.assertTrue(query.edited)
+        keyboard = query.edited[-1][1]["reply_markup"].inline_keyboard
+        callbacks = [button.callback_data for row in keyboard for button in row]
+        self.assertIn("cat_kg_planning", callbacks)
+
     async def test_question_count_tracks_prefilled_fields_and_backed_answers(self):
         document_handler = DocumentHandler(self.db, "")
         self.context.user_data.update({
