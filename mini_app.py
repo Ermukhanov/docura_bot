@@ -156,6 +156,26 @@ def ensure_schema(c):
                 consumed_at INTEGER NOT NULL
             );
     """)
+    # The bot may have created these tables with an older schema. CREATE TABLE
+    # IF NOT EXISTS does not add columns to existing tables, so keep the web
+    # process compatible with the same incremental schema upgrades.
+    migrations = (
+        ("users", "reset_pending", "INTEGER DEFAULT 0"),
+        ("users", "document_lang", "TEXT"),
+        ("users", "lang_selected", "INTEGER DEFAULT 0"),
+        ("users", "last_doc_type", "TEXT"),
+        ("users", "last_doc_date", "TEXT"),
+        ("users", "reminder_days", "INTEGER DEFAULT 7"),
+        ("users", "funnel_step", "TEXT"),
+        ("users", "seen_sections", "TEXT DEFAULT '{}'"),
+        ("users", "first_doc_reminder_sent_at", "TEXT"),
+        ("students", "health_group", "TEXT"),
+        ("students", "notes_extended", "TEXT"),
+    )
+    for table, column, declaration in migrations:
+        existing = {row[1] for row in c.execute(f"PRAGMA table_info({table})")}
+        if column not in existing:
+            c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {declaration}")
     c.commit()
     _schema_initialized = True
 

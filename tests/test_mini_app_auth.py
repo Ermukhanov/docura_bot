@@ -39,6 +39,26 @@ def test_schema_failure_is_propagated_and_not_marked_initialized(monkeypatch):
     assert mini_app._schema_initialized is False
 
 
+def test_existing_legacy_tables_receive_bot_schema_migrations(monkeypatch, tmp_path):
+    db_path = tmp_path / "legacy-schema.db"
+    import sqlite3
+
+    with sqlite3.connect(db_path) as db:
+        db.executescript("""
+            CREATE TABLE users (tg_id INTEGER PRIMARY KEY, name TEXT);
+            CREATE TABLE students (id INTEGER PRIMARY KEY, teacher_id INTEGER, name TEXT);
+        """)
+
+    monkeypatch.setattr(mini_app, "DB_PATH", str(db_path))
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+    with mini_app.conn() as db:
+        user_columns = {row[1] for row in db.execute("PRAGMA table_info(users)")}
+        student_columns = {row[1] for row in db.execute("PRAGMA table_info(students)")}
+
+    assert {"document_lang", "funnel_step", "seen_sections", "first_doc_reminder_sent_at"} <= user_columns
+    assert {"health_group", "notes_extended"} <= student_columns
+
+
 def test_browser_login_token_can_only_be_consumed_once(monkeypatch, tmp_path):
     monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "web-auth.db"))
     monkeypatch.setattr(mini_app, "_schema_initialized", False)
