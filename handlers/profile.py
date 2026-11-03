@@ -8,6 +8,7 @@ import anthropic
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
+from telegram.helpers import escape_markdown
 from handlers.texts import t
 from database import Database, free_limit_for
 from security import create_auth_token
@@ -15,6 +16,13 @@ from security import create_auth_token
 MENU_BTN   = lambda lang: InlineKeyboardButton("🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"), callback_data="menu_main")
 BACK_BTN   = lambda lang, cb: InlineKeyboardButton("◀️ " + ("Назад" if lang == "ru" else "Артқа"), callback_data=cb)
 CANCEL_BTN = lambda lang: InlineKeyboardButton("❌ " + ("Отмена" if lang == "ru" else "Болдырмау"), callback_data="menu_main")
+
+
+def _md_value(value):
+    """Escape user-provided values for the legacy Telegram Markdown mode used here."""
+    if value is None:
+        value = "—"
+    return escape_markdown(str(value), version=1)
 
 KASPI_NUMBER = "+7 771 451 4717"
 
@@ -516,29 +524,36 @@ class ProfileHandler:
 
         grades       = json.loads(s.get("grades", "{}"))
         achievements = json.loads(s.get("achievements", "[]"))
-        grades_str   = "\n".join(f"  • {k}: {v}" for k, v in grades.items()) if grades else ("  нет данных" if lang == "ru" else "  деректер жоқ")
-        achieve_str  = "\n".join(f"  • {a}" for a in achievements) if achievements else ("  нет" if lang == "ru" else "  жоқ")
+        grades_str   = "\n".join(f"  • {_md_value(k)}: {_md_value(v)}" for k, v in grades.items()) if grades else ("  нет данных" if lang == "ru" else "  деректер жоқ")
+        achieve_str  = "\n".join(f"  • {_md_value(a)}" for a in achievements) if achievements else ("  нет" if lang == "ru" else "  жоқ")
 
         group_label = ("Группа" if lang == "ru" else "Тобы") if is_kg else ("Класс" if lang == "ru" else "Сынып")
+        student_name = _md_value(s.get("name"))
+        class_name = _md_value(s.get("class_name"))
+        behavior = _md_value(s.get("behavior"))
+        absences = _md_value(s.get("absences"))
+        parents = _md_value(s.get("parents"))
+        parent_phone = _md_value(s.get("parent_phone"))
+        birth_date = _md_value(s.get("birth_date"))
 
         text = (
-            f"{'👶' if is_kg else '👤'} *{s['name']}*\n"
-            f"🏷 {group_label}: {s['class_name']}\n"
-            f"😊 Поведение: {s.get('behavior', '—')}\n"
-            f"📅 Пропуски: {s.get('absences', 0)} дн.\n\n"
-            f"👪 Родители: {s.get('parents') or '—'}\n"
-            f"📞 Телефон: {s.get('parent_phone') or '—'}\n"
-            f"🎂 Дата рождения: {s.get('birth_date') or '—'}\n\n"
+            f"{'👶' if is_kg else '👤'} *{student_name}*\n"
+            f"🏷 {group_label}: {class_name}\n"
+            f"😊 Поведение: {behavior}\n"
+            f"📅 Пропуски: {absences} дн.\n\n"
+            f"👪 Родители: {parents}\n"
+            f"📞 Телефон: {parent_phone}\n"
+            f"🎂 Дата рождения: {birth_date}\n\n"
             f"📊 *{'Достижения' if is_kg else 'Оценки'}:*\n{'' if is_kg else grades_str}\n\n"
             f"🏆 *Достижения:*\n{achieve_str}"
         ) if lang == "ru" else (
-            f"{'👶' if is_kg else '👤'} *{s['name']}*\n"
-            f"🏷 {group_label}: {s['class_name']}\n"
-            f"😊 Мінез-құлық: {s.get('behavior', '—')}\n"
-            f"📅 Өткізулер: {s.get('absences', 0)} күн\n\n"
-            f"👪 Ата-ана: {s.get('parents') or '—'}\n"
-            f"📞 Телефон: {s.get('parent_phone') or '—'}\n"
-            f"🎂 Туған күні: {s.get('birth_date') or '—'}\n\n"
+            f"{'👶' if is_kg else '👤'} *{student_name}*\n"
+            f"🏷 {group_label}: {class_name}\n"
+            f"😊 Мінез-құлық: {behavior}\n"
+            f"📅 Өткізулер: {absences} күн\n\n"
+            f"👪 Ата-ана: {parents}\n"
+            f"📞 Телефон: {parent_phone}\n"
+            f"🎂 Туған күні: {birth_date}\n\n"
             f"🏆 *Жетістіктер:*\n{achieve_str}"
         )
 
