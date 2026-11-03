@@ -435,53 +435,21 @@ def _add_development_monitoring(doc, data: dict):
         "en": f"Child's Individual Development Card for the {school_year} academic year",
     }[lang]
 
-    headers = {
-        "kz": [
-            "Құзыреттіліктер",
-            "Бастапқы бақылау нәтижелері бойынша дамыту, түзету іс-шаралары (қазан - желтоқсан)",
-            "Аралық бақылау нәтижелері бойынша дамыту, түзету іс-шаралары (ақпан - сәуір)",
-            "Қорытынды бақылау нәтижелері бойынша дамыту, түзету іс-шаралары (маусым - тамыз)",
-            "Қорытынды (баланың даму деңгейі сәйкес келеді: III деңгей - «жоғары»; II деңгей – «орташа»; I деңгей - «төмен»)",
-        ],
-        "ru": [
-            "Компетентности",
-            "Мероприятия по развитию и коррекции по результатам первичного мониторинга (октябрь — декабрь)",
-            "Мероприятия по развитию и коррекции по результатам промежуточного мониторинга (февраль — апрель)",
-            "Мероприятия по развитию и коррекции по результатам итогового мониторинга (июнь — август)",
-            "Итог (уровень развития ребёнка соответствует: III уровень — «высокий»; II уровень — «средний»; I уровень — «низкий»)",
-        ],
-        "en": [
-            "Competencies",
-            "Developmental and corrective activities based on initial assessment (October - December)",
-            "Developmental and corrective activities based on intermediate assessment (February - April)",
-            "Developmental and corrective activities based on final assessment (June - August)",
-            "Conclusion (child's development level: Level III - “high”; Level II - “medium”; Level I - “low”)",
-        ],
-    }[lang]
+    headers = [
+        _label("monitoring_competencies", lang),
+        _label("monitoring_initial", lang),
+        _label("monitoring_intermediate", lang),
+        _label("monitoring_final", lang),
+        _label("monitoring_conclusion", lang),
+    ]
 
-    competencies = {
-        "kz": [
-            "Физикалық қасиеттері",
-            "Коммуникативтік дағдылары",
-            "Танымдық және зияткерлік дағдылары",
-            "Шығармашылық дағдыларының, зерттеу іс-әрекетінің дамуы",
-            "Әлеуметтік-эмоционалды дағдыларды қалыптастыру",
-        ],
-        "ru": [
-            "Физические качества",
-            "Коммуникативные навыки",
-            "Познавательные и интеллектуальные навыки",
-            "Развитие творческих навыков, исследовательской деятельности",
-            "Формирование социально-эмоциональных навыков",
-        ],
-        "en": [
-            "Physical qualities",
-            "Communication skills",
-            "Cognitive and intellectual skills",
-            "Creative skills and research activity development",
-            "Social-emotional skills formation",
-        ],
-    }[lang]
+    competencies = [
+        _label("monitoring_physical", lang),
+        _label("monitoring_communication", lang),
+        _label("monitoring_cognitive", lang),
+        _label("monitoring_creative_research", lang),
+        _label("monitoring_social_emotional", lang),
+    ]
 
     legend_text = {
         "kz": (

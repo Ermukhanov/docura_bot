@@ -132,6 +132,33 @@ G = {
     "to_director":    L("Директору", "Директорға", "To the Director"),
     # садик
     "weeks_theme":    L("Темы недель", "Апта тақырыптары", "Weekly themes"),
+    "monitoring_competencies": L("Компетенции", "Құзыреттіліктер", "Competencies"),
+    "monitoring_initial": L(
+        "Мероприятия по развитию и коррекции по результатам первичного мониторинга (октябрь — декабрь)",
+        "Бастапқы бақылау нәтижелері бойынша дамыту, түзету іс-шаралары (қазан — желтоқсан)",
+        "Developmental and corrective activities based on initial monitoring (October — December)",
+    ),
+    "monitoring_intermediate": L(
+        "Мероприятия по развитию и коррекции по результатам промежуточного мониторинга (февраль — апрель)",
+        "Аралық бақылау нәтижелері бойынша дамыту, түзету іс-шаралары (ақпан — сәуір)",
+        "Developmental and corrective activities based on intermediate monitoring (February — April)",
+    ),
+    "monitoring_final": L(
+        "Мероприятия по развитию и коррекции по результатам итогового мониторинга (июнь — август)",
+        "Қорытынды бақылау нәтижелері бойынша дамыту, түзету іс-шаралары (маусым — тамыз)",
+        "Developmental and corrective activities based on final monitoring (June — August)",
+    ),
+    "monitoring_conclusion": L(
+        "Итог (уровень развития ребёнка соответствует: III уровень — «высокий»; II уровень — «средний»; I уровень — «низкий»)",
+        "Қорытынды (баланың даму деңгейі сәйкес келеді: III деңгей — «жоғары»; II деңгей — «орташа»; I деңгей — «төмен»)",
+        "Conclusion (child's development level: Level III — “high”; Level II — “medium”; Level I — “low”)",
+    ),
+    "monitoring_physical": L("Физические качества", "Физикалық қасиеттері", "Physical qualities"),
+    "monitoring_communication": L("Коммуникативные навыки", "Коммуникативтік дағдылары", "Communication skills"),
+    "monitoring_cognitive": L("Познавательные и интеллектуальные навыки", "Танымдық және зияткерлік дағдылары", "Cognitive and intellectual skills"),
+    "monitoring_creative_research": L("Развитие творческих навыков, исследовательской деятельности", "Шығармашылық дағдыларының, зерттеу іс-әрекетінің дамуы", "Creative skills and research activity development"),
+    "monitoring_social_emotional": L("Формирование социально-эмоциональных навыков", "Әлеуметтік-эмоционалды дағдыларды қалыптастыру", "Social-emotional skills formation"),
+    "birth_year": L("Год рождения", "Туған жылы", "Birth year"),
     "week":           L("Неделя", "Апта", "Week"),
     "event":          L("Мероприятие", "Іс-шара", "Event"),
     "edu_area":       L("Образовательная область", "Білім беру саласы", "Educational area"),
@@ -260,11 +287,17 @@ SCHEMAS = {
     "kg_parent_letter": S(headings=["letter"], fields=["child_fio", "group"]),
     "kg_absence_cert": S(headings=["certificate"], fields=["child_fio", "group", "reason"]),
     "development_monitoring": S(
-        tables=[["number", "child_fio", "skill_area", "note"]],
-        fields=["organization", "group", "age", "period", "educator"]),
+        tables=[[
+            "monitoring_competencies", "monitoring_initial", "monitoring_intermediate",
+            "monitoring_final", "monitoring_conclusion",
+        ]],
+        fields=["child_fio", "birth_year", "age", "group"]),
     "kg_monitoring": S(
-        tables=[["skill_area", "mastered", "partly", "need_support"]],
-        fields=["organization", "group", "age", "period", "educator"]),
+        tables=[[
+            "monitoring_competencies", "monitoring_initial", "monitoring_intermediate",
+            "monitoring_final", "monitoring_conclusion",
+        ]],
+        fields=["child_fio", "birth_year", "age", "group"]),
     "kg_vacation_request": S(headings=["application"], fields=["fio", "date"]),
     "kg_explanation": S(headings=["explanatory"], fields=["fio", "date"]),
     "kg_announcement": S(headings=["announcement"], fields=["date", "time", "place"]),
