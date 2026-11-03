@@ -33,7 +33,6 @@ class AgentHandler:
         """Меню управления расписанием (для сада — режим дня и занятия по группе)"""
         user_id = update_or_query.from_user.id if hasattr(update_or_query, "from_user") else update_or_query.message.chat_id
         if not await self.db.has_seen_section(user_id, "schedule"):
-            await self.db.mark_section_seen(user_id, "schedule")
             intro = (
                 "📅 *Добро пожаловать в раздел Расписание!*\n\n"
                 "Здесь вы можете загрузить своё расписание уроков или режим дня группы.\n\n"
@@ -51,6 +50,7 @@ class AgentHandler:
                 "Кесте суретін жіберіңіз немесе мәтінмен жазыңыз 👇"
             )
             await update_or_query.message.reply_text(intro, parse_mode=ParseMode.MARKDOWN)
+            await self.db.mark_section_seen(user_id, "schedule")
         if is_kg:
             text = (
                 "📅 *Режим дня и сетка занятий*\n"
