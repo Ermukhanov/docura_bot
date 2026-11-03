@@ -101,7 +101,15 @@ def test_profile_page_does_not_disable_mobile_zoom():
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
     assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
+    assert response.headers["X-Frame-Options"] == "DENY"
     assert b"#authRequiredView { grid-column:1 / -1" in response.data
+
+
+def test_api_responses_are_not_cached():
+    response = mini_app.app.test_client().get("/api/me")
+
+    assert response.status_code == 401
+    assert response.headers["Cache-Control"] == "no-store"
 
 
 def test_query_user_id_cannot_authenticate(monkeypatch):

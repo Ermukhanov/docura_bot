@@ -36,6 +36,9 @@ def add_security_headers(response):
     response.headers.setdefault('X-Content-Type-Options', 'nosniff')
     response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
     response.headers.setdefault('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+    response.headers.setdefault('X-Frame-Options', 'DENY')
+    if request.path.startswith('/api/') or request.path == '/auth':
+        response.headers['Cache-Control'] = 'no-store'
     return response
 
 DB_PATH = os.getenv('DB_PATH', os.path.join(os.path.dirname(__file__), 'docura.db'))
