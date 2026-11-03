@@ -352,6 +352,24 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         callbacks = [button.callback_data for row in after for button in row]
         self.assertNotIn("agent_memory_menu", callbacks)
 
+    async def test_first_document_menu_text_stays_focused_until_first_result(self):
+        menu = MainMenuHandler(self.db)
+
+        before = menu._build_menu_text({"name": "Айгуль", "role": "teacher", "free_used": 0}, "ru")
+        after = menu._build_menu_text({"name": "Айгуль", "role": "teacher", "free_used": 1}, "ru")
+
+        self.assertIn("Создать документ", before)
+        self.assertNotIn("персональный ИИ-методист", before)
+        self.assertNotIn("Расписание", before)
+        self.assertIn("персональный ИИ-методист", after)
+
+    async def test_main_menu_escapes_special_names_for_telegram_markdown(self):
+        text = MainMenuHandler(self.db)._build_menu_text(
+            {"name": "A_B*`[C]", "role": "teacher", "free_used": 0}, "ru"
+        )
+
+        self.assertIn("A\\_B\\*\\`\\[C]", text)
+
     async def test_markdown_special_name_is_escaped_in_welcome(self):
         await self.db.upsert_user(704, {"name": "A_B*`[C]", "role": "teacher", "lang": "ru"})
         query = FakeQuery(user_id=704)

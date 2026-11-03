@@ -2,6 +2,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 import os
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
+from telegram.helpers import escape_markdown
 from handlers.texts import t
 from database import Database, free_limit_for
 
@@ -26,7 +27,10 @@ class MainMenuHandler:
 
     def _build_menu_text(self, user: dict, lang: str) -> str:
         name_parts = (user.get("name") or "").split()
-        name = name_parts[0] if name_parts else ("коллега" if lang == "ru" else "әріптес")
+        name = escape_markdown(
+            name_parts[0] if name_parts else ("коллега" if lang == "ru" else "әріптес"),
+            version=1,
+        )
         is_kg = user.get("role") == "kindergarten"
         subscribed = bool(user.get("subscribed"))
         free_used  = user.get("free_used", 0)
@@ -44,6 +48,19 @@ class MainMenuHandler:
             status_line = f"🆓 *Бесплатный доступ:* осталось *{free_left}/{total_free}* документов" if lang == "ru" else f"🆓 *Тегін қолжетімділік:* қалды *{free_left}/{total_free}* құжат"
             if bonus_docs:
                 status_line += f" (+{bonus_docs} бонус)"
+
+        if not free_used:
+            if lang == "ru":
+                return (
+                    f"✨ *Здравствуйте, {name}!* ✨\n"
+                    f"{status_line}\n\n"
+                    "Нажмите *«Создать документ»*, выберите тип и язык. Я задам несколько коротких вопросов и подготовлю Word-файл."
+                )
+            return (
+                f"✨ *Қош келдіңіз, {name}!* ✨\n"
+                f"{status_line}\n\n"
+                "*«Құжат жасау»* батырмасын басып, құжат түрі мен тілін таңдаңыз. Бірнеше қысқа сұрақтан кейін Word файлын дайындаймын."
+            )
 
         if lang == "ru":
             return (
