@@ -995,7 +995,13 @@ class ProfileHandler:
             try:
                 absences = int(text)
             except Exception:
-                absences = 0
+                absences = None
+            if absences is None or absences < 0:
+                await message.reply_text(
+                    "Введите целое неотрицательное число (или 0)." if lang == "ru"
+                    else "0 немесе одан үлкен бүтін сан енгізіңіз."
+                )
+                return
             context.user_data["new_student"]["absences"] = absences
             context.user_data["step"] = "student_behavior"
             kb = [
