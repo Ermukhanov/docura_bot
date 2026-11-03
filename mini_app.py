@@ -48,8 +48,7 @@ def ensure_schema(c):
     global _schema_initialized
     if _schema_initialized:
         return
-    try:
-        c.executescript("""
+    c.executescript("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY,
                 tg_id INTEGER UNIQUE NOT NULL,
@@ -156,10 +155,8 @@ def ensure_schema(c):
                 token_hash TEXT PRIMARY KEY,
                 consumed_at INTEGER NOT NULL
             );
-        """)
-        c.commit()
-    except Exception:
-        pass
+    """)
+    c.commit()
     _schema_initialized = True
 
 def conn():

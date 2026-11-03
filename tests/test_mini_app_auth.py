@@ -19,6 +19,26 @@ def test_auth_token_is_signed_and_rejects_tampering():
     assert verify_auth_token(token + "x") is None
 
 
+def test_schema_failure_is_propagated_and_not_marked_initialized(monkeypatch):
+    monkeypatch.setattr(mini_app, "_schema_initialized", False)
+
+    class FailingConnection:
+        def executescript(self, _script):
+            raise mini_app.sqlite3.OperationalError("disk I/O error")
+
+        def commit(self):
+            raise AssertionError("commit must not run after schema creation fails")
+
+    try:
+        mini_app.ensure_schema(FailingConnection())
+    except mini_app.sqlite3.OperationalError as exc:
+        assert "disk I/O error" in str(exc)
+    else:
+        raise AssertionError("schema initialization failure must be propagated")
+
+    assert mini_app._schema_initialized is False
+
+
 def test_browser_login_token_can_only_be_consumed_once(monkeypatch, tmp_path):
     monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "web-auth.db"))
     monkeypatch.setattr(mini_app, "_schema_initialized", False)
