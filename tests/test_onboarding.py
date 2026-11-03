@@ -125,9 +125,23 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         saved = await self.db.get_user(701)
         self.assertEqual(saved["lang"], "kz")
         self.assertEqual(len(message.sent[0][1]["reply_markup"].inline_keyboard), 4)
+        self.assertIn("ҚМЖ үзіндісі", message.sent[0][0])
+        self.assertIn("ресми үлгі емес", message.sent[0][0])
         self.assertNotIn("ФИО", message.sent[0][0])
         events = await self.db.get_funnel_event_counts()
         self.assertEqual(events[0]["event"], "start")
+
+    async def test_russian_start_shows_labeled_demo_document_fragment(self):
+        user = types.SimpleNamespace(id=711, language_code="ru")
+        message = FakeMessage(711)
+        update = types.SimpleNamespace(effective_user=user, effective_message=message, message=message)
+
+        await self.handler.start(update, self.context)
+
+        text = message.sent[0][0]
+        self.assertIn("Пример фрагмента КСП", text)
+        self.assertIn("не официальный образец", text)
+        self.assertEqual(len(message.sent[0][1]["reply_markup"].inline_keyboard), 4)
 
     async def test_quick_cyclegram_infers_kindergarten_and_starts_document(self):
         await self.db.upsert_user(702, {"lang": "ru"})
