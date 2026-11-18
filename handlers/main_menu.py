@@ -70,12 +70,7 @@ class MainMenuHandler:
                 f"📚 *{'Группа' if is_kg else 'Предмет'}*: {spec or '—'}\n"
                 f"{status_line}\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n\n"
-                f"🤖 *Docura — ваш персональный ИИ-методист:*\n"
-                f"• Подбирает структуру по типу документа и вашим ответам\n"
-                f"• Помнит ваших учеников и подставляет их в документы\n"
-                f"• Проверяет расписание и готовит планы заблаговременно\n"
-                f"• Принимает голосовые сообщения — говорите, я запишу\n\n"
-                f"Выберите действие ниже или напишите запрос в чат 👇"
+                f"Нажмите «Создать документ» или просто напишите, что нужно 👇"
             )
         else:
             return (
@@ -85,11 +80,6 @@ class MainMenuHandler:
                 f"📚 *{'Топ' if is_kg else 'Пән'}*: {spec or '—'}\n"
                 f"{status_line}\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n\n"
-                f"🤖 *Docura — сіздің дербес ЖИ-әдіскеріңіз:*\n"
-                f"• Құжат құрылымын таңдалған түрі мен жауаптарыңызға сай құрастырады\n"
-                f"• Оқушыларыңыздың базасын сақтап, құжатқа автоматты қосады\n"
-                f"• Кестені әр 6 сағат сайын бақылап отырады\n"
-                f"• Мәтін және дауыстық хабарламаларды қабылдайды\n\n"
                 f"Төмендегі бөлімді таңдаңыз немесе чатқа жазыңыз 👇"
             )
 
@@ -106,40 +96,24 @@ class MainMenuHandler:
         )
 
     def _main_keyboard(self, lang: str, is_kg: bool = False, show_extras: bool = True):
-        create_button = [InlineKeyboardButton("📄 " + ("Создать документ" if lang == "ru" else "Құжат жасау"), callback_data="menu_create")]
+        """Главное меню: каждый раздел ровно один раз.
+        Расписание, напоминания, язык, веб-кабинет и поддержка — внутри «Профиля»."""
+        ru = lang == "ru"
+        create_button = [InlineKeyboardButton("📄 " + ("Создать документ" if ru else "Құжат жасау"), callback_data="menu_create")]
         if not show_extras:
             return [create_button]
-        students_title = "👥 " + ("Мои воспитанники" if is_kg and lang == "ru" else "Мои ученики" if lang == "ru" else "Менің оқушыларым")
-        schedule_title = "📅 " + ("Режим дня" if is_kg and lang == "ru" else "Расписание" if lang == "ru" else "Кесте")
+        students = ("Воспитанники" if is_kg else "Ученики") if ru else ("Тәрбиеленушілер" if is_kg else "Оқушылар")
         return [
             create_button,
             [
-                InlineKeyboardButton(students_title, callback_data="prof_students"),
-                InlineKeyboardButton(schedule_title, callback_data="agent_schedule"),
+                InlineKeyboardButton("📚 " + ("Мои документы" if ru else "Құжаттарым"), callback_data="menu_history"),
+                InlineKeyboardButton("👥 " + students, callback_data="prof_students"),
             ],
             [
-                InlineKeyboardButton("💻 " + ("Личный кабинет" if lang == "ru" else "Жеке кабинет"), callback_data="prof_cabinet"),
+                InlineKeyboardButton("👤 " + ("Профиль и настройки" if ru else "Профиль және баптаулар"), callback_data="menu_profile"),
+                InlineKeyboardButton("⭐ " + ("Тариф" if ru else "Тариф"), callback_data="prof_sub"),
             ],
-            [InlineKeyboardButton("⭐ " + ("Подписка и PRO" if lang == "ru" else "Жазылым және PRO"), callback_data="prof_sub")],
-            [
-                InlineKeyboardButton("🎁 " + ("Рефералы (+5 док)" if lang == "ru" else "Рефералдар (+5 құжат)"), callback_data="menu_invite"),
-                InlineKeyboardButton("👤 " + ("Мой профиль" if lang == "ru" else "Менің профилім"), callback_data="menu_profile"),
-            ],
-            [
-                InlineKeyboardButton("📚 " + ("История" if lang == "ru" else "Тарих"), callback_data="menu_history"),
-                InlineKeyboardButton("❓ " + ("Инструкция" if lang == "ru" else "Нұсқаулық"), callback_data="menu_help"),
-            ],
-        ]
-
-    def _settings_keyboard(self, lang, is_kg):
-        return [
-            [InlineKeyboardButton("💻 Личный веб-кабинет" if lang == "ru" else "💻 Жеке веб-кабинет", callback_data="prof_cabinet")],
-            [InlineKeyboardButton("👤 Мой профиль" if lang == "ru" else "👤 Менің профилім", callback_data="menu_profile")],
-            [InlineKeyboardButton("🔔 Напоминания" if lang == "ru" else "🔔 Еске салғыштар", callback_data="agent_reminders")],
-            [InlineKeyboardButton("⭐ Тариф и подписка" if lang == "ru" else "⭐ Тариф және жазылым", callback_data="prof_sub")],
-            [InlineKeyboardButton("🌐 Сменить язык" if lang == "ru" else "🌐 Тілді өзгерту", callback_data="prof_lang")],
-            [InlineKeyboardButton("💬 Написать разработчику" if lang == "ru" else "💬 Әзірлеушіге жазу", callback_data="menu_feedback")],
-            [InlineKeyboardButton("← Назад" if lang == "ru" else "← Артқа", callback_data="menu_main")],
+            [InlineKeyboardButton("🎁 " + ("+5 документов за коллегу" if ru else "Әріптес үшін +5 құжат"), callback_data="menu_invite")],
         ]
 
     async def callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -160,13 +134,6 @@ class MainMenuHandler:
             from handlers.profile import ProfileHandler
             await ProfileHandler(self.db).show(query, user_id, lang)
 
-        elif data == "menu_settings":
-            await query.edit_message_text(
-                "⚙️ *Настройки*" if lang == "ru" else "⚙️ *Баптаулар*",
-                reply_markup=InlineKeyboardMarkup(self._settings_keyboard(lang, user.get("role") == "kindergarten")),
-                parse_mode=ParseMode.MARKDOWN,
-            )
-
         elif data == "menu_invite":
             await self._show_invite(query, context, user_id, user, lang)
 
@@ -184,7 +151,7 @@ class MainMenuHandler:
         elif data == "menu_help":
             keyboard = [
                 [InlineKeyboardButton("🌐 Личный кабинет (Сайт)" if lang == "ru" else "🌐 Жеке кабинет (Сайт)", url=SITE_URL)],
-                [InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")]
+                [InlineKeyboardButton(t(lang, "back"), callback_data="menu_main")]
             ]
             if lang == "ru":
                 help_text = (
@@ -249,43 +216,41 @@ class MainMenuHandler:
         а категория для садика (cat_kg_*) не имела списка документов.
         """
         is_kg = user.get("role") == "kindergarten"
+        from handlers.documents import DOC_NAMES
+        names = DOC_NAMES.get(lang, DOC_NAMES["ru"])
+        # Самые нужные документы — сразу кнопками, остальное — по разделам.
+        popular = (["kindergarten_cycle_schedule", "kg_thematic_plan", "kg_child_characteristic"] if is_kg
+                   else ["lesson_plan", "characteristic", "sor_soch"])
+        keyboard = [[InlineKeyboardButton("⭐ " + names.get(d, d), callback_data=f"doc_{d}")] for d in popular]
 
         if is_kg:
-            keyboard = [
-                [InlineKeyboardButton(t(lang, "cat_kg_planning"), callback_data="cat_kg_planning")],
-                [InlineKeyboardButton(t(lang, "cat_kg_reports"),  callback_data="cat_kg_reports")],
-                [InlineKeyboardButton(t(lang, "cat_kg_children"), callback_data="cat_kg_children")],
-                [InlineKeyboardButton(t(lang, "cat_kg_personal"), callback_data="cat_kg_personal")],
-                [InlineKeyboardButton(t(lang, "cat_common"),      callback_data="cat_common")],
-            ]
+            cats = ["cat_kg_planning", "cat_kg_reports", "cat_kg_children", "cat_kg_personal", "cat_common"]
         else:
-            is_ct = user.get("is_class_teacher", 0)
-            keyboard = [
-                [InlineKeyboardButton(t(lang, "cat_planning"),  callback_data="cat_planning")],
-                [InlineKeyboardButton(t(lang, "cat_reports"),   callback_data="cat_reports")],
-            ]
-            if is_ct:
-                keyboard.append([InlineKeyboardButton(t(lang, "cat_students"), callback_data="cat_students")])
-            keyboard.append([InlineKeyboardButton(t(lang, "cat_personal"), callback_data="cat_personal")])
-            keyboard.append([InlineKeyboardButton(t(lang, "cat_common"),   callback_data="cat_common")])
-
-        keyboard.append([InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")])
+            cats = ["cat_planning", "cat_reports"]
+            if user.get("is_class_teacher", 0):
+                cats.append("cat_students")
+            cats += ["cat_personal", "cat_common"]
+        row = []
+        for c in cats:
+            row.append(InlineKeyboardButton(t(lang, c), callback_data=c))
+            if len(row) == 2:
+                keyboard.append(row)
+                row = []
+        if row:
+            keyboard.append(row)
+        keyboard.append([InlineKeyboardButton(t(lang, "back"), callback_data="menu_main")])
 
         if lang == "ru":
             cat_text = (
-                "📁 *Каталог методических документов*\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                    "Структура зависит от выбранного документа. Перед подачей проверьте требования вашей организации.\n\n"
-                "💡 *Умный ввод:* Вы можете выбрать категорию по кнопкам ниже или *просто надиктовать голосовое / написать тему в чат* — ИИ сразу поймёт вас!\n\n"
-                "Выберите нужный раздел:"
+                "📄 *Какой документ сделать?*\n\n"
+                "⭐ — самые популярные. Остальные — в разделах ниже.\n"
+                "Можно и просто написать в чат: «КСП по математике, 6 класс, тема Дроби»."
             )
         else:
             cat_text = (
-                "📁 *Әдістемелік құжаттар каталогы*\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                    "Құжат құрылымы таңдалған түріне байланысты. Жібермес бұрын ұйымыңыздың талаптарын тексеріңіз.\n\n"
-                "💡 *Ақылды енгізу:* Төмендегі санатты таңдауыңызға немесе *чатқа дауыспен/мәтінмен тақырыпты жаза салуыңызға* болады — ЖИ бірден түсінеді!\n\n"
-                "Қажетті бөлімді таңдаңыз:"
+                "📄 *Қандай құжат жасаймыз?*\n\n"
+                "⭐ — ең танымалдары. Қалғандары — төмендегі бөлімдерде.\n"
+                "Чатқа жай жаза салуға да болады: «6 сынып математика ҚМЖ, тақырыбы Бөлшектер»."
             )
 
         await query.edit_message_text(
@@ -328,13 +293,13 @@ class MainMenuHandler:
             f"👥 Шақырылғандар (тіркелген): *{referrals_count}*\n"
             f"📄 Барлық бонус құжаттар: *{bonus_docs}*"
         )
-        keyboard = [[InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")]]
+        keyboard = [[InlineKeyboardButton(t(lang, "back"), callback_data="menu_main")]]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
     async def _show_history(self, query, user_id, lang):
         docs = await self.db.get_history(user_id, limit=15)
         if not docs:
-            keyboard = [[InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")]]
+            keyboard = [[InlineKeyboardButton(t(lang, "back"), callback_data="menu_main")]]
             await query.edit_message_text(
                 t(lang, "history_title") + "\n\n" + t(lang, "history_empty"),
                 reply_markup=InlineKeyboardMarkup(keyboard),
@@ -348,7 +313,7 @@ class MainMenuHandler:
             lines.append(f"📄 *{d['doc_name']}*\n📅 {date} | ⭐ {d['score']}/100")
         text = "\n".join(lines)
 
-        keyboard = [[InlineKeyboardButton("← " + t(lang, "back"), callback_data="menu_main")]]
+        keyboard = [[InlineKeyboardButton(t(lang, "back"), callback_data="menu_main")]]
         await query.edit_message_text(
             text,
             reply_markup=InlineKeyboardMarkup(keyboard),

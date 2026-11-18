@@ -9,7 +9,6 @@ from types import SimpleNamespace
 from urllib.parse import urlencode
 from security import create_auth_token, verify_auth_token
 from security import verify_telegram_init_data
-import handlers.kundelik_api as kundelik_api
 
 
 def test_auth_token_is_signed_and_rejects_tampering():
@@ -281,175 +280,6 @@ def test_memory_add_and_clear_persist_for_authenticated_user(monkeypatch, tmp_pa
         assert db.execute("SELECT 1 FROM agent_memory WHERE tg_id=?", (123456,)).fetchone() is None
 
 
-def test_kundelik_connect_never_creates_fake_student_records(monkeypatch, tmp_path):
-    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "kundelik-connect.db"))
-    monkeypatch.setattr(mini_app, "_schema_initialized", False)
-    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
-
-    class FakeKundelikClient:
-        def __init__(self, token, provider, user_info=None):
-            self.provider = provider
-
-        async def get_profile(self):
-            return {"ok": True, "data": {"schools": [{"id": 5, "name": "Школа 5"}], "person_id": 7}}
-
-        async def get_classes(self):
-            return [{"id": 9, "name": "5А"}]
-
-        async def get_schedule(self):
-            return [{"day": "Понедельник", "time": "09:00", "subject": "Математика", "class": "5А"}]
-
-    monkeypatch.setattr("handlers.kundelik_api.KundelikClient", FakeKundelikClient)
-    with mini_app.conn() as db:
-        db.execute("INSERT INTO users (tg_id, role, tier) VALUES (?, 'teacher', 'max')", (123456,))
-        db.commit()
-    client = mini_app.app.test_client()
-
-    response = client.post("/api/kundelik/connect", json={"token": "real-token", "provider": "kundelik"})
-
-    assert response.status_code == 200
-    assert response.get_json()["classes_count"] == 1
-    with mini_app.conn() as db:
-        assert db.execute("SELECT COUNT(*) FROM students WHERE teacher_id=?", (123456,)).fetchone()[0] == 0
-        saved_schedule = db.execute("SELECT schedule_data FROM schedules WHERE tg_id=?", (123456,)).fetchone()
-        assert saved_schedule
-        assert '"class": "5А"' in saved_schedule["schedule_data"]
-
-
-def test_live_kundelik_failures_do_not_return_mock_data(monkeypatch):
-    class FakeResponse:
-        status = 503
-        headers = {"Content-Type": "text/html"}
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return False
-
-        async def json(self):
-            return {"error": "unavailable"}
-
-        async def text(self):
-            return "unavailable"
-
-    class FakeSession:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return False
-
-        def get(self, *args, **kwargs):
-            return FakeResponse()
-
-        def post(self, *args, **kwargs):
-            return FakeResponse()
-
-    monkeypatch.setattr(kundelik_api, "aiohttp", SimpleNamespace(
-        ClientSession=FakeSession, ClientTimeout=lambda **kwargs: None
-    ))
-    client = kundelik_api.KundelikClient("valid-looking-live-token-123", "kundelik")
-
-    async def check_live_calls():
-        profile = await client.get_profile()
-        classes = await client.get_classes()
-        students = await client.get_students_for_class(1)
-        schedule = await client.get_schedule()
-        mark = await client.post_mark(1, "Student", "5A", 8)
-        return profile, classes, students, schedule, mark
-
-    profile, classes, students, schedule, mark = asyncio.run(check_live_calls())
-
-    assert client.is_mock is False
-    assert profile["ok"] is False
-    assert classes == []
-    assert students == []
-    assert schedule == []
-    assert mark["ok"] is False
-
-
-def test_failed_kundelik_login_never_creates_synthetic_session_token(monkeypatch):
-    monkeypatch.setattr(kundelik_api, "aiohttp", None)
-
-    result = asyncio.run(kundelik_api.KundelikClient.login_with_credentials(
-        "teacher-login", "password123", "kundelik"
-    ))
-
-    assert result["ok"] is False
-    assert "token" not in result
-
-
-def test_kundelik_connect_rejects_unverified_credentials(monkeypatch, tmp_path):
-    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "kundelik-login.db"))
-    monkeypatch.setattr(mini_app, "_schema_initialized", False)
-    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
-
-    async def reject_login(cls, login, password, provider, user_info=None):
-        return {"ok": False, "error": "Login could not be verified"}
-
-    monkeypatch.setattr(kundelik_api.KundelikClient, "login_with_credentials", classmethod(reject_login))
-    with mini_app.conn() as db:
-        db.execute("INSERT INTO users (tg_id, role, tier) VALUES (?, 'teacher', 'max')", (123456,))
-        db.commit()
-    client = mini_app.app.test_client()
-
-    response = client.post("/api/kundelik/connect", json={
-        "login": "teacher", "password": "wrong-password", "provider": "kundelik"
-    })
-
-    assert response.status_code == 400
-    with mini_app.conn() as db:
-        assert db.execute("SELECT 1 FROM kundelik_integrations WHERE tg_id=?", (123456,)).fetchone() is None
-
-
-def test_kundelik_grade_uses_only_a_student_from_live_roster(monkeypatch, tmp_path):
-    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "kundelik-roster.db"))
-    monkeypatch.setattr(mini_app, "_schema_initialized", False)
-    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
-
-    class FakeKundelikClient:
-        posted = []
-
-        def __init__(self, token, provider, user_info=None):
-            pass
-
-        async def get_classes(self):
-            return [{"id": 77, "name": "5А"}]
-
-        async def get_students_for_class(self, class_id):
-            return [{"id": 9988, "name": "Әлия", "class_name": "5А"}]
-
-        async def post_mark(self, student_id, student_name, class_name, mark_val, mark_type, descriptor):
-            self.posted.append((student_id, student_name, class_name, mark_val))
-            return {"ok": True}
-
-    FakeKundelikClient.posted = []
-    monkeypatch.setattr(kundelik_api, "KundelikClient", FakeKundelikClient)
-    with mini_app.conn() as db:
-        db.execute("INSERT INTO users (tg_id, role, tier) VALUES (?, 'teacher', 'max')", (123456,))
-        db.execute(
-            "INSERT INTO kundelik_integrations (tg_id, provider, token) VALUES (?, ?, ?)",
-            (123456, "kundelik", "real-token"),
-        )
-        db.commit()
-    client = mini_app.app.test_client()
-
-    status = client.get("/api/kundelik/status")
-    assert "token" not in status.get_json()["integration"]
-    accepted = client.post("/api/kundelik/grade", json={
-        "student_id": "9988", "student_name": "Attacker supplied name", "class_name": "5А", "mark": 8
-    })
-    rejected = client.post("/api/kundelik/grade", json={
-        "student_id": "1234", "student_name": "Fake", "class_name": "5А", "mark": 8
-    })
-
-    assert status.get_json()["students"] == [{"id": "9988", "name": "Әлия", "class_name": "5А"}]
-    assert accepted.status_code == 200
-    assert FakeKundelikClient.posted == [(9988, "Әлия", "5А", 8)]
-    assert rejected.status_code == 400
-
-
 def test_receipt_upload_rejects_unknown_tier_and_wrong_file_signature(monkeypatch, tmp_path):
     monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "receipt-input.db"))
     monkeypatch.setattr(mini_app, "_schema_initialized", False)
@@ -592,21 +422,7 @@ def test_schedule_text_limits_input_and_rejects_invalid_ai_shape(monkeypatch, tm
         assert db.execute("SELECT 1 FROM schedules WHERE tg_id=?", (123456,)).fetchone() is None
 
 
-def test_kindergarten_account_cannot_use_school_kundelik_endpoints(monkeypatch, tmp_path):
-    monkeypatch.setattr(mini_app, "DB_PATH", str(tmp_path / "kindergarten.db"))
-    monkeypatch.setattr(mini_app, "_schema_initialized", False)
-    monkeypatch.setattr(mini_app, "telegram_user", lambda: {"id": 123456})
-    with mini_app.conn() as db:
-        db.execute("INSERT INTO users (tg_id, role, tier) VALUES (?, 'kindergarten', 'max')", (123456,))
-        db.commit()
-    client = mini_app.app.test_client()
 
-    for method, path, payload in (
-        ("get", "/api/kundelik/status", None),
-        ("post", "/api/kundelik/connect", {"token": "unused"}),
-        ("post", "/api/kundelik/grade", {"mark": 9}),
-        ("post", "/api/kundelik/disconnect", {}),
-    ):
-        response = getattr(client, method)(path, json=payload)
-        assert response.status_code == 403
-        assert "только профилям школы" in response.get_json()["error"]
+def test_kundelik_endpoints_are_removed(monkeypatch):
+    client = mini_app.app.test_client()
+    assert client.get('/api/kundelik/status').status_code == 404

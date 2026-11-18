@@ -1095,7 +1095,7 @@ class DocumentHandler:
         if cat.startswith("kg_"):
             keyboard.append([InlineKeyboardButton("📄 Загрузить образец" if lang == "ru" else "📄 Үлгіні жүктеу", callback_data="doc_template")])
             keyboard.append([InlineKeyboardButton("Личные образцы" if lang == "ru" else "Жеке үлгілер", callback_data="doc_template_manage")])
-        keyboard.append([InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")])
+        keyboard.append([InlineKeyboardButton(t(lang, "back"), callback_data="menu_create")])
 
         cat_name = t(lang, f"cat_{cat}")
         header = "📂 *{cat}*\n{div}\nВыберите тип документа:" if lang == "ru" else "📂 *{cat}*\n{div}\nҚұжат түрін таңдаңыз:"
@@ -1108,7 +1108,7 @@ class DocumentHandler:
             )
             await query.edit_message_text(
                 empty_text,
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")]])
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "back"), callback_data="menu_create")]])
             )
             return
 
@@ -1162,13 +1162,13 @@ class DocumentHandler:
                     )],
                     [InlineKeyboardButton("🎁 Или пригласить и получить +5" if lang == "ru" else "🎁 Немесе шақырып +5 алу", callback_data="menu_invite")],
                     [InlineKeyboardButton("Все тарифы" if lang == "ru" else "Барлық тарифтер", callback_data="prof_sub")],
-                    [InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_main")],
+                    [InlineKeyboardButton(t(lang, "back"), callback_data="menu_main")],
                 ]
             else:
                 text = t(lang, "limit_reached")
                 keyboard = [
                     [InlineKeyboardButton("⭐ Оформить подписку", callback_data="prof_sub")],
-                    [InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_main")],
+                    [InlineKeyboardButton(t(lang, "back"), callback_data="menu_main")],
                 ]
 
             await query.edit_message_text(
@@ -1226,7 +1226,7 @@ class DocumentHandler:
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🇷🇺 Русский", callback_data="doc_lang_ru"), InlineKeyboardButton("🇰🇿 Қазақша", callback_data="doc_lang_kz")],
                 [InlineKeyboardButton("🇬🇧 English", callback_data="doc_lang_en")],
-                [InlineKeyboardButton("◀️ " + t(lang, "back"), callback_data="menu_create")],
+                [InlineKeyboardButton(t(lang, "back"), callback_data="menu_create")],
             ]),
             parse_mode=ParseMode.MARKDOWN,
         )
@@ -2052,7 +2052,7 @@ class DocumentHandler:
 
         try:
             await wait_msg.delete()
-        except:
+        except Exception:
             pass
 
         # Сохранить в БД

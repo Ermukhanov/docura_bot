@@ -66,30 +66,10 @@ class ChatDigestHandler:
             raw = re.sub(r"```$", "", raw, flags=re.MULTILINE).strip()
             return json.loads(raw)
         except Exception as e:
+            # Раньше здесь подставлялся заранее заготовленный «доклад», не связанный
+            # с перепиской пользователя. Лучше честная ошибка, чем выдуманный документ.
             print(f"Chat digest error: {e}")
-            # Резервный методический парсинг
-            return self._fallback_digest(messages_text, lang)
-
-    def _fallback_digest(self, text: str, lang: str) -> dict:
-        lines = [line.strip() for line in text.split("\n") if line.strip()]
-        if lang == "kz":
-            return {
-                "summary_title": "Жұмыс чаттары бойынша оқу ісі меңгерушісіне баяндама",
-                "urgent_deadlines": ["Сабақ жоспарлары мен есептерді тапсыру мерзімдерін қадағалау", "Күнделік.кз жүйесін толтыру"],
-                "attendance_incidents": ["Оқушылардың сабаққа қатысуын күнделікті тексеру"],
-                "methodological_tasks": ["БЖБ/ТЖБ кестесіне сәйкес тапсырмаларды бекіту"],
-                "administrative_duties": ["Апталық кезекшілік кестесін орындау"],
-                "final_memo_text": f"Құрметті оқу ісі меңгерушісі! Жұмыс чатындағы хабарламалар талданды: ағымдағы тапсырмалар мен дедлайндар бақылауға алынды. Барлығы 100% орындалуда."
-            }
-        else:
-            return {
-                "summary_title": "Сводный доклад для завуча по сообщениям рабочих чатов",
-                "urgent_deadlines": ["Своевременная сдача отчетности и проверка выставления оценок в Кунделик"],
-                "attendance_incidents": ["Мониторинг причин отсутствия учащихся и сбор справок"],
-                "methodological_tasks": ["Подготовка заданий СОР/СОЧ согласно утвержденному графику"],
-                "administrative_duties": ["Соблюдение графика дежурств по этажам и кабинетам"],
-                "final_memo_text": f"Уважаемая администрация школы! Направляю сводку по выполнению текущих поручений из рабочих чатов: все срочные задачи приняты в работу, задержек по учебному процессу нет."
-            }
+            raise
 
     def generate_docx_digest(self, digest_data: dict, user_name: str, school: str, lang: str = "ru") -> str:
         """Создает официальный файл Word (.docx) с докладом завучу."""

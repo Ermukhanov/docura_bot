@@ -13,6 +13,13 @@ from handlers.texts import t
 from database import Database, free_limit_for
 from security import create_auth_token
 
+def _val(user: dict, key: str) -> str:
+    """Поле профиля для Markdown: пусто -> «—», спецсимволы экранированы."""
+    from telegram.helpers import escape_markdown
+    value = str(user.get(key) or "").strip()
+    return escape_markdown(value, version=1) if value else "—"
+
+
 MENU_BTN   = lambda lang: InlineKeyboardButton("🏠 " + ("Главное меню" if lang == "ru" else "Басты мәзір"), callback_data="menu_main")
 BACK_BTN   = lambda lang, cb: InlineKeyboardButton("◀️ " + ("Назад" if lang == "ru" else "Артқа"), callback_data=cb)
 CANCEL_BTN = lambda lang: InlineKeyboardButton("❌ " + ("Отмена" if lang == "ru" else "Болдырмау"), callback_data="menu_main")
@@ -26,7 +33,7 @@ def _md_value(value):
 
 KASPI_NUMBER = "+7 771 451 4717"
 
-TIER_PRICES = {"pro": 4990, "pro_promo": 2490, "max": 7490, "b2b": 39900}
+from pricing import TIER_PRICES  # noqa: E402
 TIER_NAMES  = {"pro": "PRO", "max": "MAX", "b2b": "B2B"}
 
 
@@ -78,16 +85,17 @@ class ProfileHandler:
 
         is_kg = user.get("role") == "kindergarten"
 
-        name     = user.get("name", "—")
-        school   = user.get("school", "—")
-        position = user.get("position", "—")
-        director = user.get("director", "—")
+        name     = _val(user, "name")
+        school   = _val(user, "school")
+        position = _val(user, "position")
+        director = _val(user, "director")
         is_pro   = user.get("subscribed", 0)
         free_used = user.get("free_used", 0)
         total_free = free_limit_for(user)
         free_left = max(0, total_free - free_used)
         bonus_docs = user.get("bonus_docs", 0) or 0
-        saved_hours = free_used * 0.5
+        docs_made = await self.db.count_documents(user_id)
+        saved_hours = docs_made * 0.5
         saved_hours_text = f"{saved_hours:g}"
 
         tier = (user.get("tier") or ("pro" if is_pro else "free")).lower()
@@ -113,7 +121,7 @@ class ProfileHandler:
         header_title_kz = f"{tier_badge_icon} {tier_title} ПРОФИЛЬ" if is_pro else "👤 МЕНІҢ ПРОФИЛІМ"
 
         if is_kg:
-            age_group = user.get("age_group", "—")
+            age_group = _val(user, "age_group")
             if lang == "ru":
                 text = (
                     f"{header_title_ru}\n"
@@ -125,7 +133,7 @@ class ProfileHandler:
                     f"👔 *Заведующая:* {director}\n\n"
                     f"{'━' * 28}\n"
                     f"{sub_line}\n"
-                    f"📄 Создано документов: *{free_used}*\n"
+                    f"📄 Создано документов: *{docs_made}*\n"
                     f"⏱ Сэкономлено времени: примерно *{saved_hours_text} ч*"
                 )
             else:
@@ -139,12 +147,12 @@ class ProfileHandler:
                     f"👔 *Меңгеруші:* {director}\n\n"
                     f"{'━' * 28}\n"
                     f"{sub_line}\n"
-                    f"📄 Жасалған құжаттар: *{free_used}*\n"
+                    f"📄 Жасалған құжаттар: *{docs_made}*\n"
                     f"⏱ Үнемделген уақыт: шамамен *{saved_hours_text} сағ*"
                 )
         else:
-            subject  = user.get("subject", "—")
-            classes  = user.get("classes", "—")
+            subject  = _val(user, "subject")
+            classes  = _val(user, "classes")
             is_ct    = "✅" if user.get("is_class_teacher") else "❌"
             if lang == "ru":
                 text = (
@@ -159,7 +167,7 @@ class ProfileHandler:
                     f"🏫 *Кл.рук:* {is_ct}\n\n"
                     f"{'━' * 28}\n"
                     f"{sub_line}\n"
-                    f"📄 Создано документов: *{free_used}*\n"
+                    f"📄 Создано документов: *{docs_made}*\n"
                     f"⏱ Сэкономлено времени: примерно *{saved_hours_text} ч*"
                 )
             else:
@@ -174,38 +182,27 @@ class ProfileHandler:
                     f"👔 *Директор:* {director}\n\n"
                     f"{'━' * 28}\n"
                     f"{sub_line}\n"
-                    f"📄 Жасалған құжаттар: *{free_used}*\n"
+                    f"📄 Жасалған құжаттар: *{docs_made}*\n"
                     f"⏱ Үнемделген уақыт: шамамен *{saved_hours_text} сағ*"
                 )
 
         site_url = get_site_url()
         token = create_auth_token(user_id)
-        browser_url = f"{site_url}/auth?token={token}"
         webapp_url = f"{site_url}/?tg_id={user_id}&token={token}"
-        cab_label = "🌐 Личный веб-кабинет (сайт):" if lang == "ru" else "🌐 Жеке веб-кабинет (сайт):"
-        text += f"\n\n{cab_label}\n`{browser_url}`"
-
-        students_btn_text = t(lang, "btn_my_children") if is_kg else t(lang, "btn_my_students")
-
+        ru = lang == "ru"
         keyboard = [
+            [InlineKeyboardButton("✏️ " + ("Редактировать профиль" if ru else "Профильді өңдеу"), callback_data="prof_edit")],
             [
-                InlineKeyboardButton("📱 " + ("Веб-кабинет" if lang == "ru" else "Веб-кабинет"), web_app=WebAppInfo(url=webapp_url)),
-                InlineKeyboardButton("🌐 " + ("В браузере" if lang == "ru" else "Браузерде"), url=browser_url),
+                InlineKeyboardButton("📅 " + (("Режим дня" if is_kg else "Расписание") if ru else "Кесте"), callback_data="agent_schedule"),
+                InlineKeyboardButton("🔔 " + ("Напоминания" if ru else "Еске салғыштар"), callback_data="agent_reminders"),
             ],
             [
-                InlineKeyboardButton("✏️ " + ("Редактировать" if lang == "ru" else "Өңдеу"), callback_data="prof_edit"),
-                InlineKeyboardButton("👥 " + students_btn_text,                               callback_data="prof_students"),
+                InlineKeyboardButton("📱 " + ("Веб-кабинет" if ru else "Веб-кабинет"), web_app=WebAppInfo(url=webapp_url)),
+                InlineKeyboardButton("🌐 " + ("Язык бота" if ru else "Бот тілі"), callback_data="prof_lang"),
             ],
             [
-                InlineKeyboardButton("📅 " + ("Расписание" if not is_kg and lang == "ru" else "Режим дня" if is_kg and lang == "ru" else "Кесте"), callback_data="agent_schedule"),
-                InlineKeyboardButton("🔔 " + ("Напоминания" if lang == "ru" else "Еске салғыштар"),                                              callback_data="agent_reminders"),
-            ],
-            [
-                InlineKeyboardButton("⭐ " + ("Подписка и тарифы" if lang == "ru" else "Тарифтер"), callback_data="prof_sub"),
-                InlineKeyboardButton("🌐 " + ("Язык бота" if lang == "ru" else "Бот тілі"),          callback_data="prof_lang"),
-            ],
-            [
-                InlineKeyboardButton("✉️ " + ("Отзыв и поддержка" if lang == "ru" else "Пікір және қолдау"), callback_data="prof_complaint"),
+                InlineKeyboardButton("✉️ " + ("Поддержка" if ru else "Қолдау"), callback_data="prof_complaint"),
+                InlineKeyboardButton("❓ " + ("Инструкция" if ru else "Нұсқаулық"), callback_data="menu_help"),
             ],
             [MENU_BTN(lang)],
         ]
@@ -453,7 +450,7 @@ class ProfileHandler:
         students = await self.db.get_students(user_id)
         keyboard = []
         add_btn_text = t(lang, "btn_add_child") if is_kg else t(lang, "btn_add_student")
-        empty_text = t(lang, "no_children") if is_kg else t(lang, "no_students")
+        t(lang, "no_children") if is_kg else t(lang, "no_students")
         title = ("👥 *Мои воспитанники*" if is_kg else "👥 *Мои ученики*") if lang == "ru" \
             else ("👥 *Менің тәрбиеленушілерім*" if is_kg else "👥 *Менің оқушыларым*")
 
@@ -590,12 +587,12 @@ class ProfileHandler:
                 )
                 if tier in ("max", "b2b"):
                     text += (
-                        f"✅ 🤖 Фоновый ИИ-мониторинг расписания 24/7\n"
-                        f"✅ 📊 Доклад для завуча из рабочих чатов\n"
+                        "✅ 🤖 Фоновый ИИ-мониторинг расписания 24/7\n"
+                        "✅ 📊 Доклад для завуча из рабочих чатов\n"
                     )
                 if tier == "b2b":
-                    text += f"✅ 🏢 Доступ для 25 педагогов школы/садика\n"
-                text += f"\nЖелаете сменить тариф или продлить? Выберите вариант ниже:"
+                    text += "✅ 🏢 Доступ для 25 педагогов школы/садика\n"
+                text += "\nЖелаете сменить тариф или продлить? Выберите вариант ниже:"
             else:
                 text = (
                     f"⭐ *Сіздің белсенді тарифіңіз: Docura {cur_tier_name}*\n"
@@ -607,12 +604,12 @@ class ProfileHandler:
                 )
                 if tier in ("max", "b2b"):
                     text += (
-                        f"✅ 🤖 24/7 кестені ЖИ-мониторингтеу\n"
-                        f"✅ 📊 Жұмыс чаттарынан оқу ісі меңгерушісіне баяндама\n"
+                        "✅ 🤖 24/7 кестені ЖИ-мониторингтеу\n"
+                        "✅ 📊 Жұмыс чаттарынан оқу ісі меңгерушісіне баяндама\n"
                     )
                 if tier == "b2b":
-                    text += f"✅ 🏢 Мектеп/балабақшаның 25 педагогына қолжетімділік\n"
-                text += f"\nТарифті жаңартқыңыз келе ме? Төменнен таңдаңыз:"
+                    text += "✅ 🏢 Мектеп/балабақшаның 25 педагогына қолжетімділік\n"
+                text += "\nТарифті жаңартқыңыз келе ме? Төменнен таңдаңыз:"
         else:
             if lang == "ru":
                 text = (

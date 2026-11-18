@@ -1433,7 +1433,6 @@
     <section id="tab-students" class="tab-panel">
       <header class="page-heading"><div><h1 id="studentsTabTitle">Ученики</h1><p id="studentsTabSubtitle">Список учеников и воспитанников, связанный с вашим контекстом Docura.</p></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button onclick="openKundelikModal()" class="btn-pill" id="btnKundelikSyncStudents" style="background:linear-gradient(135deg, #059669, #0284C7); color:#fff; border:none; box-shadow:0 4px 12px rgba(5,150,105,0.3);">💎 BilimClass (MAX)</button>
           <button onclick="openAddStudentModal()" class="btn-pill" id="addStudentBtn">+ Добавить</button>
         </div>
       </header>
@@ -1452,7 +1451,6 @@
     <section id="tab-schedule" class="tab-panel">
       <header class="page-heading"><div><h1 id="scheduleTabTitle">Расписание</h1><p id="scheduleTabSubtitle">Занятия по дням недели и планы для подготовки.</p></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button onclick="openKundelikModal()" class="btn-pill" id="btnKundelikSyncSchedule" style="background:linear-gradient(135deg, #059669, #0284C7); color:#fff; border:none; box-shadow:0 4px 12px rgba(5,150,105,0.3);">💎 BilimClass (MAX)</button>
           <button onclick="openAddLessonModal()" class="btn-pill" id="addLessonBtn">+ Добавить</button>
           <button onclick="openScheduleTextModal()" class="btn-pill" id="btnScheduleText" style="background:#E0F2FE; color:#0284C7; border-color:#BAE6FD">✍️ Ввести текстом</button>
           <button onclick="openScheduleUploadModal()" class="btn-pill" id="btnScheduleUpload" style="background:#F0FDF4; color:#16A34A; border-color:#BBF7D0">📸 Фото / файл</button>
@@ -1600,7 +1598,6 @@
         <div style="font-size:12px; color:var(--text-muted)" id="tierB2bDesc">Тариф MAX для всей школы или садика (до 25 педагогов)</div>
         <ul class="tier-features" id="tierB2bFeatures">
           <li><span>✓</span> <b>Всё из тарифа MAX для 25 учителей / воспитателей</b></li>
-          <li><span>✓</span> 💎 <b>BilimClass для всех педагогов школы</b></li>
           <li><span>✓</span> 🎨 <b>Генератор презентаций PowerPoint (.pptx)</b></li>
           <li><span>✓</span> 🤖 <b>ИИ-мониторинг расписания и Доклад завучу</b></li>
           <li><span>✓</span> Корпоративные шаблоны школы и акты бухгалтерии</li>
@@ -2008,145 +2005,6 @@
   </div>
 </div>
 
-<!-- MODAL: BILIMCLASS INTEGRATION (MAX TIER) -->
-<div id="modalKundelik" class="modal-overlay">
-  <div class="modal-card" style="max-width:540px;">
-    <div class="modal-header">
-      <div class="modal-title" style="display:flex; align-items:center; gap:8px;">
-        <span>💎</span> <span id="kdModalTitle">Интеграция с BilimClass</span>
-        <span class="tier-badge max" style="font-size:10px; padding:2px 6px;">MAX</span>
-      </div>
-      <button onclick="closeModal('modalKundelik')" class="modal-close-btn">✕</button>
-    </div>
-
-    <!-- Upsell banner if not MAX tier -->
-    <div id="kdUpsellView" style="display:none; text-align:center; padding:16px 8px;">
-      <div style="font-size:42px; margin-bottom:8px;">🔒</div>
-      <h3 style="font-size:18px; font-weight:800; color:var(--text-main); margin-bottom:8px;" id="kdUpsellHeading">Функция доступна на тарифе MAX</h3>
-      <p style="font-size:13px; color:var(--text-muted); line-height:1.6; margin-bottom:16px;" id="kdUpsellDesc">
-        Синхронизация с журналом BilimClass (Bilim Media Group), импорт расписания и выставление оценок (1-10 ФО) прямо из бота доступны для подписчиков тарифа MAX (7 490 ₸/мес).
-      </p>
-      <button onclick="closeModal('modalKundelik'); switchTab('tariffs');" class="form-btn-submit" style="background:linear-gradient(135deg, #059669, #0284C7); padding:12px;" id="kdUpsellBtn">
-        ⭐ Перейти к тарифу MAX (7 490 ₸)
-      </button>
-    </div>
-
-    <!-- Integration content for MAX tier -->
-    <div id="kdContentView" style="display:none;">
-      <div id="kdStatusCard" class="glass-card" style="background:#F0FDF4; border-color:#BBF7D0; margin-bottom:16px; padding:14px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-          <strong style="color:#166534; font-size:14px;" id="kdStatusTitle">Статус: Подключено</strong>
-          <span style="font-size:11px; color:#15803D;" id="kdSyncedAt"></span>
-        </div>
-        <div style="font-size:12px; color:#15803D;" id="kdSchoolName">BilimClass · Школа-гимназия №6</div>
-      </div>
-
-      <!-- Connect form (if not connected) -->
-      <div id="kdConnectForm" style="display:none;">
-        <div class="form-group" style="margin-bottom:14px;">
-          <div style="display:inline-flex; align-items:center; gap:8px; background:#ECFDF5; border:1px solid #A7F3D0; padding:8px 14px; border-radius:10px;">
-            <span style="font-size:18px;">📗</span>
-            <div>
-              <div style="font-size:13px; font-weight:800; color:#065F46;">BilimClass (Bilim Media Group)</div>
-              <div style="font-size:11px; color:#047857;">Электронный школьный журнал Казахстана</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Mode switcher: Login/Pass vs Demo vs Token -->
-        <div style="display:flex; gap:6px; margin-bottom:14px; background:#F1F5F9; padding:4px; border-radius:10px;">
-          <button type="button" id="tabKdLogin" onclick="switchKdTab('login')" class="btn-pill" style="flex:1; border:0; background:#fff; font-weight:700; font-size:12px; padding:8px 6px;">🔐 Логин и пароль</button>
-          <button type="button" id="tabKdDemo" onclick="switchKdTab('demo')" class="btn-pill" style="flex:1; border:0; background:transparent; font-size:12px; padding:8px 6px;">⚡ Демо</button>
-          <button type="button" id="tabKdToken" onclick="switchKdTab('token')" class="btn-pill" style="flex:1; border:0; background:transparent; font-size:12px; padding:8px 6px;">🔑 Токен API</button>
-        </div>
-
-        <!-- Sub-panel: Login and password -->
-        <div id="kdPanelLogin">
-          <p style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">
-            Введите логин (ИИН или телефон) и пароль от BilimClass для быстрой синхронизации расписания и классов.
-          </p>
-          <div class="form-group" style="margin-bottom:10px;">
-            <label class="form-label" style="font-size:12px;">Логин (ИИН, телефон или логин) *</label>
-            <input type="text" id="kdLoginInput" class="form-input" placeholder="Например: 850101350123" style="font-size:13px;">
-          </div>
-          <div class="form-group" style="margin-bottom:14px;">
-            <label class="form-label" style="font-size:12px;">Пароль от BilimClass *</label>
-            <input type="password" id="kdPasswordInput" class="form-input" placeholder="••••••••" style="font-size:13px;">
-          </div>
-          <button onclick="connectKundelikByLogin()" class="form-btn-submit" style="background:linear-gradient(135deg, #059669, #0284C7);" id="btnKdLoginConnect">
-            🔐 Войти в BilimClass
-          </button>
-        </div>
-
-        <!-- Sub-panel: Demo -->
-        <div id="kdPanelDemo" style="display:none; text-align:center; padding:12px 6px;">
-          <div style="font-size:32px; margin-bottom:8px;">⚡</div>
-          <p style="font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:14px;">
-            Мгновенно загрузит демонстрационные классы (5 «А», 6 «Ә», 10 «А»), расписание и учеников для тестирования выставления оценок.
-          </p>
-          <button onclick="connectKundelikDemo()" class="form-btn-submit" style="background:linear-gradient(135deg, #059669, #0284C7);" id="btnKdDemoConnect">
-            ⚡ Подключить демо-журнал
-          </button>
-        </div>
-
-        <!-- Sub-panel: API Token -->
-        <div id="kdPanelToken" style="display:none;">
-          <div class="form-group" style="margin-bottom:14px;">
-            <label class="form-label" id="kdTokenLabel" style="font-size:12px;">Токен доступа / API Token *</label>
-            <input type="text" id="kdTokenInput" class="form-input" placeholder="demo_bilimclass_token" value="demo_bilimclass_token">
-          </div>
-          <button onclick="connectKundelikByToken()" class="form-btn-submit" style="background:linear-gradient(135deg, #059669, #0284C7);" id="btnKdConnect">
-            🔑 Подключить по токену
-          </button>
-        </div>
-      </div>
-
-      <!-- Quick grading section (if connected) -->
-      <div id="kdGradeSection" style="display:none;">
-        <h4 style="font-size:14px; font-weight:800; color:var(--text-main); margin-bottom:10px;" id="kdQuickGradeHeading">📝 Быстрое выставление оценки (ФО 1-10)</h4>
-        
-        <div class="form-group">
-          <label class="form-label" id="kdStudentSelectLabel">Ученик *</label>
-          <select id="kdStudentSelect" class="form-select">
-            <!-- Populated dynamically -->
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" id="kdMarkLabel">Балл формативного оценивания (ФО) *</label>
-          <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:6px;">
-            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(10)">🔟 10</button>
-            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(9)">9️⃣ 9</button>
-            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(8)">8️⃣ 8</button>
-            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(7)">7️⃣ 7</button>
-            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(6)">6️⃣ 6</button>
-            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(5)">5️⃣ 5</button>
-            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(4)">4️⃣ 4</button>
-            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(3)">3️⃣ 3</button>
-            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(2)">2️⃣ 2</button>
-            <button type="button" class="btn-pill kd-mark-btn" onclick="selectKdMark(1)">1️⃣ 1</button>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" id="kdDescriptorLabel">Дескриптор / Комментарий учителя</label>
-          <textarea id="kdDescriptorInput" class="form-textarea" style="height:60px;" placeholder="Керемет нәтиже! Тақырыпты жақсы меңгердің."></textarea>
-        </div>
-
-        <div style="display:flex; gap:8px;">
-          <button onclick="submitKundelikGrade()" class="form-btn-submit" style="flex:1; background:#059669;" id="btnKdPostMark">
-            ✅ Отправить оценку в журнал
-          </button>
-          <button onclick="disconnectKundelik()" class="btn-pill" style="color:#DC2626; border-color:#FECACA;" id="btnKdDisconnect">
-            🔌 Отключить
-          </button>
-        </div>
-      </div>
-
-    </div>
-  </div>
-</div>
-
 <!-- TOAST -->
 <div id="toast" class="toast">
   <span id="toastIcon" aria-hidden="true"></span>
@@ -2171,7 +2029,6 @@ const STATE = {
   kaspi_number: '+7 771 451 4717',
   documents: [],
   students: [],
-  kundelikStudents: [],
   schedule: {},
   memory: null,
   referrals: 0,
@@ -2334,7 +2191,6 @@ const I18N = {
     tierMaxDesc: "Всё из PRO + презентации и автопилот",
     tierMaxFeatures: [
       "Всё, что входит в PRO без ограничений",
-      "💎 <b>Интеграция с электронным журналом BilimClass (оценки и расписание)</b>",
       "<b>Генератор презентаций PowerPoint (.pptx)</b>",
       "<b>ИИ-мониторинг чатов и Доклад завучу</b>",
       "Автопилот расписания каждые 6 часов"
@@ -2345,7 +2201,6 @@ const I18N = {
     tierB2bDesc: "Тариф MAX для всей школы или детского сада (до 25 педагогов)",
     tierB2bFeatures: [
       "<b>Всё из тарифа MAX для 25 учителей / воспитателей</b>",
-      "💎 <b>BilimClass для всех педагогов школы</b>",
       "🎨 <b>Генератор презентаций PowerPoint (.pptx)</b>",
       "🤖 <b>ИИ-мониторинг расписания и Доклад завучу</b>",
       "Корпоративные шаблоны школы и акты бухгалтерии",
@@ -2633,7 +2488,6 @@ const I18N = {
     tierMaxDesc: "PRO-ның барлығы + презентациялар мен автопилот",
     tierMaxFeatures: [
       "PRO құрамындағы барлық мүмкіндіктер шектеусіз",
-      "💎 <b>BilimClass электрондық журналымен интеграция (бағалар мен кесте)</b>",
       "<b>PowerPoint (.pptx) презентациялар генераторы</b>",
       "<b>ИИ-мониторинг және оқу ісі меңгерушісіне есеп</b>",
       "Әр 6 сағат сайын сабақ кестесінің автопилоты"
@@ -2644,7 +2498,6 @@ const I18N = {
     tierB2bDesc: "Бүкіл мектеп немесе балабақшаға арналған MAX тарифі (25 педагогке дейін)",
     tierB2bFeatures: [
       "<b>25 мұғалім / тәрбиешіге арналған толық MAX мүмкіндіктері</b>",
-      "💎 <b>Мектептің барлық ұстаздары үшін BilimClass</b>",
       "🎨 <b>PowerPoint (.pptx) презентациялар генераторы</b>",
       "🤖 <b>ИИ-мониторинг және оқу ісі меңгерушісіне жиынтық есеп</b>",
       "Мектептің корпоративтік үлгілері және бухгалтерлік актілер",
@@ -2932,7 +2785,6 @@ const I18N = {
     tierMaxDesc: "Everything in PRO + presentations & autopilot",
     tierMaxFeatures: [
       "Everything in PRO without restrictions",
-      "💎 <b>BilimClass journal integration (grading & schedule)</b>",
       "<b>PowerPoint (.pptx) presentation generator</b>",
       "<b>AI chat monitoring & administrative reports</b>",
       "Schedule autopilot every 6 hours"
@@ -2943,7 +2795,6 @@ const I18N = {
     tierB2bDesc: "MAX tier for the entire school or kindergarten (up to 25 educators)",
     tierB2bFeatures: [
       "<b>Full MAX features for 25 teachers / educators</b>",
-      "💎 <b>BilimClass for all school educators</b>",
       "🎨 <b>PowerPoint (.pptx) presentation generator</b>",
       "🤖 <b>AI schedule autopilot & admin reports</b>",
       "Corporate templates & accounting invoices",
@@ -4470,274 +4321,6 @@ async function clearMemory() {
   showToast(i18.toastMemoryCleared);
 }
 
-// ── KUNDELIK.KZ / BILIMCLASS CONTROLLER (MAX TIER) ──
-let selectedKdMarkVal = 9;
-
-function selectKdMark(val) {
-  selectedKdMarkVal = val;
-  document.querySelectorAll('.kd-mark-btn').forEach(btn => {
-    btn.style.background = btn.textContent.includes(String(val)) ? '#0284C7' : '';
-    btn.style.color = btn.textContent.includes(String(val)) ? '#fff' : '';
-  });
-  const descEl = document.getElementById('kdDescriptorInput');
-  if (descEl && !descEl.value) {
-    if (val >= 8) descEl.value = 'Керемет нәтиже! Тақырыпты жақсы меңгердің.';
-    else if (val >= 4) descEl.value = 'Жақсы жұмыс! Есептеу алгоритмін біледі, қайталау қажет.';
-    else descEl.value = 'Тақырып бойынша қосымша кеңес қажет.';
-  }
-}
-
-async function openKundelikModal() {
-  if (STATE.is_kg || STATE.user?.role === 'kindergarten') return;
-  openModal('modalKundelik');
-  const userTier = (STATE.user?.tier || '').toLowerCase();
-  const isMax = (userTier === 'max' || userTier === 'b2b') || (window.location.search.includes('demo=1'));
-  
-  if (!isMax) {
-    document.getElementById('kdUpsellView').style.display = 'block';
-    document.getElementById('kdContentView').style.display = 'none';
-    return;
-  }
-
-  document.getElementById('kdUpsellView').style.display = 'none';
-  document.getElementById('kdContentView').style.display = 'block';
-
-  try {
-    const res = await fetch('/api/kundelik/status', {
-      headers: tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {}
-    });
-    if (!res.ok) throw new Error('Kundelik status unavailable');
-    const data = await res.json();
-    STATE.kundelikStudents = Array.isArray(data.students) ? data.students : [];
-    if (data.connected && data.integration) {
-      document.getElementById('kdStatusCard').style.display = 'block';
-      document.getElementById('kdConnectForm').style.display = 'none';
-      document.getElementById('kdGradeSection').style.display = 'block';
-      document.getElementById('kdSchoolName').textContent = data.integration.school_name || 'Мектеп-гимназия №6';
-      document.getElementById('kdSyncedAt').textContent = data.integration.synced_at ? data.integration.synced_at.slice(0, 16) : '';
-    } else {
-      document.getElementById('kdStatusCard').style.display = 'none';
-      document.getElementById('kdConnectForm').style.display = 'block';
-      document.getElementById('kdGradeSection').style.display = 'none';
-    }
-  } catch(e) {
-    STATE.kundelikStudents = [];
-    document.getElementById('kdStatusCard').style.display = 'none';
-    document.getElementById('kdConnectForm').style.display = 'block';
-    document.getElementById('kdGradeSection').style.display = 'none';
-  }
-
-  // Заполняем учеников в select
-  const sel = document.getElementById('kdStudentSelect');
-  if (sel) {
-    sel.innerHTML = '';
-    const stList = STATE.kundelikStudents;
-    const gradeButton = document.getElementById('btnKdPostMark');
-    if (!stList.length) {
-      const opt = document.createElement('option');
-      opt.value = '';
-      opt.disabled = true;
-      opt.selected = true;
-      opt.textContent = STATE.lang === 'kz' ? 'Журналда оқушылар табылмады' : STATE.lang === 'en' ? 'No students found in journal' : 'В журнале нет доступных учеников';
-      sel.appendChild(opt);
-      if (gradeButton) gradeButton.disabled = true;
-    }
-    stList.forEach(st => {
-      const opt = document.createElement('option');
-      opt.value = st.id;
-      opt.dataset.name = st.name;
-      opt.dataset.className = st.class_name;
-      opt.textContent = `${st.name} (${st.class_name})`;
-      sel.appendChild(opt);
-    });
-    if (stList.length && gradeButton) gradeButton.disabled = false;
-  }
-  selectKdMark(9);
-}
-
-let activeKdProvider = 'bilimclass';
-
-function setKdProvider(prov) {
-  activeKdProvider = 'bilimclass';
-}
-
-function switchKdTab(tab) {
-  const pLogin = document.getElementById('kdPanelLogin');
-  const pDemo = document.getElementById('kdPanelDemo');
-  const pToken = document.getElementById('kdPanelToken');
-  const tLogin = document.getElementById('tabKdLogin');
-  const tDemo = document.getElementById('tabKdDemo');
-  const tToken = document.getElementById('tabKdToken');
-
-  if (pLogin) pLogin.style.display = tab === 'login' ? 'block' : 'none';
-  if (pDemo) pDemo.style.display = tab === 'demo' ? 'block' : 'none';
-  if (pToken) pToken.style.display = tab === 'token' ? 'block' : 'none';
-
-  const activeStyle = 'flex:1; border:0; background:#fff; font-weight:700; font-size:12px; padding:8px 6px;';
-  const inactiveStyle = 'flex:1; border:0; background:transparent; font-weight:500; font-size:12px; padding:8px 6px;';
-
-  if (tLogin) tLogin.style.cssText = tab === 'login' ? activeStyle : inactiveStyle;
-  if (tDemo) tDemo.style.cssText = tab === 'demo' ? activeStyle : inactiveStyle;
-  if (tToken) tToken.style.cssText = tab === 'token' ? activeStyle : inactiveStyle;
-}
-
-async function connectKundelikByLogin() {
-  const login = (document.getElementById('kdLoginInput')?.value || '').trim();
-  const password = (document.getElementById('kdPasswordInput')?.value || '').trim();
-  if (!login) {
-    showToast('Логинді (ЖСН немесе телефон) енгізіңіз', '⚠️');
-    return;
-  }
-  if (!password) {
-    showToast('Құпия сөзді енгізіңіз', '⚠️');
-    return;
-  }
-  const btn = document.getElementById('btnKdLoginConnect');
-  const oldText = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = 'Кіру орындалуда...'; }
-
-  try {
-    const res = await fetch('/api/kundelik/connect', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
-      },
-      body: JSON.stringify({ login: login, password: password, provider: 'bilimclass' })
-    });
-    const data = await res.json();
-    if (data.ok) {
-      showToast(data.message || 'BilimClass сәтті байланыстырылды!', '✅');
-      if (typeof init === 'function') init();
-      openKundelikModal();
-    } else {
-      showToast(data.error || 'Қосылу қатесі', '❌');
-    }
-  } catch(e) {
-    showToast('Сервермен байланыс қатесі', '❌');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = oldText; }
-  }
-}
-
-async function connectKundelikDemo() {
-  const btn = document.getElementById('btnKdDemoConnect');
-  const oldText = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = 'Қосылуда...'; }
-
-  try {
-    const res = await fetch('/api/kundelik/connect', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
-      },
-      body: JSON.stringify({ token: 'demo_bilimclass_token', provider: 'bilimclass' })
-    });
-    const data = await res.json();
-    if (data.ok) {
-      showToast(data.message || 'Демо BilimClass қосылды!', '✅');
-      if (typeof init === 'function') init();
-      openKundelikModal();
-    } else {
-      showToast(data.error || 'Қосылу қатесі', '❌');
-    }
-  } catch(e) {
-    showToast('Сервермен байланыс қатесі', '❌');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = oldText; }
-  }
-}
-
-async function connectKundelikByToken() {
-  const token = (document.getElementById('kdTokenInput')?.value || '').trim() || 'demo_bilimclass_token';
-  const btn = document.getElementById('btnKdConnect');
-  const oldText = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = 'Қосылуда...'; }
-
-  try {
-    const res = await fetch('/api/kundelik/connect', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
-      },
-      body: JSON.stringify({ token: token, provider: 'bilimclass' })
-    });
-    const data = await res.json();
-    if (data.ok) {
-      showToast(data.message || 'BilimClass токені сәтті қосылды!', '✅');
-      if (typeof init === 'function') init();
-      openKundelikModal();
-    } else {
-      showToast(data.error || 'Қосылу қатесі', '❌');
-    }
-  } catch(e) {
-    showToast('Сервер байланыс қатесі', '❌');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = oldText; }
-  }
-}
-
-async function connectKundelik() {
-  await connectKundelikByToken();
-}
-
-async function submitKundelikGrade() {
-  const sel = document.getElementById('kdStudentSelect');
-  const opt = sel.options[sel.selectedIndex];
-  if (!opt?.value) return;
-  const studentName = opt.dataset.name;
-  const className = opt.dataset.className;
-  const descriptor = document.getElementById('kdDescriptorInput').value.trim();
-
-  const btn = document.getElementById('btnKdPostMark');
-  btn.disabled = true;
-  btn.textContent = 'Жіберілуде...';
-
-  try {
-    const res = await fetch('/api/kundelik/grade', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {})
-      },
-      body: JSON.stringify({
-        student_id: sel.value,
-        student_name: studentName,
-        class_name: className,
-        mark: selectedKdMarkVal,
-        mark_type: 'ФО',
-        descriptor: descriptor
-      })
-    });
-    const data = await res.json();
-    if (data.ok) {
-      showToast(data.message || `Баға ${selectedKdMarkVal} қойылды!`, '✅');
-      closeModal('modalKundelik');
-    } else {
-      showToast(data.error || 'Қате шықты', '❌');
-    }
-  } catch(e) {
-    showToast('Сервер байланыс қатесі', '❌');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '✅ Отправить оценку в журнал';
-  }
-}
-
-async function disconnectKundelik() {
-  if (!confirm('Kundelik байланысын ажыратуды растайсыз ба?')) return;
-  try {
-    await fetch('/api/kundelik/disconnect', {
-      method: 'POST',
-      headers: tg?.initData ? { 'X-Telegram-Init-Data': tg.initData } : {}
-    });
-    showToast('Интеграция ажыратылды', 'ℹ️');
-    openKundelikModal();
-  } catch(e) {}
-}
-
 // ── ACCOUNT RESET ──
 function confirmResetAccount() {
   openModal('modalConfirmReset');
@@ -4846,9 +4429,6 @@ async function init() {
 
     STATE.user = data.user;
     STATE.is_kg = Boolean(data.is_kg);
-    document.querySelectorAll('#btnKundelikSyncStudents, #btnKundelikSyncSchedule').forEach(button => {
-      button.hidden = STATE.is_kg;
-    });
     STATE.promo_available = Boolean(data.promo_available);
     if (data.prices) STATE.prices = data.prices;
     if (data.kaspi_number) STATE.kaspi_number = data.kaspi_number;

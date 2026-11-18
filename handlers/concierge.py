@@ -540,7 +540,7 @@ class ConciergeHandler:
             for s in students:
                 by_class.setdefault(s.get("class_name") or "без группы", []).append(s.get("name", ""))
             std_parts = [f"{cls}: {', '.join(names[:15])}" for cls, names in by_class.items()]
-            students_block = f"\nБАЗА УЧЕНИКОВ / ДЕТЕЙ ПОЛЬЗОВАТЕЛЯ:\n" + "; ".join(std_parts) + "\n"
+            students_block = "\nБАЗА УЧЕНИКОВ / ДЕТЕЙ ПОЛЬЗОВАТЕЛЯ:\n" + "; ".join(std_parts) + "\n"
 
         pro_rules = (
             "Пользователь на PRO. Ты можешь сам предлагать подготовить документ; если он согласился на твоё "

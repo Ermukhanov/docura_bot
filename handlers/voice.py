@@ -104,12 +104,12 @@ class VoiceHandler:
 
             try:
                 os.unlink(tmp_path)
-            except:
+            except Exception:
                 pass
 
             try:
                 await proc_msg.delete()
-            except:
+            except Exception:
                 pass
 
             if not voice_text or len(voice_text.strip()) < 3:
@@ -327,7 +327,7 @@ class VoiceHandler:
                 finally:
                     try:
                         os.unlink(wav_path)
-                    except:
+                    except Exception:
                         pass
         except ImportError:
             print("SpeechRecognition не установлен")

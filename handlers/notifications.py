@@ -1,7 +1,6 @@
 import os
 import asyncio
 import logging
-import random
 import json
 from datetime import datetime, timedelta
 import anthropic
@@ -471,7 +470,7 @@ async def monitor_schedules(app: Application, db: Database, anthropic_key: str):
                                 )
                         try:
                             os.remove(word_path)
-                        except:
+                        except Exception:
                             pass
 
                         await db.save_document(tg_id, doc_type, doc_name, content, 90)

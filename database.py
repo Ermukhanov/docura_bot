@@ -1,7 +1,7 @@
 import aiosqlite
 import json
 import os
-from typing import Optional, List, Dict, Any
+from typing import Any
 from datetime import datetime, timedelta
 
 # ВАЖНО (Railway/деплой): по умолчанию база лежит рядом с кодом — это НЕ переживёт
@@ -156,29 +156,7 @@ class Database:
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
 
-                CREATE TABLE IF NOT EXISTS kundelik_integrations (
-                    tg_id INTEGER PRIMARY KEY,
-                    provider TEXT DEFAULT 'kundelik',
-                    token TEXT NOT NULL,
-                    school_id INTEGER,
-                    school_name TEXT,
-                    person_id INTEGER,
-                    synced_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (tg_id) REFERENCES users(tg_id)
-                );
 
-                CREATE TABLE IF NOT EXISTS kundelik_marks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    teacher_id INTEGER NOT NULL,
-                    student_id INTEGER NOT NULL,
-                    student_name TEXT NOT NULL,
-                    class_name TEXT NOT NULL,
-                    mark INTEGER NOT NULL,
-                    mark_type TEXT DEFAULT 'ФО',
-                    descriptor TEXT,
-                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (teacher_id) REFERENCES users(tg_id)
-                );
             """)
             await db.commit()
 
@@ -219,6 +197,9 @@ class Database:
             await self._ensure_column(db, "users", "last_active_at", "TEXT")
             await self._ensure_column(db, "users", "last_broadcast_at", "TEXT")
             await self._ensure_column(db, "users", "first_doc_reminder_sent_at", "TEXT")
+            # Интеграции Kundelik/BilimClass удалены: стираем сохранённые токены.
+            await db.execute("DROP TABLE IF EXISTS kundelik_integrations")
+            await db.execute("DROP TABLE IF EXISTS kundelik_marks")
             await self._ensure_column(db, "users", "winback_sent_at", "TEXT")
             await self._ensure_column(db, "users", "winback_answered", "INTEGER DEFAULT 0")
             await db.execute(
@@ -544,6 +525,12 @@ class Database:
                 row = await cur.fetchone()
                 return dict(row) if row else None
 
+    async def count_documents(self, teacher_id: int) -> int:
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT COUNT(*) FROM documents WHERE teacher_id=?", (teacher_id,)) as cur:
+                row = await cur.fetchone()
+                return int(row[0] if row else 0)
+
     async def get_history(self, teacher_id: int, limit: int = 20):
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
@@ -576,7 +563,8 @@ class Database:
         # ВАЖНО: в системе только один платный тариф — PRO. "pro_promo" (2490 тг) — это
         # тот же tier="pro" в БД, просто скидка на первый месяц; для расчёта текущего/
         # регулярного дохода используем полную цену подписки (см. profile.py TIER_PRICES).
-        PRO_PRICE = 4990
+        from pricing import TIER_PRICES
+        PRO_PRICE = TIER_PRICES["pro"]
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute("SELECT COUNT(*) as c FROM users") as cur:
@@ -758,7 +746,7 @@ class Database:
             ) as cur:
                 row["stuck"] = [dict(r) for r in await cur.fetchall()]
             async with db.execute(
-                people + f"""SELECT f.event, COUNT(DISTINCT f.tg_id) AS c FROM funnel_events f
+                people + """SELECT f.event, COUNT(DISTINCT f.tg_id) AS c FROM funnel_events f
                     WHERE f.tg_id IN (SELECT tg_id FROM p) AND f.event IN ('generation_failed','paywall_shown') GROUP BY f.event"""
             ) as cur:
                 row["problems"] = {r["event"]: r["c"] for r in await cur.fetchall()}
@@ -1024,57 +1012,6 @@ class Database:
             await db.execute("UPDATE users SET promo_used=1 WHERE tg_id=?", (tg_id,))
             await db.commit()
 
-    # ===== KUNDELIK.KZ / BILIMCLASS ИНТЕГРАЦИЯ (ТАРИФ MAX) =====
-    async def set_kundelik_integration(self, tg_id: int, token: str, provider: str = "kundelik",
-                                      school_id: int = None, school_name: str = None, person_id: int = None):
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("""
-                INSERT INTO kundelik_integrations (tg_id, provider, token, school_id, school_name, person_id, synced_at)
-                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(tg_id) DO UPDATE SET
-                    provider=excluded.provider,
-                    token=excluded.token,
-                    school_id=excluded.school_id,
-                    school_name=excluded.school_name,
-                    person_id=excluded.person_id,
-                    synced_at=CURRENT_TIMESTAMP
-            """, (tg_id, provider, token, school_id, school_name, person_id))
-            await db.commit()
-
-    async def get_kundelik_integration(self, tg_id: int) -> Optional[dict]:
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM kundelik_integrations WHERE tg_id=?", (tg_id,)) as cur:
-                row = await cur.fetchone()
-                return dict(row) if row else None
-
-    async def remove_kundelik_integration(self, tg_id: int):
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("DELETE FROM kundelik_integrations WHERE tg_id=?", (tg_id,))
-            await db.commit()
-
-    async def save_kundelik_mark(self, teacher_id: int, student_id: int, student_name: str,
-                                 class_name: str, mark: int, mark_type: str = "ФО", descriptor: str = ""):
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("""
-                INSERT INTO kundelik_marks (teacher_id, student_id, student_name, class_name, mark, mark_type, descriptor)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (teacher_id, student_id, student_name, class_name, mark, mark_type, descriptor))
-            await db.commit()
-
-    async def get_kundelik_marks(self, teacher_id: int, limit: int = 25) -> list:
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute(
-                "SELECT * FROM kundelik_marks WHERE teacher_id=? ORDER BY id DESC LIMIT ?",
-                (teacher_id, limit)
-            ) as cur:
-                rows = await cur.fetchall()
-                return [dict(r) for r in rows]
-
-
-
-# ===== Общие константы/хелперы для лимита бесплатных документов =====
 FREE_BASE_LIMIT = 3
 
 def free_limit_for(user: dict) -> int:

@@ -474,17 +474,12 @@ async def post_init(app: Application):
 
     # Устанавливаем меню команд в Telegram
     commands_ru = [
-        BotCommand("menu",    "🏠 Главное меню"),
         BotCommand("new",     "📄 Создать документ"),
-        BotCommand("profile", "👤 Мой профиль"),
-        BotCommand("history", "📚 История документов"),
-        BotCommand("invite",  "🎁 Пригласить и получить бонус"),
-        BotCommand("tariffs",  "⭐ Тарифы и подписка"),
-        BotCommand("support",  "💬 Связаться с поддержкой"),
-        BotCommand("off",      "🔕 Отключить уведомления"),
-        BotCommand("on",       "🔔 Включить уведомления"),
-        BotCommand("cancel",   "❌ Отменить операцию"),
-        BotCommand("help",     "❓ Помощь и список команд"),
+        BotCommand("menu",    "🏠 Главное меню"),
+        BotCommand("history", "📚 Мои документы"),
+        BotCommand("profile", "👤 Профиль и настройки"),
+        BotCommand("tariffs", "⭐ Тариф"),
+        BotCommand("help",    "❓ Помощь"),
     ]
     await app.bot.set_my_commands(commands_ru)
     logger.info("✅ Меню команд установлено")

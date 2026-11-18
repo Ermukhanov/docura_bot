@@ -1,20 +1,17 @@
 import os
 import json
-import hmac
 import hashlib
 import sqlite3
 import time
 import base64
 import re
 import io
-from urllib.parse import parse_qsl
 from flask import Flask, jsonify, render_template, request, session, redirect
 
 import anthropic
 
 from security import (
     SECRET_KEY,
-    create_auth_token,
     verify_auth_token,
     verify_telegram_init_data,
 )
@@ -134,26 +131,6 @@ def ensure_schema(c):
                 metadata TEXT DEFAULT '{}',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
-            CREATE TABLE IF NOT EXISTS kundelik_integrations (
-                tg_id INTEGER PRIMARY KEY,
-                provider TEXT DEFAULT 'kundelik',
-                token TEXT NOT NULL,
-                school_id INTEGER,
-                school_name TEXT,
-                person_id INTEGER,
-                synced_at TEXT DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS kundelik_marks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                teacher_id INTEGER NOT NULL,
-                student_id INTEGER NOT NULL,
-                student_name TEXT NOT NULL,
-                class_name TEXT NOT NULL,
-                mark INTEGER NOT NULL,
-                mark_type TEXT DEFAULT 'ФО',
-                descriptor TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            );
             CREATE TABLE IF NOT EXISTS consumed_auth_tokens (
                 token_hash TEXT PRIMARY KEY,
                 consumed_at INTEGER NOT NULL
@@ -187,13 +164,6 @@ def conn():
     c.row_factory = sqlite3.Row
     ensure_schema(c)
     return c
-
-
-def is_school_user(user_id):
-    """Kundelik is a school-only feature; deny access when role is unknown."""
-    with conn() as db:
-        user = db.execute('SELECT role FROM users WHERE tg_id=?', (user_id,)).fetchone()
-    return bool(user and user['role'] != 'kindergarten')
 
 
 def consume_auth_token(token):
@@ -321,15 +291,6 @@ def api_me(user_id=None):
             'SELECT doc_type, original_name, lang, created_at FROM user_templates WHERE tg_id=?',
             (current_id,)
         ).fetchall()
-        kundelik = db.execute(
-            'SELECT provider, school_id, school_name, person_id, synced_at FROM kundelik_integrations WHERE tg_id=?',
-            (current_id,)
-        ).fetchone()
-        kundelik_marks = db.execute(
-            'SELECT id, student_id, student_name, class_name, mark, mark_type, descriptor, created_at '
-            'FROM kundelik_marks WHERE teacher_id=? ORDER BY id DESC LIMIT 30',
-            (current_id,)
-        ).fetchall()
         student_count = len(students)
 
     user_dict = dict(user)
@@ -356,8 +317,6 @@ def api_me(user_id=None):
         memory=dict(memory) if memory else None,
         schedule=dict(schedule) if schedule else None,
         samples=[dict(s) for s in samples],
-        kundelik=dict(kundelik) if kundelik else None,
-        kundelik_marks=[dict(m) for m in kundelik_marks],
         student_count=student_count,
         bot_url=f'https://t.me/{bot_username}'
     )
@@ -909,8 +868,8 @@ def api_verify_receipt():
             return jsonify(error='Пользователь не найден'), 404
 
         promo_available = not bool(user['promo_used'])
-        expected_amount = 2490 if (tier in ('pro', 'pro_promo') and promo_available) else (
-            4990 if tier == 'pro' else 7490 if tier == 'max' else 39900
+        expected_amount = TIER_PRICES['pro_promo'] if (tier in ('pro', 'pro_promo') and promo_available) else (
+            TIER_PRICES['pro'] if tier == 'pro' else TIER_PRICES['max'] if tier == 'max' else TIER_PRICES['b2b']
         )
 
     if not ANTHROPIC_API_KEY:
@@ -981,226 +940,6 @@ def api_verify_receipt():
         app.logger.exception("Payment receipt verification failed")
         return jsonify(error="Не удалось проверить чек. Попробуйте позже."), 500
 
-
-# ── KUNDELIK.KZ / BILIMCLASS ИНТЕГРАЦИЯ (ТАРИФ MAX) ──
-
-@app.get('/api/kundelik/status')
-def api_kundelik_status():
-    tg = telegram_user()
-    if not tg:
-        return jsonify(error='Unauthorized'), 401
-    if not is_school_user(tg['id']):
-        return jsonify(error='Интеграция Kundelik доступна только профилям школы.'), 403
-    with conn() as db:
-        user = db.execute('SELECT tier, subscribed FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
-        row = db.execute('SELECT provider, token, school_id, school_name, person_id, synced_at FROM kundelik_integrations WHERE tg_id=?', (tg['id'],)).fetchone()
-        marks = db.execute('SELECT id, student_id, student_name, class_name, mark, mark_type, descriptor, created_at FROM kundelik_marks WHERE teacher_id=? ORDER BY id DESC LIMIT 20', (tg['id'],)).fetchall()
-
-    students = []
-    if row:
-        import asyncio
-        from handlers.kundelik_api import KundelikClient
-        client = KundelikClient(row['token'], row['provider'])
-        loop = asyncio.new_event_loop()
-        try:
-            asyncio.set_event_loop(loop)
-            classes = loop.run_until_complete(client.get_classes())
-            for class_info in classes:
-                class_id = class_info.get('id')
-                if class_id is None:
-                    continue
-                roster = loop.run_until_complete(client.get_students_for_class(class_id))
-                for student in roster:
-                    student_id = student.get('id')
-                    name = (student.get('name') or '').strip()
-                    if student_id is not None and name:
-                        students.append({
-                            'id': str(student_id),
-                            'name': name,
-                            'class_name': student.get('class_name') or class_info.get('name', ''),
-                        })
-        except Exception as e:
-            app.logger.warning('Kundelik roster lookup failed: %s', e)
-            students = []
-        finally:
-            loop.close()
-
-    tier = (user['tier'] if user and user['tier'] else 'free').lower()
-    return jsonify(
-        is_max=(tier == 'max'),
-        tier=tier,
-        connected=bool(row),
-        integration={key: row[key] for key in ('provider', 'school_id', 'school_name', 'person_id', 'synced_at')} if row else None,
-        students=students,
-        marks=[dict(m) for m in marks]
-    )
-
-
-@app.post('/api/kundelik/connect')
-def api_kundelik_connect():
-    tg = telegram_user()
-    if not tg:
-        return jsonify(error='Unauthorized'), 401
-    if not is_school_user(tg['id']):
-        return jsonify(error='Интеграция Kundelik доступна только профилям школы.'), 403
-    
-    with conn() as db:
-        user = db.execute('SELECT tier, subscribed FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
-        tier = (user['tier'] if user and user['tier'] else 'free').lower()
-        if tier not in ('max', 'b2b') and tg['id'] not in (6561112046, 739268686):
-            return jsonify(error='Интеграция с BilimClass доступна на тарифе MAX или B2B MAX. Перейдите в раздел тарифов для подключения.'), 403
-
-    data = request.get_json(silent=True) or {}
-    token = data.get('token', '').strip()
-    login = data.get('login', '').strip()
-    password = data.get('password', '').strip()
-    provider = data.get('provider', 'bilimclass').lower()
-
-    with conn() as db:
-        user_row = db.execute('SELECT name, school, subject, classes FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
-        user_info = dict(user_row) if user_row else {}
-
-    import asyncio
-    from handlers.kundelik_api import KundelikClient
-
-    loop = asyncio.new_event_loop()
-    try:
-        asyncio.set_event_loop(loop)
-        if not token:
-            if login and password:
-                auth_res = loop.run_until_complete(
-                    KundelikClient.login_with_credentials(login, password, provider, user_info=user_info)
-                )
-                if not auth_res.get('ok') or not auth_res.get('token'):
-                    return jsonify(error=auth_res.get('error', 'Не удалось подтвердить вход в журнал.')), 400
-                token = auth_res['token']
-            else:
-                token = f'demo_{provider}_token'
-
-        client = KundelikClient(token, provider, user_info=user_info)
-        prof_res = loop.run_until_complete(client.get_profile())
-        if not prof_res.get('ok'):
-            return jsonify(error=f"Ошибка подключения: {prof_res.get('error', 'неверные данные')}"), 400
-        
-        prof = prof_res.get('data', {})
-        school_name = (prof.get('schools') or [{}])[0].get('name', user_info.get('school') or 'BilimClass · Мектеп-лицей')
-        school_id = (prof.get('schools') or [{}])[0].get('id', 100245)
-        person_id = prof.get('person_id', 982341)
-
-        classes = loop.run_until_complete(client.get_classes())
-        sched = loop.run_until_complete(client.get_schedule())
-    finally:
-        loop.close()
-
-    with conn() as db:
-        db.execute("""
-            INSERT INTO kundelik_integrations (tg_id, provider, token, school_id, school_name, person_id, synced_at)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-            ON CONFLICT(tg_id) DO UPDATE SET
-                provider=excluded.provider,
-                token=excluded.token,
-                school_id=excluded.school_id,
-                school_name=excluded.school_name,
-                person_id=excluded.person_id,
-                synced_at=datetime('now')
-        """, (tg['id'], provider, token, school_id, school_name, person_id))
-
-        if sched:
-            db.execute("""
-                INSERT INTO schedules (tg_id, schedule_data, updated_at)
-                VALUES (?, ?, datetime('now'))
-                ON CONFLICT(tg_id) DO UPDATE SET schedule_data=excluded.schedule_data, updated_at=datetime('now')
-            """, (tg['id'], json.dumps(sched, ensure_ascii=False)))
-
-        db.commit()
-
-    return jsonify(
-        ok=True,
-        school=school_name,
-        classes_count=len(classes),
-        message=f'Интеграция подключена. Найдено классов: {len(classes)}.'
-    )
-
-
-@app.post('/api/kundelik/grade')
-def api_kundelik_grade():
-    tg = telegram_user()
-    if not tg:
-        return jsonify(error='Unauthorized'), 401
-    if not is_school_user(tg['id']):
-        return jsonify(error='Интеграция Kundelik доступна только профилям школы.'), 403
-
-    with conn() as db:
-        user = db.execute('SELECT tier FROM users WHERE tg_id=?', (tg['id'],)).fetchone()
-        tier = (user['tier'] if user and user['tier'] else 'free').lower()
-        if tier not in ('max', 'b2b'):
-            return jsonify(error='Выставление оценок доступно на тарифе MAX и B2B MAX.'), 403
-
-        row = db.execute('SELECT token, provider FROM kundelik_integrations WHERE tg_id=?', (tg['id'],)).fetchone()
-        if not row:
-            return jsonify(error='Kundelik не подключён. Сначала подключите интеграцию.'), 400
-
-    data = request.get_json(silent=True) or {}
-    student_id = str(data.get('student_id') or '').strip()
-    class_name = (data.get('class_name') or '').strip()
-    if not student_id or not class_name:
-        return jsonify(error='Выберите ученика из подключенного журнала.'), 400
-    try:
-        mark_val = int(data.get('mark', 9))
-    except (TypeError, ValueError):
-        return jsonify(error='Оценка должна быть числом от 1 до 10.'), 400
-    if not 1 <= mark_val <= 10:
-        return jsonify(error='Оценка должна быть числом от 1 до 10.'), 400
-    mark_type = data.get('mark_type', 'ФО')
-    descriptor = data.get('descriptor', 'Жарайсың! Тақырыпты жақсы меңгердің.')
-
-    import asyncio
-    from handlers.kundelik_api import KundelikClient
-    client = KundelikClient(row['token'], row['provider'])
-
-    loop = asyncio.new_event_loop()
-    try:
-        asyncio.set_event_loop(loop)
-        classes = loop.run_until_complete(client.get_classes())
-        matching_class = next((c for c in classes if str(c.get('name', '')).strip() == class_name), None)
-        if not matching_class or matching_class.get('id') is None:
-            return jsonify(error='Класс не найден в подключенном журнале.'), 400
-        roster = loop.run_until_complete(client.get_students_for_class(matching_class['id']))
-        student = next((s for s in roster if str(s.get('id')) == student_id and str(s.get('class_name') or class_name).strip() == class_name), None)
-        if not student:
-            return jsonify(error='Ученик не найден в выбранном классе журнала.'), 400
-        student_name = (student.get('name') or '').strip()
-        if not student_name:
-            return jsonify(error='В журнале не указано имя ученика.'), 400
-        res = loop.run_until_complete(client.post_mark(
-            student.get('id'), student_name, class_name, mark_val, mark_type, descriptor
-        ))
-    finally:
-        loop.close()
-
-    if res.get('ok'):
-        with conn() as db:
-            db.execute("""
-                INSERT INTO kundelik_marks (teacher_id, student_id, student_name, class_name, mark, mark_type, descriptor)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (tg['id'], student_id, student_name, class_name, mark_val, mark_type, descriptor))
-            db.commit()
-        return jsonify(ok=True, message=f'Оценка {mark_val} ({mark_type}) успешно записана в журнал {student_name}!')
-    else:
-        return jsonify(error=res.get('error', 'Ошибка выставления')), 500
-
-
-@app.post('/api/kundelik/disconnect')
-def api_kundelik_disconnect():
-    tg = telegram_user()
-    if not tg:
-        return jsonify(error='Unauthorized'), 401
-    if not is_school_user(tg['id']):
-        return jsonify(error='Интеграция Kundelik доступна только профилям школы.'), 403
-    with conn() as db:
-        db.execute('DELETE FROM kundelik_integrations WHERE tg_id=?', (tg['id'],))
-        db.commit()
-    return jsonify(ok=True, message='Интеграция с Kundelik отключена.')
 
 
 if __name__ == '__main__':
