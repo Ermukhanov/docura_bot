@@ -365,9 +365,40 @@ async def _start_after_account_reset(update: Update, context: ContextTypes.DEFAU
     return True
 
 
+async def _join_org(update: Update, context: ContextTypes.DEFAULT_TYPE, code: str):
+    db = context.application.bot_data["db"]
+    tg_id = update.effective_user.id
+    user = await db.get_user(tg_id)
+    if not user:
+        await db.upsert_user(tg_id, {})
+    status, org = await db.join_org(code.strip().lower(), tg_id)
+    lang = ((user or {}).get("lang") or "ru")
+    name = org["name"] if org else ""
+    texts = {
+        "ok": (f"🏢 Вы подключены к «{name}».\nDocura для вас безлимитна — оплачивает организация.",
+               f"🏢 Сіз «{name}» ұйымына қосылдыңыз.\nDocura сіз үшін шексіз — ұйым төлейді."),
+        "already": (f"🏢 Вы уже подключены к «{name}» — безлимит активен.",
+                    f"🏢 Сіз «{name}» ұйымына қосылғансыз — шексіз режим белсенді."),
+        "full": (f"⚠️ В «{name}» заняты все места. Попросите руководителя добавить места.",
+                 f"⚠️ «{name}» ұйымында орын қалмады. Басшыға хабарласыңыз."),
+        "inactive": (f"⚠️ Подписка «{name}» сейчас не активна. Обратитесь к руководителю.",
+                     f"⚠️ «{name}» жазылымы қазір белсенді емес. Басшыға хабарласыңыз."),
+        "not_found": ("⚠️ Ссылка организации не найдена. Проверьте её у руководителя.",
+                      "⚠️ Ұйым сілтемесі табылмады. Басшыдан тексеріңіз."),
+    }
+    ru, kz = texts[status]
+    await update.effective_message.reply_text(kz if lang == "kz" else ru)
+    if status == "ok":
+        await db.log_funnel_event(tg_id, "org_joined")
+
+
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await _start_after_account_reset(update, context):
         return
+    # Ссылка садика/школы: t.me/docurakz_bot?start=org_<code> — педагог сразу получает B2B
+    if context.args and context.args[0].startswith("org_"):
+        await _join_org(update, context, context.args[0][4:])
+        context.args = []
     # Ссылки с сайта: t.me/docurakz_bot?start=cabinet / ?start=support
     if context.args and context.args[0] in ("cabinet", "support"):
         db = context.application.bot_data["db"]

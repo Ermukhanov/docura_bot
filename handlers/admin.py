@@ -244,6 +244,24 @@ class AdminHandler:
             context.user_data["step"] = "admin_broadcast"
             kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
             await _safe_edit(query, "📢 Введите текст рассылки:", reply_markup=InlineKeyboardMarkup(kb))
+        elif data == "admin_orgs":
+            await self._show_orgs(query, context)
+            return
+
+        elif data == "admin_org_new":
+            context.user_data["step"] = "admin_org_create"
+            await query.message.reply_text(
+                "🏢 Напишите название и число мест через запятую.\nПример: Садик Балапан, 25")
+            return
+
+        elif data.startswith("admin_org_off_") or data.startswith("admin_org_on_"):
+            on = data.startswith("admin_org_on_")
+            code = data.split("_", 3)[3]
+            n = await self.db.set_org_active(code, on)
+            await query.message.reply_text(("✅ Включено" if on else "⏸ Выключено") + f": педагогов затронуто — {n}")
+            await self._show_orgs(query, context)
+            return
+
         elif data == "admin_activate_btn":
             context.user_data["step"] = "admin_activate"
             kb = [[InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
@@ -342,6 +360,26 @@ class AdminHandler:
             return
 
         if step == "admin_panel":
+            await self._send_menu(message.chat_id, context)
+
+        elif step == "admin_org_create":
+            name, _, seats = text.rpartition(",")
+            if not name.strip():
+                name, seats = text, "25"
+            try:
+                seats_n = int(seats.strip())
+            except ValueError:
+                seats_n = 25
+            code = await self.db.create_org(name, seats_n)
+            bot_name = (await context.bot.get_me()).username
+            link = f"https://t.me/{bot_name}?start=org_{code}"
+            await message.reply_text(
+                f"✅ Организация «{name.strip()}» создана, мест: {seats_n}.\n\n"
+                f"Ссылка для педагогов (руководитель отправляет её в общий чат):\n{link}\n\n"
+                f"Каждый, кто перейдёт по ссылке, сразу получает безлимит.",
+                disable_web_page_preview=True,
+            )
+            context.user_data["step"] = "admin_panel"
             await self._send_menu(message.chat_id, context)
 
         elif step == "admin_activate":
@@ -493,11 +531,32 @@ class AdminHandler:
             [InlineKeyboardButton("📨 Пригласить незарегистрированных", callback_data="admin_broadcast_unregistered")],
             [InlineKeyboardButton("🎓 Обучить бота (образцы)", callback_data="admin_samples")],
             [InlineKeyboardButton("📢 Рассылка", callback_data="admin_broadcast")],
+            [InlineKeyboardButton("🏢 Садики и школы (B2B)", callback_data="admin_orgs")],
             [InlineKeyboardButton("💳 Активировать PRO", callback_data="admin_activate_btn"),
              InlineKeyboardButton("💎 Активировать MAX", callback_data="admin_activate_max_btn")],
             [InlineKeyboardButton("🔓 Снять подписку", callback_data="admin_deactivate_btn"),
              InlineKeyboardButton("♻️ Сбросить аккаунт", callback_data="admin_reset_btn")],
         ]
+
+    async def _show_orgs(self, query, context):
+        orgs = await self.db.list_orgs()
+        bot_name = (await context.bot.get_me()).username
+        lines = ["🏢 Садики и школы (B2B)\n"]
+        kb = []
+        for o in orgs:
+            state = "✅" if o["active"] else "⏸"
+            lines.append(
+                f"{state} {o['name']} — педагогов {o['members']}/{o['seats']}, "
+                f"документов за 30 дней: {o['docs_30d']}\nhttps://t.me/{bot_name}?start=org_{o['code']}\n")
+            kb.append([InlineKeyboardButton(
+                ("⏸ Выключить " if o["active"] else "▶️ Включить ") + o["name"][:30],
+                callback_data=("admin_org_off_" if o["active"] else "admin_org_on_") + o["code"])])
+        if not orgs:
+            lines.append("Пока нет. Нажмите «Подключить», чтобы получить ссылку для педагогов.")
+        kb.append([InlineKeyboardButton("➕ Подключить садик/школу", callback_data="admin_org_new")])
+        kb.append([InlineKeyboardButton("← Назад", callback_data="admin_menu")])
+        await query.message.reply_text("\n".join(lines), reply_markup=InlineKeyboardMarkup(kb),
+                                       disable_web_page_preview=True)
 
     async def _show_funnel(self, query, days):
         r = await self.db.get_funnel_report(days)
@@ -598,6 +657,7 @@ class AdminHandler:
         ]
         kb.extend([[InlineKeyboardButton(f"👤 {u['tg_id']}", callback_data=f"admin_user_{u['tg_id']}")] for u in users])
         kb += [
+            [InlineKeyboardButton("🏢 Садики и школы (B2B)", callback_data="admin_orgs")],
             [InlineKeyboardButton("💳 Активировать PRO", callback_data="admin_activate_btn"),
              InlineKeyboardButton("💎 Активировать MAX", callback_data="admin_activate_max_btn")],
             [InlineKeyboardButton("← Назад", callback_data="admin_menu")],

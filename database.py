@@ -20,7 +20,7 @@ USER_UPDATE_COLUMNS = frozenset({
     "bonus_docs", "promo_used", "reset_pending", "document_lang", "lang_selected",
     "last_doc_type", "last_doc_date", "auto_generate", "reminder_days", "sub_expires",
     "funnel_step", "seen_sections", "notifications_enabled", "last_active_at",
-    "last_broadcast_at",
+    "last_broadcast_at", "org_code",
 })
 STUDENT_UPDATE_COLUMNS = frozenset({
     "name", "class_name", "grades", "achievements", "absences", "behavior", "notes",
@@ -38,7 +38,7 @@ def _validated_fields(data: dict, allowed: frozenset[str], table: str) -> dict:
 
 FUNNEL_EVENTS = {
     "start", "doc_type_chosen", "doc_generated", "lang_chosen", "role_chosen",
-    "profile_done", "paywall_shown", "generation_failed", "feedback",
+    "profile_done", "paywall_shown", "generation_failed", "feedback", "org_joined",
 }
 
 
@@ -203,6 +203,16 @@ class Database:
             await self._ensure_column(db, "users", "winback_sent_at", "TEXT")
             await self._ensure_column(db, "users", "winback_answered", "INTEGER DEFAULT 0")
             await db.execute(
+                """CREATE TABLE IF NOT EXISTS organizations (
+                    code TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    seats INTEGER DEFAULT 25,
+                    active INTEGER DEFAULT 1,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )"""
+            )
+            await self._ensure_column(db, "users", "org_code", "TEXT")
+            await db.execute(
                 """CREATE TABLE IF NOT EXISTS user_feedback (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     tg_id INTEGER NOT NULL,
@@ -309,6 +319,74 @@ class Database:
                 "UPDATE users SET subscribed=1, tier=?, sub_expires=? WHERE tg_id=?", (tier, expires, tg_id)
             )
             await db.commit()
+
+    # ── B2B: садик/школа подключает всех педагогов одной ссылкой ──
+    async def create_org(self, name: str, seats: int = 25) -> str:
+        import secrets
+        async with aiosqlite.connect(self.db_path) as db:
+            while True:
+                code = secrets.token_hex(3)
+                async with db.execute("SELECT 1 FROM organizations WHERE code=?", (code,)) as cur:
+                    if not await cur.fetchone():
+                        break
+            await db.execute(
+                "INSERT INTO organizations (code, name, seats) VALUES (?, ?, ?)",
+                (code, name.strip()[:120], max(1, int(seats))),
+            )
+            await db.commit()
+        return code
+
+    async def get_org(self, code: str):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM organizations WHERE code=?", (code,)) as cur:
+                row = await cur.fetchone()
+            if not row:
+                return None
+            org = dict(row)
+            async with db.execute("SELECT COUNT(*) FROM users WHERE org_code=?", (code,)) as cur:
+                org["members"] = (await cur.fetchone())[0]
+            async with db.execute(
+                "SELECT COUNT(*) FROM documents d JOIN users u ON u.tg_id=d.teacher_id "
+                "WHERE u.org_code=? AND d.created_at >= datetime('now','-30 days')", (code,)
+            ) as cur:
+                org["docs_30d"] = (await cur.fetchone())[0]
+            return org
+
+    async def list_orgs(self):
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT code FROM organizations ORDER BY created_at DESC") as cur:
+                codes = [r[0] for r in await cur.fetchall()]
+        return [await self.get_org(c) for c in codes]
+
+    async def join_org(self, code: str, tg_id: int) -> tuple[str, dict | None]:
+        """ok | already | full | inactive | not_found. При ok — тариф b2b без срока."""
+        org = await self.get_org(code)
+        if not org:
+            return "not_found", None
+        if not org["active"]:
+            return "inactive", org
+        user = await self.get_user(tg_id)
+        if user and user.get("org_code") == code:
+            return "already", org
+        if org["members"] >= org["seats"]:
+            return "full", org
+        await self.upsert_user(tg_id, {"org_code": code})
+        await self.activate_subscription(tg_id, tier="b2b")
+        return "ok", org
+
+    async def set_org_active(self, code: str, active: bool) -> int:
+        """Выключение снимает тариф со всех педагогов организации; включение возвращает."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE organizations SET active=? WHERE code=?", (1 if active else 0, code))
+            if active:
+                cur = await db.execute(
+                    "UPDATE users SET subscribed=1, tier='b2b', sub_expires=NULL WHERE org_code=?", (code,))
+            else:
+                cur = await db.execute(
+                    "UPDATE users SET subscribed=0, tier=NULL, sub_expires=NULL WHERE org_code=? AND tier='b2b'", (code,))
+            await db.commit()
+            return cur.rowcount
 
     async def deactivate_subscription(self, tg_id: int):
         async with aiosqlite.connect(self.db_path) as db:
