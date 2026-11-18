@@ -400,10 +400,29 @@ class OnboardingHandler:
         name = name_parts[0] if name_parts else ("коллега" if lang == "ru" else "әріптес")
         name = escape_markdown(name, version=1)
         context.user_data.clear()
-        text = (f"🎉 *Добро пожаловать, {name}!*\n\nЯ — ваш AI-ассистент. Давайте прямо сейчас создадим ваш первый документ!\n\nПросто напишите мне, например:\n• «Сделай КСП по математике для 7 класса»\n• «Нужна характеристика на ученика»\n• «Создай циклограмму на эту неделю»\n\nИли выберите из меню 👇" if lang == "ru" else f"🎉 *Қош келдіңіз, {name}!*\n\nМен сіздің AI-көмекшіңізмін. Бірінші құжатты қазір жасайық!\n\nМаған жай жазыңыз, мысалы:\n• «7 сынып математикасына ҚМЖ жаса»\n• «Оқушыға мінездеме керек»\n• «Осы аптаға циклограмма жаса»\n\nНемесе мәзірден таңдаңыз 👇")
-        await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN)
-        from handlers.main_menu import MainMenuHandler
-        await MainMenuHandler(self.db)._send_main_menu(query.message.chat_id, context, user_id, lang)
+        role = user.get("role") or "teacher"
+        subject = escape_markdown((user.get("subject") or "").strip(), version=1)
+        if role == "kindergarten":
+            first_btn = ("🧸 Создать циклограмму на неделю" if lang == "ru" else "🧸 Апталық циклограмма жасау", "onboard_doc_cycle")
+            what = "циклограмму на эту неделю" if lang == "ru" else "осы аптаға циклограмма"
+        else:
+            first_btn = ("📘 Создать КСП на урок" if lang == "ru" else "📘 Сабаққа ҚМЖ жасау", "onboard_doc_ksp")
+            what = (f"КСП на ваш следующий урок{(' по предмету ' + subject) if subject else ''}" if lang == "ru"
+                    else "келесі сабағыңызға ҚМЖ")
+        text = (
+            f"🎉 *Готово, {name}!*\n\nДавайте прямо сейчас сделаем {what} — это займёт около 2 минут. "
+            "Я задам пару коротких вопросов, остальное возьму из вашего профиля.\n\n"
+            "🎁 Первый документ — бесплатно."
+        ) if lang == "ru" else (
+            f"🎉 *Дайын, {name}!*\n\nҚазір {what} жасайық — шамамен 2 минут. "
+            "Бірнеше қысқа сұрақ қоямын, қалғанын профиліңізден аламын.\n\n"
+            "🎁 Бірінші құжат — тегін."
+        )
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton(first_btn[0], callback_data=first_btn[1])],
+            [InlineKeyboardButton("📄 Другой документ" if lang == "ru" else "📄 Басқа құжат", callback_data="menu_create")],
+        ])
+        await query.edit_message_text(text, reply_markup=kb, parse_mode=ParseMode.MARKDOWN)
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = getattr(update, "effective_message", None) or getattr(update, "message", None)
