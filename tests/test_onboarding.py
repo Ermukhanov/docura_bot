@@ -361,7 +361,9 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Создать документ", before)
         self.assertNotIn("персональный ИИ-методист", before)
         self.assertNotIn("Расписание", before)
-        self.assertIn("персональный ИИ-методист", after)
+        self.assertIn("Бесплатный доступ", after)
+        self.assertIn("Создать документ", after)
+        self.assertLess(len(after), 400)
 
     async def test_main_menu_escapes_special_names_for_telegram_markdown(self):
         text = MainMenuHandler(self.db)._build_menu_text(
