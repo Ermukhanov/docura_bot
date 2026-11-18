@@ -93,7 +93,7 @@ def test_telegram_init_data_rejects_expired_auth_date():
 
 
 def test_profile_page_does_not_disable_mobile_zoom():
-    response = mini_app.app.test_client().get("/")
+    response = mini_app.app.test_client().get("/app")
 
     assert response.status_code == 200
     assert b"user-scalable=no" not in response.data
@@ -426,3 +426,13 @@ def test_schedule_text_limits_input_and_rejects_invalid_ai_shape(monkeypatch, tm
 def test_kundelik_endpoints_are_removed(monkeypatch):
     client = mini_app.app.test_client()
     assert client.get('/api/kundelik/status').status_code == 404
+
+
+def test_guest_sees_landing_and_app_route_serves_cabinet():
+    client = mini_app.app.test_client()
+    home = client.get('/')
+    assert home.status_code == 200 and 'Открыть в Telegram' in home.get_data(as_text=True)
+    cabinet = client.get('/app')
+    assert cabinet.status_code == 200 and 'tab-profile' in cabinet.get_data(as_text=True)
+    with_token = client.get('/?tg_id=1&token=x')
+    assert 'tab-profile' in with_token.get_data(as_text=True)

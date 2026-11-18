@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Docura — документы для учителей и воспитателей за пару минут</title>
+<meta name="description" content="КСП, характеристики, СОР/СОЧ, циклограммы и отчёты в Word. Отвечаете на пару вопросов в Telegram — получаете готовый документ. 3 документа бесплатно.">
+<link rel="icon" href="/static/branding/docura-favicon.png">
+<link rel="apple-touch-icon" href="/static/branding/apple-touch-icon.png">
+<meta property="og:title" content="Docura — документы для учителя за пару минут">
+<meta property="og:description" content="КСП, характеристики, СОР/СОЧ и циклограммы в Word прямо в Telegram.">
+<meta property="og:image" content="/static/branding/docura-banner.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+  // Открыто как Mini App в Telegram — сразу в кабинет.
+  (function () {
+    var w = window.Telegram && window.Telegram.WebApp;
+    if (w && w.initData) location.replace('/app' + location.search);
+  })();
+</script>
+<style>
+:root{
+  --ink:#13294B; --text:#2B3A55; --muted:#5E6B82; --line:#E4E9F2;
+  --bg:#FFFFFF; --soft:#F4F7FC; --blue:#2F6FDE; --blue-d:#1F56B8;
+  --green:#1F9D6B; --pink:#E0457B; --violet:#7A5AF8; --amber:#E8930C;
+  --r-lg:28px; --r-md:18px; --r-sm:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Onest',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--text);background:var(--bg);font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+:focus-visible{outline:3px solid var(--blue);outline-offset:3px;border-radius:8px}
+.wrap{max-width:1160px;margin:0 auto;padding:0 24px}
+
+/* nav */
+.nav{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid transparent;transition:border-color .2s}
+.nav.scrolled{border-color:var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:32px;height:72px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;color:var(--ink);letter-spacing:-.01em}
+.brand img{width:34px;height:34px}
+.links{display:flex;gap:28px;font-size:15px;font-weight:500;color:var(--muted)}
+.links a:hover{color:var(--ink)}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.lang{display:flex;border:1px solid var(--line);border-radius:999px;padding:3px}
+.lang button{border:0;background:none;font:inherit;font-size:13px;font-weight:600;color:var(--muted);padding:5px 11px;border-radius:999px;cursor:pointer}
+.lang button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.btn{display:inline-flex;align-items:center;gap:10px;font-weight:600;font-size:16px;border-radius:999px;padding:13px 24px;transition:background .15s,transform .15s;white-space:nowrap}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-primary:hover{background:var(--blue-d)}
+.btn-ghost{color:var(--ink);border:1px solid var(--line)}
+.btn-ghost:hover{background:var(--soft)}
+.btn-sm{padding:9px 18px;font-size:15px}
+.tg{width:20px;height:20px;flex:none}
+
+/* hero */
+.hero{text-align:center;padding:84px 0 40px}
+.hero h1{font-size:clamp(38px,6vw,68px);line-height:1.05;letter-spacing:-.035em;color:var(--ink);font-weight:800;max-width:900px;margin:0 auto}
+.hero p.lead{font-size:clamp(17px,2vw,20px);color:var(--muted);max-width:640px;margin:22px auto 0}
+.hero .cta{display:flex;gap:12px;justify-content:center;margin-top:34px;flex-wrap:wrap}
+.hero .note{margin-top:16px;font-size:14px;color:var(--muted)}
+.hero .note b{color:var(--green);font-weight:600}
+
+/* product shot — the one loud element */
+.stage{position:relative;margin:44px auto 0;max-width:1080px;border-radius:36px;padding:44px;overflow:hidden;background:#EEF3FC}
+.stage::before,.stage::after{content:"";position:absolute;border-radius:50%;filter:blur(60px);opacity:.55}
+.stage::before{width:420px;height:420px;background:#9DBBFF;top:-160px;left:-80px}
+.stage::after{width:380px;height:380px;background:#F9B4CF;bottom:-170px;right:-60px}
+.blob-g{position:absolute;width:300px;height:300px;border-radius:50%;background:#A6E3C8;filter:blur(60px);opacity:.6;bottom:-120px;left:28%}
+.shot{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:24px;align-items:start}
+.panel{background:#fff;border-radius:var(--r-md);box-shadow:0 1px 2px rgba(19,41,75,.06),0 18px 40px -18px rgba(19,41,75,.25);overflow:hidden;text-align:left}
+.chat-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.chat-head img{width:32px;height:32px;border-radius:50%;background:var(--soft);padding:3px}
+.chat-head b{display:block;font-size:14px;color:var(--ink)}
+.chat-head span{font-size:12px;color:var(--muted)}
+.chat{padding:16px;display:flex;flex-direction:column;gap:10px;background:#F7F9FD;min-height:300px}
+.msg{max-width:86%;padding:10px 13px;border-radius:16px;font-size:14px;line-height:1.45;opacity:0;transform:translateY(6px);animation:in .45s ease forwards}
+.msg.me{align-self:flex-end;background:#DCEBFF;color:var(--ink);border-bottom-right-radius:6px}
+.msg.bot{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:6px}
+.msg:nth-child(1){animation-delay:.2s}.msg:nth-child(2){animation-delay:.9s}.msg:nth-child(3){animation-delay:1.6s}.msg:nth-child(4){animation-delay:2.4s}
+.chips-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chips-row span{font-size:12px;border:1px solid #BFD3F6;color:var(--blue-d);border-radius:999px;padding:3px 10px;background:#F2F7FF}
+.file{display:flex;align-items:center;gap:10px}
+.file i{width:36px;height:36px;border-radius:10px;background:var(--blue);color:#fff;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:13px}
+.file small{display:block;color:var(--muted);font-size:12px}
+@keyframes in{to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.msg{animation:none;opacity:1;transform:none}}
+
+.doc{padding:26px 28px 30px;font-family:'Times New Roman',Times,serif;color:#1d1d1d;font-size:12.5px;line-height:1.45}
+.doc h4{text-align:center;font-size:14px;font-weight:700;margin-bottom:12px}
+.doc table{width:100%;border-collapse:collapse;margin-top:6px}
+.doc td,.doc th{border:1px solid #9aa3b2;padding:5px 7px;vertical-align:top;text-align:left}
+.doc th{background:#F1F4F9;font-weight:700}
+.doc .meta td:first-child{width:38%;font-weight:700}
+.doc-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);font-family:'Onest',sans-serif}
+.doc-bar .dot{width:10px;height:10px;border-radius:50%;background:#E4E9F2}
+.doc-bar b{margin-left:6px;color:var(--ink);font-weight:600}
+
+/* sections */
+section{padding:110px 0 0}
+.head{max-width:680px}
+.head h2{font-size:clamp(30px,4vw,46px);line-height:1.1;letter-spacing:-.03em;color:var(--ink);font-weight:800}
+.head p{color:var(--muted);margin-top:14px;font-size:18px}
+.center{text-align:center;margin:0 auto}
+
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px;counter-reset:s}
+.step{background:var(--soft);border-radius:var(--r-lg);padding:30px}
+.step .n{width:36px;height:36px;border-radius:50%;background:#fff;color:var(--ink);font-weight:700;display:grid;place-items:center;font-size:15px;border:1px solid var(--line)}
+.step h3{font-size:21px;color:var(--ink);margin:22px 0 8px;letter-spacing:-.01em}
+.step p{color:var(--muted);font-size:16px}
+.step .eg{margin-top:18px;background:#fff;border-radius:var(--r-sm);padding:12px 14px;font-size:14px;color:var(--text);border:1px solid var(--line)}
+
+.docs-box{margin-top:44px;border:1px solid var(--line);border-radius:var(--r-lg);padding:30px}
+.tabs{display:inline-flex;background:var(--soft);border-radius:999px;padding:4px;gap:4px}
+.tabs button{border:0;background:none;font:inherit;font-weight:600;font-size:15px;color:var(--muted);padding:9px 20px;border-radius:999px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(19,41,75,.12)}
+.doclist{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.doclist span{display:inline-flex;align-items:center;gap:9px;padding:10px 16px;border-radius:999px;border:1px solid var(--line);font-size:15px;font-weight:500;color:var(--ink)}
+.doclist span::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--c,var(--blue))}
+.doclist[hidden]{display:none}
+
+.rows{margin-top:30px;display:flex;flex-direction:column;gap:22px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;padding:36px;border-radius:var(--r-lg);background:var(--soft)}
+.row:nth-child(even) .vis{order:-1}
+.row h3{font-size:clamp(24px,2.6vw,32px);line-height:1.15;letter-spacing:-.02em;color:var(--ink)}
+.row p{color:var(--muted);margin-top:12px}
+.vis{background:#fff;border-radius:var(--r-md);padding:20px;box-shadow:0 14px 30px -20px rgba(19,41,75,.3)}
+.lang-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:14px}
+.lang-pair div{border:1px solid var(--line);border-radius:var(--r-sm);padding:14px}
+.lang-pair b{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:6px}
+.students li{list-style:none;display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--line);font-size:15px;color:var(--ink)}
+.students li:last-child{border:0}
+.av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;flex:none}
+.students small{margin-left:auto;color:var(--muted);font-size:13px}
+
+.prices{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px}
+.price{border:1px solid var(--line);border-radius:var(--r-lg);padding:30px;display:flex;flex-direction:column}
+.price.main{background:var(--ink);color:#DCE5F5;border-color:var(--ink)}
+.price h3{font-size:18px;color:var(--ink)}
+.price.main h3{color:#fff}
+.price .sum{font-size:42px;font-weight:800;letter-spacing:-.03em;color:var(--ink);margin:14px 0 2px}
+.price.main .sum{color:#fff}
+.price .per{font-size:14px;color:var(--muted)}
+.price.main .per{color:#A9B9D6}
+.price ul{list-style:none;margin:24px 0 28px;display:flex;flex-direction:column;gap:10px;font-size:15px}
+.price li{padding-left:26px;position:relative}
+.price li::before{content:"";position:absolute;left:0;top:7px;width:14px;height:8px;border-left:2px solid var(--green);border-bottom:2px solid var(--green);transform:rotate(-45deg)}
+.price.main li::before{border-color:#7FE0B5}
+.price .btn{margin-top:auto;justify-content:center}
+.price.main .btn-primary{background:#fff;color:var(--ink)}
+.price.main .btn-primary:hover{background:#E6EEFC}
+.school{margin-top:20px;padding:22px 30px;border-radius:var(--r-lg);background:var(--soft);display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.school p{color:var(--text)}
+.school b{color:var(--ink)}
+
+.faq{max-width:780px;margin:40px auto 0}
+.faq details{border-bottom:1px solid var(--line);padding:22px 0}
+.faq summary{cursor:pointer;list-style:none;font-size:19px;font-weight:600;color:var(--ink);display:flex;justify-content:space-between;gap:20px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";font-weight:400;font-size:26px;line-height:1;color:var(--muted);transition:transform .2s}
+.faq details[open] summary::after{transform:rotate(45deg)}
+.faq details p{color:var(--muted);margin-top:12px;max-width:68ch}
+
+.final{margin:120px auto 0;text-align:center;padding:80px 24px;border-radius:36px;background:#EEF3FC;position:relative;overflow:hidden}
+.final h2{font-size:clamp(30px,4.4vw,52px);letter-spacing:-.03em;line-height:1.08;color:var(--ink);max-width:760px;margin:0 auto}
+.final p{color:var(--muted);margin:16px auto 30px;max-width:520px}
+
+footer{padding:60px 0 50px;color:var(--muted);font-size:14px}
+footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:28px}
+footer a:hover{color:var(--ink)}
+
+@media (max-width:900px){
+  .links{display:none}
+  .shot{grid-template-columns:1fr}
+  .stage{padding:20px;border-radius:26px}
+  .doc{font-size:11.5px;padding:18px}
+  .chat{min-height:0}
+  .steps,.prices{grid-template-columns:1fr}
+  .row{grid-template-columns:1fr;gap:26px;padding:24px}
+  .row:nth-child(even) .vis{order:0}
+  section{padding-top:80px}
+  .hero{padding-top:52px}
+}
+@media (max-width:520px){
+  .nav .btn-sm.hide-s{display:none}
+  .lang-pair{grid-template-columns:1fr}
+  .docs-box{padding:20px}
+}
+</style>
+</head>
+<body>
+
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="/static/branding/docura-logo.png" alt="">Docura</a>
+    <nav class="links" aria-label="Разделы">
+      <a href="#how" data-i="nav_how">Как это работает</a>
+      <a href="#docs" data-i="nav_docs">Документы</a>
+      <a href="#prices" data-i="nav_prices">Цены</a>
+      <a href="#faq" data-i="nav_faq">Вопросы</a>
+    </nav>
+    <div class="nav-right">
+      <div class="lang" role="group" aria-label="Язык">
+        <button type="button" data-lang="ru" aria-pressed="true">RU</button>
+        <button type="button" data-lang="kz" aria-pressed="false">KZ</button>
+      </div>
+      <a class="btn btn-ghost btn-sm hide-s" href="https://t.me/docurakz_bot?start=cabinet" data-i="login">Войти</a>
+      <a class="btn btn-primary btn-sm" href="https://t.me/docurakz_bot" data-i="start_short">Начать</a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+  <div class="wrap hero">
+    <h1 data-i="h1">Документы для учителя — за пару минут, прямо&nbsp;в&nbsp;Telegram</h1>
+    <p class="lead" data-i="lead">КСП, характеристики, СОР/СОЧ, циклограммы и отчёты. Вы отвечаете на несколько вопросов — Docura присылает готовый файл Word.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://t.me/docurakz_bot">
+        <svg class="tg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.9 4.3 18.7 19.4c-.2 1-.9 1.3-1.7.8l-4.9-3.6-2.4 2.3c-.3.3-.5.5-1 .5l.3-5 9.1-8.2c.4-.4-.1-.6-.6-.2L6.2 13 1.4 11.5c-1-.3-1-1 .2-1.5L20.6 2.7c.9-.3 1.6.2 1.3 1.6z"/></svg>
+        <span data-i="cta">Открыть в Telegram</span>
+      </a>
+      <a class="btn btn-ghost" href="#how" data-i="cta2">Как это работает</a>
+    </div>
+    <p class="note" data-i-html="note"><b>3 документа бесплатно</b>, без карты и регистрации на сайте</p>
+
+    <div class="stage" aria-label="Пример: запрос в Telegram и готовый документ">
+      <div class="blob-g"></div>
+      <div class="shot">
+        <div class="panel">
+          <div class="chat-head"><img src="/static/branding/docura-logo.png" alt=""><div><b>Docura</b><span data-i="online">онлайн</span></div></div>
+          <div class="chat">
+            <div class="msg me" data-i="m1">КСП по математике, 6 класс, тема «Обыкновенные дроби»</div>
+            <div class="msg bot"><span data-i="m2">Уточню пару деталей:</span>
+              <div class="chips-row"><span data-i="m2a">45 минут</span><span data-i="m2b">с групповой работой</span><span>RU</span></div>
+            </div>
+            <div class="msg me" data-i="m3">Да, с групповой работой</div>
+            <div class="msg bot"><div class="file"><i>W</i><div>КСП_Дроби_6класс.docx<small data-i="m4">Готов к печати</small></div></div></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="doc-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><b>КСП_Дроби_6класс.docx</b></div>
+          <div class="doc">
+            <h4>Краткосрочный план урока</h4>
+            <table class="meta">
+              <tr><td>Предмет</td><td>Математика</td></tr>
+              <tr><td>Класс</td><td>6</td></tr>
+              <tr><td>Тема урока</td><td>Обыкновенные дроби</td></tr>
+              <tr><td>Цели обучения</td><td>Сравнивать и упорядочивать обыкновенные дроби</td></tr>
+            </table>
+            <table>
+              <tr><th>Этап урока</th><th>Действия педагога</th><th>Действия учеников</th><th>Оценивание</th></tr>
+              <tr><td>Начало, 5 мин</td><td>Мозговой штурм: «Где мы встречаем дроби?»</td><td>Приводят примеры из жизни</td><td>Устная обратная связь</td></tr>
+              <tr><td>Середина, 30 мин</td><td>Групповая работа: сравнение дробей на карточках</td><td>Работают в группах, защищают решение</td><td>Дескрипторы, ФО</td></tr>
+              <tr><td>Конец, 10 мин</td><td>Рефлексия «Светофор»</td><td>Оценивают своё понимание</td><td>Самооценивание</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section id="how">
+    <div class="wrap">
+      <div class="head center">
+        <h2 data-i="how_h">Три шага до готового документа</h2>
+        <p data-i="how_p">Не нужно разбираться в шаблонах и меню. Всё происходит в обычном чате.</p>
+      </div>
+      <div class="steps">
+        <div class="step"><div class="n">1</div><h3 data-i="s1h">Напишите, что нужно</h3><p data-i="s1p">Текстом или голосом — как написали бы коллеге.</p><div class="eg" data-i="s1e">«Характеристика на ученика 5Б для ПМПК»</div></div>
+        <div class="step"><div class="n">2</div><h3 data-i="s2h">Ответьте на 2–3 вопроса</h3><p data-i="s2p">Школу, предмет и ФИО Docura уже знает из профиля — не спросит дважды.</p><div class="eg" data-i="s2e">Язык документа: русский или казахский?</div></div>
+        <div class="step"><div class="n">3</div><h3 data-i="s3h">Получите файл Word</h3><p data-i="s3p">Готовый .docx в чате. Проверьте, при необходимости поправьте и распечатайте.</p><div class="eg">Характеристика_5Б.docx</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="docs">
+    <div class="wrap">
+      <div class="head">
+        <h2 data-i="docs_h">Всё, что пишут в школе и&nbsp;в&nbsp;саду</h2>
+        <p data-i="docs_p">Свои наборы документов для учителей и для воспитателей.</p>
+      </div>
+      <div class="docs-box">
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" aria-selected="true" data-tab="t" data-i="tab_t">Учителям</button>
+          <button type="button" role="tab" aria-selected="false" data-tab="k" data-i="tab_k">Воспитателям</button>
+        </div>
+        <div class="doclist" data-list="t">
+          <span style="--c:var(--blue)" data-i="d_ksp">КСП</span>
+          <span style="--c:var(--blue)" data-i="d_ktp">КТП</span>
+          <span style="--c:var(--blue)" data-i="d_sum">Конспект урока</span>
+          <span style="--c:var(--violet)" data-i="d_sor">СОР / СОЧ</span>
+          <span style="--c:var(--violet)" data-i="d_sora">Анализ СОР / СОЧ</span>
+          <span style="--c:var(--violet)" data-i="d_ctrl">Анализ контрольной работы</span>
+          <span style="--c:var(--pink)" data-i="d_char">Характеристика ученика</span>
+          <span style="--c:var(--pink)" data-i="d_par">Письмо родителям</span>
+          <span style="--c:var(--pink)" data-i="d_thx">Благодарственное письмо</span>
+          <span style="--c:var(--amber)" data-i="d_rep">Ежемесячный отчёт</span>
+          <span style="--c:var(--amber)" data-i="d_meet">Протокол родительского собрания</span>
+          <span style="--c:var(--green)" data-i="d_vac">Заявление на отпуск</span>
+          <span style="--c:var(--green)" data-i="d_exp">Объяснительная</span>
+        </div>
+        <div class="doclist" data-list="k" hidden>
+          <span style="--c:var(--green)" data-i="k_cycle">Циклограмма</span>
+          <span style="--c:var(--green)" data-i="k_theme">Тематический план</span>
+          <span style="--c:var(--green)" data-i="k_persp">Перспективный план</span>
+          <span style="--c:var(--blue)" data-i="k_act">Конспект ОУД</span>
+          <span style="--c:var(--blue)" data-i="k_mat">Сценарий утренника</span>
+          <span style="--c:var(--pink)" data-i="k_char">Характеристика воспитанника</span>
+          <span style="--c:var(--pink)" data-i="k_card">Индивидуальная карта развития</span>
+          <span style="--c:var(--pink)" data-i="d_par">Письмо родителям</span>
+          <span style="--c:var(--amber)" data-i="d_rep">Ежемесячный отчёт</span>
+          <span style="--c:var(--amber)" data-i="d_meet">Протокол родительского собрания</span>
+          <span style="--c:var(--violet)" data-i="d_vac">Заявление на отпуск</span>
+        </div>
+      </div>
+
+      <div class="rows">
+        <div class="row">
+          <div><h3 data-i="r1h">На русском и на казахском</h3><p data-i="r1p">Выбираете язык для каждого документа отдельно. Заголовки и таблицы тоже будут на нужном языке.</p></div>
+          <div class="vis"><div class="lang-pair">
+            <div><b>RU</b>Тема урока: Обыкновенные дроби</div>
+            <div><b>KZ</b>Сабақтың тақырыбы: Жай бөлшектер</div>
+          </div></div>
+        </div>
+        <div class="row">
+          <div><h3 data-i="r2h">Помнит ваш класс</h3><p data-i="r2p">Добавьте учеников один раз — списком или фото журнала. Для характеристики останется только выбрать имя.</p></div>
+          <div class="vis"><ul class="students">
+            <li><span class="av" style="background:var(--blue)">ЕК</span>Ержан К.<small>5Б</small></li>
+            <li><span class="av" style="background:var(--pink)">АС</span>Аружан С.<small>5Б</small></li>
+            <li><span class="av" style="background:var(--green)">ДМ</span>Данияр М.<small>5Б</small></li>
+          </ul></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="prices">
+    <div class="wrap">
+      <div class="head center">
+        <h2 data-i="pr_h">Начните бесплатно</h2>
+        <p data-i="pr_p">Первые 3 документа — за наш счёт. Дальше — подписка на месяц, оплата через Kaspi.</p>
+      </div>
+      <div class="prices">
+        <div class="price">
+          <h3 data-i="p0">Бесплатно</h3>
+          <div class="sum">0 ₸</div><div class="per" data-i="p0s">навсегда</div>
+          <ul><li data-i="p0a">3 документа любого типа</li><li data-i="p0b">Русский и казахский</li><li data-i="p0c">Файл Word</li></ul>
+          <a class="btn btn-ghost" href="https://t.me/docurakz_bot" data-i="try">Попробовать</a>
+        </div>
+        <div class="price main">
+          <h3>PRO</h3>
+          <div class="sum">4 990 ₸</div><div class="per" data-i="pm">в месяц</div>
+          <ul><li data-i="pa">Документы без ограничений</li><li data-i="pb">База учеников</li><li data-i="pc">Голосовой ввод</li><li data-i="pd">Свои шаблоны Word</li></ul>
+          <a class="btn btn-primary" href="https://t.me/docurakz_bot" data-i="choose">Подключить</a>
+        </div>
+        <div class="price">
+          <h3>MAX</h3>
+          <div class="sum">7 490 ₸</div><div class="per" data-i="pm">в месяц</div>
+          <ul><li data-i="ma">Всё, что в PRO</li><li data-i="mb">Напоминания по расписанию</li><li data-i="mc">Доклад завучу из рабочих чатов</li></ul>
+          <a class="btn btn-ghost" href="https://t.me/docurakz_bot" data-i="choose">Подключить</a>
+        </div>
+      </div>
+      <div class="school">
+        <p data-i-html="school"><b>Для школы или детского сада</b> — 39 900 ₸ в месяц за 25 педагогов, оплата по счёту.</p>
+        <a class="btn btn-ghost btn-sm" href="https://t.me/docurakz_bot?start=support" data-i="write">Написать нам</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <div class="head center"><h2 data-i="faq_h">Частые вопросы</h2></div>
+      <div class="faq">
+        <details><summary data-i="q1">Документ будет соответствовать требованиям?</summary><p data-i="a1">Docura использует структуру, принятую в школах и садах Казахстана, и образцы, которые вы можете загрузить сами. Перед сдачей всегда просмотрите документ — у каждой организации бывают свои мелкие требования.</p></details>
+        <details><summary data-i="q2">Нужно ли что-то устанавливать?</summary><p data-i="a2">Нет. Достаточно Telegram на телефоне или компьютере. Личный кабинет на сайте открывается из бота одной кнопкой.</p></details>
+        <details><summary data-i="q3">Можно ли использовать свой шаблон?</summary><p data-i="a3">Да. Пришлите свой файл Word — Docura сохранит его структуру и будет заполнять по ней.</p></details>
+        <details><summary data-i="q4">Что с моими данными?</summary><p data-i="a4">Мы храним только то, что нужно для документов: ваш профиль и список учеников. Мы не просим пароли от электронных журналов и не передаём данные третьим лицам.</p></details>
+        <details><summary data-i="q5">Как оплатить подписку?</summary><p data-i="a5">Переводом через Kaspi. Отправьте чек в бот — подписка включится после проверки.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <div class="final">
+      <h2 data-i="fin_h">Завтрашний КСП можно сделать прямо сейчас</h2>
+      <p data-i="fin_p">Откройте бота, напишите тему урока — и через пару минут файл будет у вас.</p>
+      <a class="btn btn-primary" href="https://t.me/docurakz_bot">
+        <svg class="tg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.9 4.3 18.7 19.4c-.2 1-.9 1.3-1.7.8l-4.9-3.6-2.4 2.3c-.3.3-.5.5-1 .5l.3-5 9.1-8.2c.4-.4-.1-.6-.6-.2L6.2 13 1.4 11.5c-1-.3-1-1 .2-1.5L20.6 2.7c.9-.3 1.6.2 1.3 1.6z"/></svg>
+        <span data-i="cta">Открыть в Telegram</span>
+      </a>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Docura</span>
+    <span><a href="https://t.me/docurakz_bot">@docurakz_bot</a></span>
+  </div>
+</footer>
+
+<script>
+const KZ = {
+  nav_how:"Қалай жұмыс істейді", nav_docs:"Құжаттар", nav_prices:"Бағалар", nav_faq:"Сұрақтар",
+  login:"Кіру", start_short:"Бастау",
+  h1:"Мұғалімнің құжаттары — бірнеше минутта, Telegram\u2011да",
+  lead:"ҚМЖ, мінездемелер, БЖБ/ТЖБ, циклограммалар мен есептер. Бірнеше сұраққа жауап бересіз — Docura дайын Word файлын жібереді.",
+  cta:"Telegram-да ашу", cta2:"Қалай жұмыс істейді",
+  note:"<b>3 құжат тегін</b>, картасыз және сайтта тіркелусіз",
+  online:"желіде",
+  m1:"6 сынып математика ҚМЖ, тақырыбы «Жай бөлшектер»", m2:"Бірнеше нақтылау:", m2a:"45 минут", m2b:"топтық жұмыспен",
+  m3:"Иә, топтық жұмыспен", m4:"Басуға дайын",
+  how_h:"Дайын құжатқа дейін үш қадам", how_p:"Үлгілер мен мәзірді түсінудің қажеті жоқ. Бәрі қарапайым чатта.",
+  s1h:"Не керегін жазыңыз", s1p:"Мәтінмен немесе дауыспен — әріптесіңізге жазғандай.", s1e:"«5Б сынып оқушысына ПМПК үшін мінездеме»",
+  s2h:"2–3 сұраққа жауап беріңіз", s2p:"Мектеп, пән және аты-жөніңіз профильде сақталған — қайта сұрамайды.", s2e:"Құжат тілі: орысша ма, қазақша ма?",
+  s3h:"Word файлын алыңыз", s3p:"Дайын .docx чатта. Тексеріп, қажет болса түзетіп, басып шығарыңыз.",
+  docs_h:"Мектеп пен балабақшадағы барлық құжат", docs_p:"Мұғалімдер мен тәрбиешілерге арналған жеке жиынтықтар.",
+  tab_t:"Мұғалімдерге", tab_k:"Тәрбиешілерге",
+  d_ksp:"ҚМЖ", d_ktp:"КТЖ", d_sum:"Сабақ конспектісі", d_sor:"БЖБ / ТЖБ", d_sora:"БЖБ / ТЖБ талдауы", d_ctrl:"Бақылау жұмысының талдауы",
+  d_char:"Оқушы мінездемесі", d_par:"Ата-аналарға хат", d_thx:"Алғыс хат", d_rep:"Айлық есеп", d_meet:"Ата-аналар жиналысының хаттамасы",
+  d_vac:"Демалысқа өтініш", d_exp:"Түсініктеме хат",
+  k_cycle:"Циклограмма", k_theme:"Тақырыптық жоспар", k_persp:"Перспективалық жоспар", k_act:"ҰОҚ конспектісі", k_mat:"Ертеңгілік сценарийі",
+  k_char:"Тәрбиеленуші мінездемесі", k_card:"Жеке даму картасы",
+  r1h:"Орыс және қазақ тілдерінде", r1p:"Әр құжаттың тілін бөлек таңдайсыз. Тақырыптар мен кестелер де сол тілде болады.",
+  r2h:"Сыныбыңызды есте сақтайды", r2p:"Оқушыларды бір рет қосыңыз — тізіммен немесе журнал фотосымен. Мінездеме үшін тек атын таңдау қалады.",
+  pr_h:"Тегін бастаңыз", pr_p:"Алғашқы 3 құжат — тегін. Әрі қарай — айлық жазылым, Kaspi арқылы төлем.",
+  p0:"Тегін", p0s:"мерзімсіз", p0a:"Кез келген 3 құжат", p0b:"Орыс және қазақ тілдері", p0c:"Word файлы", try:"Байқап көру",
+  pm:"айына", pa:"Құжаттар шектеусіз", pb:"Оқушылар базасы", pc:"Дауыспен енгізу", pd:"Өз Word үлгілеріңіз", choose:"Қосу",
+  ma:"PRO-дағының бәрі", mb:"Кесте бойынша еске салғыштар", mc:"Жұмыс чаттарынан меңгерушіге баяндама",
+  school:"<b>Мектеп немесе балабақша үшін</b> — 25 педагогқа айына 39 900 ₸, шот бойынша төлем.", write:"Бізге жазу",
+  faq_h:"Жиі қойылатын сұрақтар",
+  q1:"Құжат талаптарға сай бола ма?", a1:"Docura Қазақстан мектептері мен балабақшаларында қабылданған құрылымды және өзіңіз жүктей алатын үлгілерді қолданады. Тапсырмас бұрын құжатты міндетті түрде қарап шығыңыз — әр ұйымның өз шағын талаптары болады.",
+  q2:"Бірдеңе орнату керек пе?", a2:"Жоқ. Телефонда немесе компьютерде Telegram болса жеткілікті. Сайттағы жеке кабинет боттан бір батырмамен ашылады.",
+  q3:"Өз үлгімді қолдануға бола ма?", a3:"Иә. Өз Word файлыңызды жіберіңіз — Docura оның құрылымын сақтап, соған сай толтырады.",
+  q4:"Деректерім қайда?", a4:"Біз тек құжаттарға керегін сақтаймыз: профиліңіз бен оқушылар тізімі. Электрондық журналдардың құпиясөзін сұрамаймыз және деректерді үшінші тұлғаларға бермейміз.",
+  q5:"Жазылымды қалай төлеймін?", a5:"Kaspi арқылы аударыммен. Чекті ботқа жіберіңіз — тексерістен кейін жазылым қосылады.",
+  fin_h:"Ертеңгі ҚМЖ-ны дәл қазір жасауға болады", fin_p:"Ботты ашып, сабақ тақырыбын жазыңыз — бірнеше минуттан кейін файл сізде."
+};
+const RU = {};
+document.querySelectorAll('[data-i]').forEach(el => RU[el.dataset.i] = el.textContent);
+document.querySelectorAll('[data-i-html]').forEach(el => RU[el.dataset.iHtml] = el.innerHTML);
+
+function setLang(l){
+  const d = l === 'kz' ? KZ : RU;
+  document.documentElement.lang = l === 'kz' ? 'kk' : 'ru';
+  document.querySelectorAll('[data-i]').forEach(el => { const v = d[el.dataset.i]; if (v) el.textContent = v; });
+  document.querySelectorAll('[data-i-html]').forEach(el => { const v = d[el.dataset.iHtml]; if (v) el.innerHTML = v; });
+  document.querySelectorAll('.lang button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === l)));
+  try { localStorage.setItem('docura_lang', l); } catch (e) {}
+}
+document.querySelectorAll('.lang button').forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
+try { const saved = localStorage.getItem('docura_lang'); if (saved === 'kz') setLang('kz'); } catch (e) {}
+
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', String(x === b)));
+  document.querySelectorAll('.doclist').forEach(l => l.hidden = l.dataset.list !== b.dataset.tab);
+}));
+
+const nav = document.getElementById('nav');
+addEventListener('scroll', () => nav.classList.toggle('scrolled', scrollY > 8), { passive: true });
+</script>
+</body>
+</html>

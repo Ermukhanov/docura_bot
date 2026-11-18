@@ -230,7 +230,7 @@ def auth_route():
 
     session.permanent = True
     session['user_id'] = user_id
-    return redirect('/')
+    return redirect('/app')
 
 
 @app.route('/logout')
@@ -242,6 +242,15 @@ def logout_route():
 # ── СТРАНИЦЫ ПРИЛОЖЕНИЯ ──
 
 @app.get('/')
+def home_page():
+    # Публичная страница для гостей. Вошедшие пользователи и ссылки из бота
+    # (с tg_id/token) сразу попадают в кабинет. Mini App на «/» перенаправляет
+    # сам лендинг (по Telegram initData).
+    if session.get('user_id') or request.args.get('token') or request.args.get('tg_id'):
+        return render_template('index.html')
+    return render_template('landing.html')
+
+
 @app.get('/app')
 @app.get('/profile/<int:user_id>')
 def app_page(user_id=None):
@@ -265,6 +274,7 @@ def api_me(user_id=None):
         user = db.execute('SELECT * FROM users WHERE tg_id=?', (current_id,)).fetchone()
         if not user:
             return jsonify(error='User not found'), 404
+        doc_count = db.execute('SELECT COUNT(*) FROM documents WHERE teacher_id=?', (current_id,)).fetchone()[0]
         docs = db.execute(
             'SELECT doc_name, doc_type, score, created_at FROM documents '
             'WHERE teacher_id=? ORDER BY created_at DESC LIMIT 30',
@@ -318,6 +328,7 @@ def api_me(user_id=None):
         schedule=dict(schedule) if schedule else None,
         samples=[dict(s) for s in samples],
         student_count=student_count,
+        doc_count=doc_count,
         bot_url=f'https://t.me/{bot_username}'
     )
 

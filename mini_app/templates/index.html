@@ -9,7 +9,7 @@
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='branding/apple-touch-icon.png') }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   :root {
@@ -1320,6 +1320,46 @@
     border-color: rgba(239, 68, 68, 0.3) !important;
     background: linear-gradient(135deg, rgba(69, 10, 10, 0.4) 0%, rgba(15, 23, 42, 0.9) 100%) !important;
   }
+
+  /* ── DOCURA 2026: тот же язык, что у публичной страницы (светлый, просторный) ── */
+  :root { --ink:#13294B;--body:#5E6B82;--blue:#2F6FDE;--cyan:#2F6FDE;--line:#E4E9F2;--surface:#fff;--canvas:#fff;--soft:#F4F7FC; }
+  body, button, input, select, textarea { font-family:'Onest',system-ui,-apple-system,'Segoe UI',sans-serif!important; }
+  body { background:#fff!important;background-image:none!important;color:#2B3A55; }
+  .top-nav { background:rgba(255,255,255,.9)!important;border-bottom:1px solid var(--line)!important; }
+  .brand-title { letter-spacing:-.01em!important;font-size:18px!important;font-weight:800!important;color:var(--ink)!important; }
+  .brand-title span { color:var(--ink)!important; }
+  .tier-badge { letter-spacing:0!important;font-size:12px!important;border-radius:999px!important; }
+  .top-nav .btn-pill { border-radius:999px!important;font-size:14px!important;padding:8px 16px!important;color:var(--ink)!important; }
+  .sidebar-caption { display:none; }
+  .sidebar-nav .nav-item { font-size:15px!important;height:44px!important;border-radius:12px!important;color:#5E6B82!important; }
+  .sidebar-nav .nav-item:hover { background:var(--soft)!important;color:var(--ink)!important; }
+  .sidebar-nav .nav-item.active { background:var(--soft)!important;color:var(--ink)!important;font-weight:650!important; }
+  .sidebar-nav .nav-item.active::before { display:none; }
+  .page-heading h1, .home-title, #tab-home h1 { color:var(--ink)!important;letter-spacing:-.03em!important;font-weight:800!important;background:none!important;-webkit-text-fill-color:var(--ink)!important; }
+  .page-heading p { color:var(--body)!important; }
+  .glass-card, .tier-card, .profile-hero-card, .student-card, .lesson-card, .modal-content {
+    border-radius:18px!important;border:1px solid var(--line)!important;box-shadow:none!important;background:#fff!important; }
+  .tier-card.popular, .tier-card.featured { border-color:var(--ink)!important; }
+  .form-btn-submit, .btn-primary { background:var(--blue)!important;border-radius:999px!important;box-shadow:none!important; }
+  .btn-pill { border-radius:999px!important; }
+  .form-input, .form-select, .form-textarea, .search-input { border-radius:12px!important;border-color:var(--line)!important;background:#fff!important; }
+  #loadingView::before { content:"Docura";letter-spacing:0;font-size:15px;color:var(--ink); }
+
+  /* Навигация: пять разделов. Тариф, бонусы, память и настройки — внутри «Профиля». */
+  .nav-item[data-tab="memory"], .nav-item[data-tab="referrals"],
+  .nav-item[data-tab="tariffs"], .nav-item[data-tab="settings"] { display:none!important; }
+  .profile-hub { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 24px; }
+  .profile-hub button { display:flex;align-items:center;gap:14px;padding:18px;border:1px solid var(--line);border-radius:18px;background:#fff;cursor:pointer;text-align:left;color:var(--ink);font:inherit; }
+  .profile-hub button:hover { background:var(--soft); }
+  .profile-hub .ic { width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:19px;flex:none; }
+  .profile-hub b { display:block;font-size:16px;font-weight:650; }
+  .profile-hub small { display:block;color:var(--body);font-size:13px;margin-top:2px; }
+  .back-to-profile { display:inline-flex;align-items:center;gap:6px;margin-bottom:14px;border:0;background:none;color:var(--body);font:inherit;font-size:14px;cursor:pointer;padding:4px 0; }
+  .back-to-profile:hover { color:var(--ink); }
+  @media (max-width:640px) { .profile-hub { grid-template-columns:1fr; } }
+  .welcome-kicker, .sidebar-caption { display:none!important; }
+  #promoBanner { grid-column:1 / -1;background:#FFF7E8!important;border:1px solid #F5D49A!important;border-radius:18px!important; }
+  #promoBannerTitle { text-transform:none!important;font-size:17px!important;color:#9A5B00!important; }
 </style>
 </head>
 <body>
@@ -1479,6 +1519,7 @@
          TAB 4: ПАМЯТЬ ИИ (AI MEMORY)
          ════════════════════════════════════════════════════ -->
     <section id="tab-memory" class="tab-panel">
+      <button type="button" class="back-to-profile" onclick="switchTab('profile')">← <span class="back-profile-label">Профиль</span></button>
       <header class="page-heading"><div><h1 id="memoryPageTitle">Память Docura</h1><p id="memoryPageSubtitle">Сохраняйте правила и контекст, которые AI должен помнить.</p></div>
         <button onclick="clearMemory()" class="btn-pill" id="btnClearMemory">Очистить память</button>
       </header>
@@ -1502,6 +1543,7 @@
          TAB 5: РЕФЕРАЛЫ (REFERRALS)
          ════════════════════════════════════════════════════ -->
     <section id="tab-referrals" class="tab-panel">
+      <button type="button" class="back-to-profile" onclick="switchTab('profile')">← <span class="back-profile-label">Профиль</span></button>
       <header class="page-heading"><div><h1 id="referralsPageTitle">Реферальная программа</h1><p id="referralsPageSubtitle">Приглашайте коллег и делитесь доступом к Docura.</p></div>
         <span style="font-size:12px; font-weight:700; color:var(--success)" id="refBonusTag">+5 документов</span>
       </header>
@@ -1537,6 +1579,7 @@
          TAB 6: ТАРИФЫ И ПОДПИСКА (SUBSCRIPTION)
          ════════════════════════════════════════════════════ -->
     <section id="tab-tariffs" class="tab-panel">
+      <button type="button" class="back-to-profile" onclick="switchTab('profile')">← <span class="back-profile-label">Профиль</span></button>
       <header class="page-heading"><div><h1 id="tariffsPageTitle">Тарифы и подписка</h1><p id="tariffsPageSubtitle">Выберите формат доступа для себя или всей организации.</p></div>
         <span style="font-size:11px; font-weight:700; color:var(--accent)">Kaspi Pay</span>
       </header>
@@ -1544,7 +1587,7 @@
       <!-- Promo Banner -->
       <div id="promoBanner" style="display:none; background:linear-gradient(135deg, #FEF3C7 0%, #EFF6FF 100%); border:1.5px solid #F59E0B; border-radius:18px; padding:16px 20px; margin-bottom:20px;">
         <div style="font-size:16px; font-weight:800; color:#B45309; display:flex; align-items:center; gap:8px;" id="promoBannerTitle">
-          <span>🔥</span> СКИДКА 50% НА ПЕРВЫЙ МЕСЯЦ PRO!
+          <span>🔥</span> −50% на первый месяц PRO
         </div>
         <div style="font-size:13px; color:#78350F; margin-top:4px; line-height:1.4;" id="promoBannerDesc">
           Специальная цена для новых пользователей: <b>2 490 ₸</b> вместо <s>4 990 ₸</s>. Полный безлимит на все документы, автопилот и базу.
@@ -1577,10 +1620,9 @@
           <div class="tier-price">7 490 ₸</div>
           <div class="tier-period" id="tierMaxPeriod">/ месяц</div>
         </div>
-        <div style="font-size:12px; color:var(--text-muted)" id="tierMaxDesc">Всё из PRO + презентации и автопилот</div>
+        <div style="font-size:12px; color:var(--text-muted)" id="tierMaxDesc">Всё из PRO + напоминания по расписанию и доклад завучу</div>
         <ul class="tier-features" id="tierMaxFeatures">
           <li><span>✓</span> Всё, что входит в PRO без ограничений</li>
-          <li><span>✓</span> <b>Генератор презентаций PowerPoint (.pptx)</b></li>
           <li><span>✓</span> <b>ИИ-мониторинг чатов и Доклад завучу</b></li>
           <li><span>✓</span> Автопилот расписания каждые 6 часов</li>
         </ul>
@@ -1593,12 +1635,11 @@
         <div class="tier-header">
           <div class="tier-name" id="tierB2bTitle">B2B Организация</div>
           <div class="tier-price">39 900 ₸</div>
-          <div class="tier-period" id="tierB2bPeriod">/ год</div>
+          <div class="tier-period" id="tierB2bPeriod">/ месяц</div>
         </div>
         <div style="font-size:12px; color:var(--text-muted)" id="tierB2bDesc">Тариф MAX для всей школы или садика (до 25 педагогов)</div>
         <ul class="tier-features" id="tierB2bFeatures">
           <li><span>✓</span> <b>Всё из тарифа MAX для 25 учителей / воспитателей</b></li>
-          <li><span>✓</span> 🎨 <b>Генератор презентаций PowerPoint (.pptx)</b></li>
           <li><span>✓</span> 🤖 <b>ИИ-мониторинг расписания и Доклад завучу</b></li>
           <li><span>✓</span> Корпоративные шаблоны школы и акты бухгалтерии</li>
           <li><span>✓</span> Приоритетная поддержка 24/7</li>
@@ -1631,6 +1672,13 @@
         </div>
         <button onclick="openEditProfileModal()" class="btn-pill" id="btnEditProfileTop">✏️ Редактировать</button>
       </header>
+
+      <div class="profile-hub" aria-label="Настройки аккаунта">
+        <button type="button" onclick="switchTab('tariffs')"><span class="ic" style="background:#EEF3FC">⭐</span><span><b class="hub-t-tariffs">Тариф и оплата</b><small class="hub-s-tariffs">PRO, MAX, оплата через Kaspi</small></span></button>
+        <button type="button" onclick="switchTab('referrals')"><span class="ic" style="background:#FDEDF3">🎁</span><span><b class="hub-t-referrals">Пригласить коллег</b><small class="hub-s-referrals">+5 документов за каждого</small></span></button>
+        <button type="button" onclick="switchTab('memory')"><span class="ic" style="background:#EAF7F1">💡</span><span><b class="hub-t-memory">Что помнит Docura</b><small class="hub-s-memory">Заметки и данные для документов</small></span></button>
+        <button type="button" onclick="switchTab('settings')"><span class="ic" style="background:#F2EEFE">⚙️</span><span><b class="hub-t-settings">Настройки</b><small class="hub-s-settings">Язык, данные аккаунта</small></span></button>
+      </div>
 
       <div class="profile-hero-card">
         <div style="display:flex; align-items:center; gap:16px;">
@@ -1700,6 +1748,7 @@
          TAB 8: НАСТРОЙКИ (SETTINGS)
          ════════════════════════════════════════════════════ -->
     <section id="tab-settings" class="tab-panel">
+      <button type="button" class="back-to-profile" onclick="switchTab('profile')">← <span class="back-profile-label">Профиль</span></button>
       <header class="page-heading">
         <div>
           <h1 id="settingsPageTitle">Настройки</h1>
@@ -1927,7 +1976,7 @@
           <option value="pro_promo" id="optRecPromo">PRO — 2 490 ₸ (Скидка на 1-й месяц)</option>
           <option value="pro" id="optRecPro">PRO — 4 990 ₸ / месяц</option>
           <option value="max" id="optRecMax">MAX — 7 490 ₸ / месяц</option>
-          <option value="b2b" id="optRecB2b">B2B — 39 900 ₸ / год</option>
+          <option value="b2b" id="optRecB2b">B2B — 39 900 ₸ / месяц</option>
         </select>
       </div>
       <div class="form-group">
@@ -2079,7 +2128,7 @@ const I18N = {
     docPromptPlaceholderSchool: "Опишите, какой документ вам нужен… Например: составь план урока (КСП) математики для 8 класса по теме квадратных уравнений.",
     docPromptPlaceholderKg: "Опишите, какой документ вам нужен… Например: составь циклограмму на неделю для средней группы «Балапан» или конспект ОУД по развитию речи.",
     composerHint: "Запрос будет скопирован, затем откроется Telegram-бот Docura для генерации.",
-    sendTelegram: "Продолжить в Telegram →",
+    sendTelegram: "Продолжить в Telegram",
     statDocsLabel: "создано документов",
     statHoursLabel: "сэкономлено",
     statStudentsLabel: "учеников в базе",
@@ -2172,7 +2221,7 @@ const I18N = {
     // Tab 7: Tariffs & Subscription
     tariffsHeading: "Тарифы и подписка",
     tariffsSubheading: "Выберите формат доступа для себя или всей организации.",
-    promoBannerTitle: "🔥 СКИДКА 50% НА ПЕРВЫЙ МЕСЯЦ PRO!",
+    promoBannerTitle: "🔥 −50% на первый месяц PRO",
     promoBannerDesc: "Специальная цена для новых пользователей: <b>2 490 ₸</b> вместо <s>4 990 ₸</s>. Полный безлимит на все документы, автопилот и базу.",
     tierProRibbon: "Хит",
     tierProTitle: "PRO Тариф",
@@ -2188,20 +2237,18 @@ const I18N = {
     tierMaxRibbon: "MAX",
     tierMaxTitle: "MAX Тариф",
     tierMaxPeriod: "/ месяц",
-    tierMaxDesc: "Всё из PRO + презентации и автопилот",
+    tierMaxDesc: "Всё из PRO + напоминания по расписанию и доклад завучу",
     tierMaxFeatures: [
       "Всё, что входит в PRO без ограничений",
-      "<b>Генератор презентаций PowerPoint (.pptx)</b>",
       "<b>ИИ-мониторинг чатов и Доклад завучу</b>",
       "Автопилот расписания каждые 6 часов"
     ],
     btnTierMax: "Оформить MAX",
     tierB2bTitle: "B2B MAX Организация",
-    tierB2bPeriod: "/ год",
+    tierB2bPeriod: "/ месяц",
     tierB2bDesc: "Тариф MAX для всей школы или детского сада (до 25 педагогов)",
     tierB2bFeatures: [
       "<b>Всё из тарифа MAX для 25 учителей / воспитателей</b>",
-      "🎨 <b>Генератор презентаций PowerPoint (.pptx)</b>",
       "🤖 <b>ИИ-мониторинг расписания и Доклад завучу</b>",
       "Корпоративные шаблоны школы и акты бухгалтерии",
       "Приоритетная поддержка 24/7"
@@ -2298,7 +2345,7 @@ const I18N = {
     optRecPromo: "PRO — 2 490 ₸ (Скидка на 1-й месяц)",
     optRecPro: "PRO — 4 990 ₸ / месяц",
     optRecMax: "MAX — 7 490 ₸ / месяц",
-    optRecB2b: "B2B — 39 900 ₸ / год",
+    optRecB2b: "B2B — 39 900 ₸ / месяц",
     lblReceiptFile: "Прикрепите чек оплаты Kaspi (скриншот или PDF):",
     hintVerifyReceipt: "✓ Реквизиты Kaspi Gold: <b>+7 771 451 4717</b> (Мернар Е.)<br>✓ ИИ проверит номер, сумму и дату чека и мгновенно активирует тариф.",
     btnSubmitVerifyReceipt: "Проверить чек и активировать",
@@ -2376,7 +2423,7 @@ const I18N = {
     docPromptPlaceholderSchool: "Қандай құжат керек екенін жазыңыз… Мысалы: 8-сыныпқа алгебрадан квадрат теңдеулер бойынша ҚМЖ құрастыр.",
     docPromptPlaceholderKg: "Қандай құжат керек екенін жазыңыз… Мысалы: «Балапан» ортаңғы тобына бір апталық циклограмма немесе сөйлеуді дамыту ҰОҚ конспектісін құрастыр.",
     composerHint: "Сұраныс көшіріліп, құжатты генерациялау үшін Docura Telegram-боты ашылады.",
-    sendTelegram: "Telegram-да жалғастыру →",
+    sendTelegram: "Telegram-да жалғастыру",
     statDocsLabel: "құжат жасалды",
     statHoursLabel: "уақыт үнемделді",
     statStudentsLabel: "оқушы базада",
@@ -2469,7 +2516,7 @@ const I18N = {
     // Tab 7: Tariffs & Subscription
     tariffsHeading: "Тарифтер мен жазылым",
     tariffsSubheading: "Өзіңізге немесе бүкіл мекемеге арналған тарифті таңдаңыз.",
-    promoBannerTitle: "🔥 PRO ҮШІН БІРІНШІ АЙҒА 50% ЖЕҢІЛДІК!",
+    promoBannerTitle: "🔥 PRO бірінші айына −50%",
     promoBannerDesc: "Жаңа қолданушылар үшін арнайы баға: <s>4 990 ₸</s> орнына <b>2 490 ₸</b>. Барлық құжаттарға, автопилотқа және базаға толық шексіздік.",
     tierProRibbon: "Хит",
     tierProTitle: "PRO Тариф",
@@ -2485,20 +2532,18 @@ const I18N = {
     tierMaxRibbon: "MAX",
     tierMaxTitle: "MAX Тариф",
     tierMaxPeriod: "/ айына",
-    tierMaxDesc: "PRO-ның барлығы + презентациялар мен автопилот",
+    tierMaxDesc: "PRO-ның барлығы + кесте бойынша еске салғыштар және меңгерушіге баяндама",
     tierMaxFeatures: [
       "PRO құрамындағы барлық мүмкіндіктер шектеусіз",
-      "<b>PowerPoint (.pptx) презентациялар генераторы</b>",
       "<b>ИИ-мониторинг және оқу ісі меңгерушісіне есеп</b>",
       "Әр 6 сағат сайын сабақ кестесінің автопилоты"
     ],
     btnTierMax: "MAX ресімдеу",
     tierB2bTitle: "B2B MAX Мекеме",
-    tierB2bPeriod: "/ жылына",
+    tierB2bPeriod: "/ айына",
     tierB2bDesc: "Бүкіл мектеп немесе балабақшаға арналған MAX тарифі (25 педагогке дейін)",
     tierB2bFeatures: [
       "<b>25 мұғалім / тәрбиешіге арналған толық MAX мүмкіндіктері</b>",
-      "🎨 <b>PowerPoint (.pptx) презентациялар генераторы</b>",
       "🤖 <b>ИИ-мониторинг және оқу ісі меңгерушісіне жиынтық есеп</b>",
       "Мектептің корпоративтік үлгілері және бухгалтерлік актілер",
       "24/7 басымдықты қолдау"
@@ -2595,7 +2640,7 @@ const I18N = {
     optRecPromo: "PRO — 2 490 ₸ (1-ші айға жеңілдік)",
     optRecPro: "PRO — 4 990 ₸ / айына",
     optRecMax: "MAX — 7 490 ₸ / айына",
-    optRecB2b: "B2B — 39 900 ₸ / жылына",
+    optRecB2b: "B2B — 39 900 ₸ / айына",
     lblReceiptFile: "Kaspi төлем чегін тіркеңіз (скриншот немесе PDF):",
     hintVerifyReceipt: "✓ Kaspi Gold деректемелері: <b>+7 771 451 4717</b> (Мернар Е.)<br>✓ ИИ чектің нөмірін, сомасын және күнін тексеріп, тарифті лезде белсендіреді.",
     btnSubmitVerifyReceipt: "Чекті тексеру және белсендіру",
@@ -2673,7 +2718,7 @@ const I18N = {
     docPromptPlaceholderSchool: "Describe the document you need… For example: create a lesson plan for 8th grade math on quadratic equations.",
     docPromptPlaceholderKg: "Describe the document you need… For example: create a weekly cyclogram for middle kindergarten group or early childhood speech development activity plan.",
     composerHint: "Prompt will be copied, then Docura Telegram bot opens to generate.",
-    sendTelegram: "Continue in Telegram →",
+    sendTelegram: "Continue in Telegram",
     statDocsLabel: "documents created",
     statHoursLabel: "hours saved",
     statStudentsLabel: "students in base",
@@ -2766,7 +2811,7 @@ const I18N = {
     // Tab 7: Tariffs & Subscription
     tariffsHeading: "Plans & Subscription",
     tariffsSubheading: "Choose an access format for yourself or your entire school.",
-    promoBannerTitle: "🔥 50% OFF FIRST MONTH OF PRO!",
+    promoBannerTitle: "🔥 50% off your first month of PRO",
     promoBannerDesc: "Special price for new users: <b>2,490 ₸</b> instead of <s>4,990 ₸</s>. Full unlimited access to all documents, autopilot, and database.",
     tierProRibbon: "Popular",
     tierProTitle: "PRO Plan",
@@ -2782,20 +2827,18 @@ const I18N = {
     tierMaxRibbon: "MAX",
     tierMaxTitle: "MAX Plan",
     tierMaxPeriod: "/ month",
-    tierMaxDesc: "Everything in PRO + presentations & autopilot",
+    tierMaxDesc: "Everything in PRO + schedule reminders and principal digest",
     tierMaxFeatures: [
       "Everything in PRO without restrictions",
-      "<b>PowerPoint (.pptx) presentation generator</b>",
       "<b>AI chat monitoring & administrative reports</b>",
       "Schedule autopilot every 6 hours"
     ],
     btnTierMax: "Get MAX",
     tierB2bTitle: "B2B MAX Organization",
-    tierB2bPeriod: "/ year",
+    tierB2bPeriod: "/ month",
     tierB2bDesc: "MAX tier for the entire school or kindergarten (up to 25 educators)",
     tierB2bFeatures: [
       "<b>Full MAX features for 25 teachers / educators</b>",
-      "🎨 <b>PowerPoint (.pptx) presentation generator</b>",
       "🤖 <b>AI schedule autopilot & admin reports</b>",
       "Corporate templates & accounting invoices",
       "Priority 24/7 support"
@@ -2892,7 +2935,7 @@ const I18N = {
     optRecPromo: "PRO — 2,490 ₸ (1st month discount)",
     optRecPro: "PRO — 4,990 ₸ / month",
     optRecMax: "MAX — 7,490 ₸ / month",
-    optRecB2b: "B2B — 39,900 ₸ / year",
+    optRecB2b: "B2B — 39,900 ₸ / month",
     lblReceiptFile: "Attach Kaspi payment receipt (screenshot or PDF):",
     hintVerifyReceipt: "✓ Kaspi Gold: <b>+7 771 451 4717</b> (Mernar E.)<br>✓ AI verifies receipt number, amount, and date to instantly activate your plan.",
     btnSubmitVerifyReceipt: "Verify Receipt & Activate",
@@ -3500,11 +3543,28 @@ function switchTab(name) {
     }
   });
 
-  document.querySelectorAll('.nav-item[data-tab]').forEach(button => button.classList.toggle('active', button.dataset.tab === name));
+  const navName = ['memory', 'referrals', 'tariffs', 'settings'].includes(name) ? 'profile' : name;
+  document.querySelectorAll('.nav-item[data-tab]').forEach(button => button.classList.toggle('active', button.dataset.tab === navName));
+  applyHubLang(lang);
 
   if (name === 'documents') renderDocumentsList();
   if (name === 'profile') renderProfileTab();
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── PROFILE HUB (подписи на RU/KZ/EN) ──
+const HUB_TEXT = {
+  ru: { tariffs:['Тариф и оплата','PRO, MAX, оплата через Kaspi'], referrals:['Пригласить коллег','+5 документов за каждого'], memory:['Что помнит Docura','Заметки и данные для документов'], settings:['Настройки','Язык, данные аккаунта'], back:'Профиль' },
+  kz: { tariffs:['Тариф және төлем','PRO, MAX, Kaspi арқылы төлем'], referrals:['Әріптестерді шақыру','Әрқайсысы үшін +5 құжат'], memory:['Docura не есте сақтайды','Құжаттарға арналған жазбалар'], settings:['Баптаулар','Тіл, аккаунт деректері'], back:'Профиль' },
+  en: { tariffs:['Plan and billing','PRO, MAX, Kaspi payment'], referrals:['Invite colleagues','+5 documents each'], memory:['What Docura remembers','Notes used in documents'], settings:['Settings','Language, account data'], back:'Profile' }
+};
+function applyHubLang(lang) {
+  const h = HUB_TEXT[lang] || HUB_TEXT.ru;
+  ['tariffs','referrals','memory','settings'].forEach(k => {
+    document.querySelectorAll('.hub-t-' + k).forEach(el => el.textContent = h[k][0]);
+    document.querySelectorAll('.hub-s-' + k).forEach(el => el.textContent = h[k][1]);
+  });
+  document.querySelectorAll('.back-profile-label').forEach(el => el.textContent = h.back);
 }
 
 // ── PROFILE TAB RENDER ──
@@ -3539,8 +3599,9 @@ function renderProfileTab() {
   }
 
   // Stats
-  document.getElementById('profileStatDocs').textContent = u.free_used || 0;
-  const hours = ((u.free_used || 0) * 0.5).toFixed(1);
+  const docCount = STATE.doc_count ?? (STATE.documents || []).length;
+  document.getElementById('profileStatDocs').textContent = docCount;
+  const hours = (docCount * 0.5).toFixed(1);
   document.getElementById('profileStatHours').textContent = `${hours} ч`;
   document.getElementById('profileStatStudents').textContent = STATE.students.length;
 }
@@ -3589,8 +3650,9 @@ function renderUI() {
 
   // Metrics
   const metDocs = document.getElementById('metricDocs');
-  if (metDocs) metDocs.textContent = u.free_used || 0;
-  const hours = ((u.free_used || 0) * 0.5).toFixed(1);
+  const docCount = STATE.doc_count ?? (STATE.documents || []).length;
+  if (metDocs) metDocs.textContent = docCount;
+  const hours = (docCount * 0.5).toFixed(1);
   const metHours = document.getElementById('metricHours');
   if (metHours) metHours.textContent = `${hours} ч`;
   const metStud = document.getElementById('metricStudents');
@@ -4433,6 +4495,7 @@ async function init() {
     if (data.prices) STATE.prices = data.prices;
     if (data.kaspi_number) STATE.kaspi_number = data.kaspi_number;
     STATE.documents = data.documents || [];
+    STATE.doc_count = typeof data.doc_count === 'number' ? data.doc_count : null;
     STATE.students = data.students || [];
     if (data.schedule && data.schedule.schedule_data) {
       try {

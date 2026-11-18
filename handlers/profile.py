@@ -188,7 +188,7 @@ class ProfileHandler:
 
         site_url = get_site_url()
         token = create_auth_token(user_id)
-        webapp_url = f"{site_url}/?tg_id={user_id}&token={token}"
+        webapp_url = f"{site_url}/app?tg_id={user_id}&token={token}"
         ru = lang == "ru"
         keyboard = [
             [InlineKeyboardButton("✏️ " + ("Редактировать профиль" if ru else "Профильді өңдеу"), callback_data="prof_edit")],
@@ -277,7 +277,7 @@ class ProfileHandler:
             site_url = get_site_url()
             token = create_auth_token(user_id)
             browser_url = f"{site_url}/auth?token={token}"
-            webapp_url = f"{site_url}/?tg_id={user_id}&token={token}"
+            webapp_url = f"{site_url}/app?tg_id={user_id}&token={token}"
             text = (
                 f"💻 *Ваш персональный веб-кабинет Docura*\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"

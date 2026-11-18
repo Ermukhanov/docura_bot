@@ -161,7 +161,7 @@ async def cmd_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     site_url = get_site_url()
     token = create_auth_token(user_id)
     browser_url = f"{site_url}/auth?token={token}"
-    webapp_url = f"{site_url}/"
+    webapp_url = f"{site_url}/app"
 
     text = (
         f"💻 *Ваш персональный веб-кабинет Docura*\n"
@@ -368,6 +368,13 @@ async def _start_after_account_reset(update: Update, context: ContextTypes.DEFAU
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await _start_after_account_reset(update, context):
         return
+    # Ссылки с сайта: t.me/docurakz_bot?start=cabinet / ?start=support
+    if context.args and context.args[0] in ("cabinet", "support"):
+        db = context.application.bot_data["db"]
+        user = await db.get_user(update.effective_user.id)
+        if user and user.get("name"):
+            await (cmd_cabinet if context.args[0] == "cabinet" else cmd_support)(update, context)
+            return
     await OnboardingHandler(context.application.bot_data["db"]).start(update, context)
 
 
