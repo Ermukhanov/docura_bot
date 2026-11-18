@@ -771,6 +771,63 @@ GEN_MODEL = os.getenv("DOCURA_GEN_MODEL", "claude-sonnet-4-6")
 EVAL_MODEL = os.getenv("DOCURA_EVAL_MODEL", "claude-haiku-4-5")
 GEN_MAX_TOKENS = int(os.getenv("DOCURA_GEN_MAX_TOKENS", "6000"))
 
+
+def profile_missing(user: dict | None) -> bool:
+    """Нет ФИО, организации или руководителя — в документе будут пустые строки."""
+    user = user or {}
+    return any(not str(user.get(k) or "").strip() or str(user.get(k)).strip().lower() == "none"
+               for k in ("name", "school", "director"))
+
+
+CYCLE_BLOCKS = {
+    "ru": ["Утренний приём и гимнастика", "ОУД (организованная учебная деятельность)", "Прогулка", "Сон и закаливание", "Игры и уход домой"],
+    "kz": ["Таңертеңгі қабылдау және гимнастика", "ҰОҚ (ұйымдастырылған оқу қызметі)", "Серуен", "Ұйқы және шынықтыру", "Ойындар және үйге қайту"],
+    "en": ["Morning reception and exercises", "Organised learning activity", "Walk", "Nap and hardening", "Games and going home"],
+}
+CYCLE_DAYS = {"ru": ["Пн", "Вт", "Ср", "Чт", "Пт"], "kz": ["Дс", "Сс", "Ср", "Бс", "Жм"], "en": ["Mon", "Tue", "Wed", "Thu", "Fri"]}
+
+
+async def cycle_grid_from_ai(client, answers: dict, user: dict, lang: str) -> list | None:
+    """План циклограммы 5 блоков × 5 дней от ИИ, на языке документа. None — если ответ не разобрать."""
+    lang = lang if lang in CYCLE_BLOCKS else "ru"
+    language = {"ru": "русском", "kz": "казахском", "en": "английском"}[lang]
+    known = {k: v for k, v in (answers or {}).items() if v not in (None, "", "None")}
+    group = known.get("group") or user.get("age_group") or ""
+    prompt = (
+        f"Составь циклограмму детского сада на неделю. Пиши ТОЛЬКО на {language} языке.\n"
+        f"Тема недели: {known.get('week_topic', '')}\nГруппа/возраст: {group}\nПериод: {known.get('period', '')}\n"
+        f"Мероприятия недели (если есть): {known.get('events', '')}\n\n"
+        "Блоки (строки): " + "; ".join(CYCLE_BLOCKS[lang]) + ".\nДни (столбцы): Пн, Вт, Ср, Чт, Пт.\n\n"
+        "Требования: каждое занятие конкретно связано с темой недели и подходит возрасту группы; дни не повторяют друг друга; "
+        "в ОУД укажи область (например, развитие речи, математика, ИЗО, музыка, физкультура), название, цель и игру; "
+        "называй реальные игры, стихи, песни, наблюдения; не выдумывай ФИО, даты и мероприятия, которых нет выше; "
+        "каждая ячейка — 1–2 коротких предложения (до 200 символов).\n"
+        'Ответь ТОЛЬКО JSON без пояснений: {"rows": [[5 ячеек для блока 1], [..блок 2], [..блок 3], [..блок 4], [..блок 5]]}'
+    )
+    msg = await client.messages.create(model=GEN_MODEL, max_tokens=4000, messages=[{"role": "user", "content": prompt}])
+    raw = msg.content[0].text if msg.content else ""
+    start, end = raw.find("{"), raw.rfind("}")
+    if start < 0 or end <= start:
+        return None
+    try:
+        rows = json.loads(raw[start:end + 1]).get("rows")
+    except Exception:
+        return None
+    if (isinstance(rows, list) and len(rows) == 5
+            and all(isinstance(r, list) and len(r) == 5 and all(isinstance(c, str) and c.strip() for c in r) for r in rows)):
+        return [[c.strip() for c in r] for r in rows]
+    return None
+
+
+def cycle_grid_text(grid: list, lang: str) -> str:
+    """Текстовая версия циклограммы — для истории документов."""
+    lang = lang if lang in CYCLE_BLOCKS else "ru"
+    lines = []
+    for block, row in zip(CYCLE_BLOCKS[lang], grid):
+        lines.append(block)
+        lines += [f"  {day}: {cell}" for day, cell in zip(CYCLE_DAYS[lang], row)]
+    return "\n".join(lines)
+
 class DocumentHandler:
     def __init__(self, db: Database, api_key: str):
         self.db      = db
@@ -1756,34 +1813,61 @@ class DocumentHandler:
         )
         share_url = f"https://t.me/share/url?url={quote(ref_link)}&text={share_text}"
         fresh_user = await self.db.get_user(message.chat_id) or user
-        history = await self.db.get_history(message.chat_id, limit=2)
-        is_first_document = len(history) == 1
+        ru = lang != "kz"
+        if profile_missing(fresh_user) and context.user_data.get("last_doc"):
+            # Документ без ФИО и организации: одно понятное предложение вместо меню из шести кнопок.
+            await message.reply_text(
+                ("📄 Документ готов!\n\nСтроки «Педагог», «Руководитель» и «Организация» в нём пустые — я пока не знаю ваших данных. "
+                 "Ответьте на 3 коротких вопроса, и я пришлю этот же документ уже заполненным. В следующих документах данные будут подставляться сами.")
+                if ru else
+                ("📄 Құжат дайын!\n\n«Педагог», «Басшы» және «Ұйым» жолдары бос — мен әлі сіздің деректеріңізді білмеймін. "
+                 "3 қысқа сұраққа жауап беріңіз, мен дәл осы құжатты толтырылған түрде жіберемін. Келесі құжаттарда деректер өздігінен қойылады."),
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("✍️ Заполнить и получить документ" if ru else "✍️ Толтырып, құжатты алу", callback_data="onboard_save_profile")],
+                    [InlineKeyboardButton("Не нужно" if ru else "Қажет емес", callback_data="onboard_skip_profile")],
+                ]),
+            )
+            return
         keyboard = [
-            [InlineKeyboardButton("📤 Поделиться с коллегой" if lang == "ru" else "📤 Әріптеспен бөлісу", url=share_url)],
-            [InlineKeyboardButton("⭐ Оценить документ" if lang == "ru" else "⭐ Құжатты бағалау", callback_data="doc_rate")],
+            [InlineKeyboardButton("📄 Создать ещё" if ru else "📄 Тағы жасау", callback_data="menu_create")],
+            [InlineKeyboardButton("⭐ Оценить" if ru else "⭐ Бағалау", callback_data="doc_rate"),
+             InlineKeyboardButton("📤 Коллеге" if ru else "📤 Әріптеске", url=share_url)],
+            [InlineKeyboardButton("🏠 Главное меню" if ru else "🏠 Басты мәзір", callback_data="menu_main")],
         ]
-        if is_first_document and any(not fresh_user.get(key) for key in ("school", "position", "director")):
-            keyboard.append([InlineKeyboardButton(
-                "📝 Сохранить данные для следующих документов" if lang == "ru" else "📝 Келесі құжаттарға деректерді сақтау",
-                callback_data="onboard_save_profile",
-            )])
-            keyboard.append([InlineKeyboardButton(
-                "Позже" if lang == "ru" else "Кейін", callback_data="onboard_skip_profile"
-            )])
-        keyboard.extend([
-            [InlineKeyboardButton("📄 Создать ещё" if lang == "ru" else "📄 Тағы жасау", callback_data="menu_create")],
-            [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
-        ])
         await message.reply_text(
-            "📄 Документ готов! Что дальше?" if lang == "ru" else "📄 Құжат дайын! Келесі не?",
+            "📄 Документ готов! Что дальше?" if ru else "📄 Құжат дайын! Келесі не?",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
-        # Первое бесплатное создание — отдельное ненавязчивое приглашение.
-        if fresh_user and not fresh_user.get("subscribed") and fresh_user.get("free_used") == 1:
-            await message.reply_text(
-                "🎁 Понравилось? Пригласи коллегу — оба получите бонусные документы!" if lang == "ru" else "🎁 Ұнады ма? Әріптесіңізді шақырыңыз — екеуіңіз де бонус құжат аласыз!",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📤 Поделиться ссылкой" if lang == "ru" else "📤 Сілтемемен бөлісу", url=share_url)]]),
+
+    async def resend_last_with_profile(self, message, context, lang) -> bool:
+        """Тот же документ, но с ФИО/организацией из профиля. Без обращения к ИИ."""
+        last = context.user_data.get("last_doc")
+        if not last:
+            return False
+        user = await self.db.get_user(message.chat_id) or {}
+        from handlers.word_generator import generate_word
+        data = dict(last.get("word_data") or {})
+        data["organization"] = user.get("school") or data.get("organization") or ""
+        data["educator_name"] = user.get("name") or data.get("educator_name") or ""
+        doc_type = last["doc_type"]
+        try:
+            filename = generate_word(
+                last["result"], last["doc_name"], user.get("name") or "",
+                director_name=user.get("director") or "",
+                cycle_data=data if doc_type == KINDERGARTEN_CYCLE_SCHEDULE else None,
+                monitoring_data=data if doc_type == "kg_individual_development_card" else None,
+                registry_doc_type=doc_type, lang=last.get("doc_lang", lang),
             )
+            with open(filename, "rb") as f:
+                await message.reply_document(
+                    document=f, filename=f"{last['doc_name']}_{now_local().strftime('%d%m%Y')}.docx",
+                    caption="📄 Тот же документ — уже с вашими данными" if lang != "kz" else "📄 Сол құжат — енді сіздің деректеріңізбен",
+                )
+            os.remove(filename)
+            return True
+        except Exception as exc:
+            print(f"Resend with profile failed: {exc}")
+            return False
 
     async def _handle_help_write(self, update, context, user, lang, user_input):
         field    = context.user_data.get("help_field", "")
@@ -1872,9 +1956,16 @@ class DocumentHandler:
             "kz": f"⚙️ *{doc_name} жасалуда...*\n\n🌐 Тіл: {_doc_lang_name(doc_lang)}\n⭐ Сапа: автоматты тексеру\n\n_Болдырмау үшін /cancel жазыңыз_",
             "en": f"⚙️ *Generating {doc_name}...*\n\n🌐 Language: {_doc_lang_name(doc_lang)}\n⭐ Quality: auto-check\n\n_Type /cancel to stop_",
         }
-        await message.reply_text(gen_msgs.get(lang, gen_msgs["ru"]), parse_mode=ParseMode.MARKDOWN)
+        gen_text = gen_msgs.get(lang, gen_msgs["ru"])
+        if profile_missing(user):
+            gen_text += {
+                "ru": "\n\nℹ️ Ваш профиль ещё не заполнен, поэтому строки «Педагог», «Руководитель» и «Организация» останутся пустыми — их можно вписать от руки. После документа предложу заполнить их за 30 секунд и пришлю этот же файл уже с вашими данными.",
+                "kz": "\n\nℹ️ Профиліңіз әлі толтырылмаған, сондықтан «Педагог», «Басшы» және «Ұйым» жолдары бос қалады — оларды қолмен жазуға болады. Құжаттан кейін оларды 30 секундта толтыруды ұсынамын және дәл осы файлды сіздің деректеріңізбен жіберемін.",
+                "en": "\n\nℹ️ Your profile is not filled in yet, so the teacher, head and organisation lines will stay blank. After the document I'll offer to fill them in 30 seconds and resend the same file with your details.",
+            }.get(lang, "")
+        await message.reply_text(gen_text, parse_mode=ParseMode.MARKDOWN)
 
-        answers_text  = "\n".join(f"- {k}: {v}" for k, v in answers.items())
+        answers_text  = "\n".join(f"- {k}: {v}" for k, v in answers.items() if v not in (None, "", "None"))
 
         # Профиль пользователя — подставляем автоматически
         profile_ctx = _build_profile_context(user, doc_lang)
@@ -1955,6 +2046,22 @@ class DocumentHandler:
         result  = ""
         score   = 0
         attempts = 0
+        cycle_grid = None
+        if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
+            # Циклограмма собирается таблицей: просим у ИИ конкретный план по дням и блокам,
+            # а не общий текст (раньше текст ИИ не попадал в файл — ячейки были шаблонными).
+            try:
+                async with typing_action(context.bot, user_id):
+                    cycle_grid = await cycle_grid_from_ai(client, answers, user, doc_lang)
+            except Exception as exc:
+                print(f"Cycle grid failed: {exc}")
+                if not cycle_grid:
+                    await self._generation_failed(message, user_id, doc_type, lang, exc)
+                    return
+            if cycle_grid:
+                result = cycle_grid_text(cycle_grid, doc_lang)
+                score = 90
+                attempts = 2  # отдельная проверка качества не нужна
 
         while score < 85 and attempts < 2:
             attempts += 1
@@ -2020,11 +2127,15 @@ class DocumentHandler:
             # kg_individual_development_card ключа не было вообще, и таблица всегда
             # получала русские подписи независимо от выбранного языка документа.
             word_data = {**answers, "lang": doc_lang}
+            word_data.setdefault("organization", user.get("school") or "")
+            word_data.setdefault("educator_name", user.get("name") or "")
+            if cycle_grid:
+                word_data["grid"] = cycle_grid
             filename = generate_word(
                 result,
                 doc_name,
-                user.get("name", ""),
-                director_name=user.get("director", ""),
+                user.get("name") or "",
+                director_name=user.get("director") or "",
                 cycle_data=word_data if doc_type == KINDERGARTEN_CYCLE_SCHEDULE else None,
                 monitoring_data=word_data if doc_type == "kg_individual_development_card" else None,
                 registry_doc_type=doc_type,
@@ -2070,6 +2181,10 @@ class DocumentHandler:
             await self.db.increment_free(user_id)
             fresh_user = await self.db.get_user(user_id)
 
-        # Показываем кнопки после документа.
+        # Показываем кнопки после документа. Сохраняем, из чего собран файл, —
+        # чтобы после заполнения профиля прислать тот же документ с ФИО (без ИИ).
+        last_doc = {"doc_type": doc_type, "doc_name": doc_name, "result": result, "doc_lang": doc_lang,
+                    "word_data": word_data if 'word_data' in locals() else {**answers, "lang": doc_lang}}
         context.user_data.clear()
+        context.user_data["last_doc"] = last_doc
         await self._send_post_document_actions(message, context, lang, fresh_user or user, doc_type, document_id)

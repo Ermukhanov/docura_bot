@@ -383,14 +383,23 @@ SELF_EVAL_PROMPT = """Оцени этот официальный докумен�
 
 Ответь ТОЛЬКО числом от 0 до 100. Никакого текста, только число."""
 
-AI_DISCLAIMER_LINE = "⚠️ Составлено с помощью ИИ. Проверено учителем: _ (подпись/дата)"
+AI_DISCLAIMER = {
+    "ru": "⚠️ Составлено с помощью ИИ. Проверено педагогом: ____________________ (подпись/дата)",
+    "kz": "⚠️ ЖИ көмегімен құрастырылды. Педагог тексерді: ____________________ (қолы/күні)",
+    "en": "⚠️ Prepared with AI. Checked by the teacher: ____________________ (signature/date)",
+}
+AI_DISCLAIMER_LINE = AI_DISCLAIMER["ru"]
+_DISCLAIMER_MARKS = ("Составлено с помощью ИИ", "ЖИ көмегімен құрастырылды", "Prepared with AI")
+
+
+def is_ai_disclaimer(line: str) -> bool:
+    return any(m in (line or "") for m in _DISCLAIMER_MARKS)
 
 
 def ensure_ai_disclaimer(text: str, lang: str = "ru") -> str:
-    """Гарантирует наличие обязательной строки проверки педагогом в конце учебного материала."""
+    """Гарантирует строку проверки педагогом в конце — на языке документа."""
     text = (text or "").rstrip()
-    if "Составлено с помощью ИИ" in text and "Проверено учителем" in text:
+    if any(is_ai_disclaimer(line) for line in text.splitlines()[-3:]):
         return text
-    if not text:
-        return AI_DISCLAIMER_LINE
-    return f"{text}\n\n{AI_DISCLAIMER_LINE}"
+    line = AI_DISCLAIMER.get(lang, AI_DISCLAIMER["ru"])
+    return f"{text}\n\n{line}" if text else line

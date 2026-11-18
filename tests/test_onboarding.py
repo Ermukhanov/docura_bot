@@ -388,9 +388,9 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         query = FakeQuery("onboard_save_profile", 707)
         update = types.SimpleNamespace(callback_query=query, effective_user=query.from_user)
         await self.handler.callback(update, self.context)
-        self.assertIn("Название школы", query.edited[-1][0])
+        self.assertIn("ФИО", query.edited[-1][0])
 
-        for answer in ("Лицей № 8", "Учитель биологии"):
+        for answer in ("Айгуль Сапарова", "Лицей № 8"):
             message = FakeMessage(707, answer)
             update = types.SimpleNamespace(
                 effective_user=types.SimpleNamespace(id=707), effective_message=message, message=message
@@ -398,8 +398,8 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
             await self.handler.handle_text(update, self.context)
 
         saved = await self.db.get_user(707)
+        self.assertEqual(saved["name"], "Айгуль Сапарова")
         self.assertEqual(saved["school"], "Лицей № 8")
-        self.assertEqual(saved["position"], "Учитель биологии")
         self.assertIsNone(saved["director"])
 
         query = FakeQuery("onboard_profile_skip_field", 707)

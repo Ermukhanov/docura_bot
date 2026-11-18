@@ -101,18 +101,17 @@ class OnboardingHandler:
         )
 
     def _post_doc_profile_fields(self, lang, role):
-        if lang == "ru":
-            school = "Название детского сада" if role == "kindergarten" else "Название школы"
-            director = "ФИО заведующей" if role == "kindergarten" else "ФИО директора"
+        kg = role == "kindergarten"
+        if lang == "kz":
             return [
-                ("school", f"🏫 {school}?"),
-                ("position", "💼 Ваша должность?"),
-                ("director", f"👔 {director}?"),
+                ("name", "👤 Аты-жөніңіз? (құжатта «Педагог» жолында тұрады)"),
+                ("school", "🏫 " + ("Балабақшаның атауы?" if kg else "Мектептің атауы?")),
+                ("director", "👔 " + ("Меңгерушінің аты-жөні?" if kg else "Директордың аты-жөні?")),
             ]
         return [
-            ("school", "🏫 Мекеменің атауы?"),
-            ("position", "💼 Лауазымыңыз?"),
-            ("director", "👔 Басшының аты-жөні?"),
+            ("name", "👤 Ваше ФИО? (будет в строке «Педагог»)"),
+            ("school", "🏫 " + ("Название детского сада?" if kg else "Название школы?")),
+            ("director", "👔 " + ("ФИО заведующей?" if kg else "ФИО директора?")),
         ]
 
     async def _ask_post_doc_profile_field(self, query, context, user_id, lang):
@@ -122,12 +121,21 @@ class OnboardingHandler:
         if idx >= len(fields):
             context.user_data["step"] = None
             context.user_data.pop("post_doc_profile_index", None)
-            text = "✅ Спасибо! Буду подставлять эти данные в следующие документы." if lang == "ru" else "✅ Рақмет! Бұл деректерді келесі құжаттарға қосамын."
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📄 Создать ещё" if lang == "ru" else "📄 Тағы жасау", callback_data="menu_create")],
-                [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
-            ])
-            await query.edit_message_text(text, reply_markup=keyboard)
+            text = "✅ Спасибо! Эти данные будут в каждом следующем документе." if lang != "kz" else "✅ Рақмет! Бұл деректер әр келесі құжатта болады."
+            await query.edit_message_text(text)
+            message = getattr(query, "message", None)
+            if message is not None:
+                from handlers.documents import DocumentHandler
+                await DocumentHandler(self.db, os.getenv("ANTHROPIC_API_KEY", "")).resend_last_with_profile(message, context, lang)
+                context.user_data.pop("last_doc", None)
+                await message.reply_text(
+                    "Как вам документ?" if lang != "kz" else "Құжат қалай болды?",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("⭐ Оценить" if lang != "kz" else "⭐ Бағалау", callback_data="doc_rate")],
+                        [InlineKeyboardButton("📄 Создать ещё" if lang != "kz" else "📄 Тағы жасау", callback_data="menu_create")],
+                        [InlineKeyboardButton("🏠 Главное меню" if lang != "kz" else "🏠 Басты мәзір", callback_data="menu_main")],
+                    ]),
+                )
             return
         context.user_data["step"] = "post_doc_profile"
         buttons = [[InlineKeyboardButton(
@@ -199,8 +207,10 @@ class OnboardingHandler:
         if data == "onboard_skip_profile":
             context.user_data["step"] = None
             context.user_data.pop("post_doc_profile_index", None)
-            text = "Хорошо, оставлю эти поля пустыми. Их можно добавить в профиле позже." if lang == "ru" else "Жақсы, бұл өрістерді бос қалдырамын. Кейін профильде толтыра аласыз."
+            context.user_data.pop("last_doc", None)
+            text = "Хорошо, строки останутся пустыми — их можно вписать от руки или заполнить в профиле позже." if lang != "kz" else "Жақсы, жолдар бос қалады — оларды қолмен жазуға немесе кейін профильде толтыруға болады."
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⭐ Оценить документ" if lang != "kz" else "⭐ Құжатты бағалау", callback_data="doc_rate")],
                 [InlineKeyboardButton("📄 Создать ещё" if lang == "ru" else "📄 Тағы жасау", callback_data="menu_create")],
                 [InlineKeyboardButton("🏠 Главное меню" if lang == "ru" else "🏠 Басты мәзір", callback_data="menu_main")],
             ]))

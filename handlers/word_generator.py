@@ -124,11 +124,20 @@ def _add_signature_block(doc, teacher_name: str, director_name: str, lang: str =
     }.get(lang, {"staff": "Педагог", "head": "Руководитель", "date": "Дата", "seal": "М.П."})
     doc.add_paragraph().paragraph_format.space_before = Pt(12)
     _add_hrule(doc, "A0AEC0", "6")
-    _para(doc, f"{labels['staff']}: {teacher_name} ____________________", space_before=6)
-    _para(doc, f"{labels['head']}: {director_name} ____________________")
+    teacher_name = _clean(teacher_name)
+    director_name = _clean(director_name)
+    _para(doc, f"{labels['staff']}: {teacher_name or '____________________'}" + ("  ____________" if teacher_name else ""), space_before=6)
+    _para(doc, f"{labels['head']}: {director_name or '____________________'}" + ("  ____________" if director_name else ""))
     _para(doc, f"{labels['date']}: ____________________")
     _para(doc, labels["seal"])
-    _para(doc, "⚠️ Составлено с помощью ИИ. Проверено учителем: ____________________ (подпись/дата)", italic=True, size=9, space_before=8)
+    from handlers.rag_base import AI_DISCLAIMER
+    _para(doc, AI_DISCLAIMER.get(lang, AI_DISCLAIMER["ru"]), italic=True, size=9, space_before=8)
+
+
+def _clean(value) -> str:
+    """None, «None», «null» и пустые строки — это отсутствие данных, а не текст для документа."""
+    text = "" if value is None else str(value).strip()
+    return "" if text.lower() in {"none", "null", "nan", "-", "—"} else text
 
 def validate_cycle_schedule_data(data: dict) -> list[str]:
     """Проверяет обязательные поля до создания циклограммы."""
@@ -231,7 +240,7 @@ def _add_kindergarten_cycle_schedule(doc, data: dict):
         raise ValueError("Не заполнены обязательные поля: " + ", ".join(missing))
 
     def value(key):
-        return str(data.get(key, "")).strip() or "________________"
+        return _clean(data.get(key)) or "________________"
 
     lang = data.get("lang", "ru")
     if lang not in ("ru", "kz", "en"):
@@ -292,6 +301,13 @@ def _add_kindergarten_cycle_schedule(doc, data: dict):
             [f"«{topic}» бойынша саусақ ойыны; үйлестіру гимнастикасы.", "ҰОҚ: «Қайда және қалай болады». Мақсат: байланыстарды бекіту. Ойын: «Кімге не керек?».", "Бақылау және «Атын атамай сипатта» ойыны.", "Ұйқы алдындағы баяу музыка; топ режимі бойынша процедуралар.", f"«{topic}» бойынша сюжеттік ойын; әсерлермен алмасу."],
             [f"«{topic}» сөздерін қайталау; балалар қимылды таңдайды.", "ҰОҚ: «Апта қорытындысы». Мақсат: білімді ойында қолдану. Ойын: «Сипаттама бойынша тап».", "«Не есте қалды?» бақылау ойыны; қимыл белсенділігі.", "Топ режимі бойынша ұйқыға дайындық; босаңсу.", "Еркін ойындар және тақырып қорытындысы."],
         ]
+
+    grid = data.get("grid")
+    if isinstance(grid, list) and len(grid) == len(blocks) and all(
+            isinstance(r, list) and len(r) == len(days) and all(isinstance(c, str) and c.strip() for c in r) for r in grid):
+        # ИИ вернул план по блокам: grid[блок][день] -> daily[день][блок]
+        daily = [[grid[b][d].strip()[:400] for b in range(len(blocks))] for d in range(len(days))]
+        has_events = False  # события ИИ уже учёл в тексте
 
     table = doc.add_table(rows=1 + len(blocks), cols=1 + len(days))
     table.style = "Table Grid"
@@ -584,7 +600,8 @@ def _parse_content(doc, content: str):
     while i < len(lines):
         s = lines[i].strip()
 
-        if "Составлено с помощью ИИ" in s and "Проверено учителем" in s:
+        from handlers.rag_base import is_ai_disclaimer
+        if is_ai_disclaimer(s):
             i += 1
             continue
 
