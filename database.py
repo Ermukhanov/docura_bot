@@ -36,6 +36,12 @@ def _validated_fields(data: dict, allowed: frozenset[str], table: str) -> dict:
         raise ValueError(f"Unsupported {table} field(s): {', '.join(sorted(unknown))}")
     return data
 
+FUNNEL_EVENTS = {
+    "start", "doc_type_chosen", "doc_generated", "lang_chosen", "role_chosen",
+    "profile_done", "paywall_shown", "generation_failed", "feedback",
+}
+
+
 class Database:
     def __init__(self):
         self.db_path = DB_PATH
@@ -213,6 +219,17 @@ class Database:
             await self._ensure_column(db, "users", "last_active_at", "TEXT")
             await self._ensure_column(db, "users", "last_broadcast_at", "TEXT")
             await self._ensure_column(db, "users", "first_doc_reminder_sent_at", "TEXT")
+            await self._ensure_column(db, "users", "winback_sent_at", "TEXT")
+            await self._ensure_column(db, "users", "winback_answered", "INTEGER DEFAULT 0")
+            await db.execute(
+                """CREATE TABLE IF NOT EXISTS user_feedback (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tg_id INTEGER NOT NULL,
+                    reason TEXT DEFAULT '',
+                    text TEXT DEFAULT '',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )"""
+            )
             await db.commit()
 
             # Уникальный индекс на ref_code — создаём отдельно от ALTER TABLE,
@@ -692,7 +709,7 @@ class Database:
 
     # ===== FUNNEL EVENTS / FIRST DOCUMENT REMINDER =====
     async def log_funnel_event(self, tg_id: int, event: str, doc_type: str = ""):
-        if event not in {"start", "doc_type_chosen", "doc_generated"}:
+        if event not in FUNNEL_EVENTS:
             raise ValueError(f"Unsupported funnel event: {event}")
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
@@ -700,6 +717,97 @@ class Database:
                 (tg_id, event, doc_type or ""),
             )
             await db.commit()
+
+    async def get_funnel_report(self, days: int | None = 30) -> dict:
+        """Воронка новых пользователей за период (по таблицам users/documents —
+        работает и для тех, кто пришёл до появления событий)."""
+        since = "datetime('now', '-100 years')" if not days else f"datetime('now', '-{int(days)} days')"
+        # Люди: и те, у кого есть строка users, и те, кто только нажал /start
+        # (строка users появляется лишь после выбора языка).
+        people = f"""
+            WITH ids AS (
+                SELECT tg_id, MIN(t) AS first_seen FROM (
+                    SELECT tg_id, created_at AS t FROM users
+                    UNION ALL SELECT tg_id, created_at AS t FROM funnel_events WHERE event='start'
+                ) GROUP BY tg_id
+            ), p AS (SELECT tg_id FROM ids WHERE datetime(first_seen) >= {since})
+        """
+        where = f"u.tg_id IN (SELECT tg_id FROM ids WHERE datetime(first_seen) >= {since})"
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            q = people + """
+                SELECT
+                  COUNT(*) AS started,
+                  SUM(CASE WHEN u.tg_id IS NOT NULL THEN 1 ELSE 0 END) AS lang,
+                  SUM(CASE WHEN EXISTS(SELECT 1 FROM funnel_events f WHERE f.tg_id=p.tg_id AND f.event IN ('role_chosen','doc_type_chosen'))
+                            OR trim(COALESCE(u.name,''))<>''
+                            OR EXISTS(SELECT 1 FROM documents d WHERE d.teacher_id=p.tg_id) THEN 1 ELSE 0 END) AS role,
+                  SUM(CASE WHEN trim(COALESCE(u.name,''))<>'' THEN 1 ELSE 0 END) AS profile,
+                  SUM(CASE WHEN EXISTS(SELECT 1 FROM funnel_events f WHERE f.tg_id=p.tg_id AND f.event='doc_type_chosen')
+                            OR EXISTS(SELECT 1 FROM documents d WHERE d.teacher_id=p.tg_id) THEN 1 ELSE 0 END) AS chose_doc,
+                  SUM(CASE WHEN (SELECT COUNT(*) FROM documents d WHERE d.teacher_id=p.tg_id) >= 1 THEN 1 ELSE 0 END) AS doc1,
+                  SUM(CASE WHEN (SELECT COUNT(*) FROM documents d WHERE d.teacher_id=p.tg_id) >= 2 THEN 1 ELSE 0 END) AS doc2,
+                  SUM(CASE WHEN COALESCE(u.subscribed,0)=1 THEN 1 ELSE 0 END) AS paid
+                FROM p LEFT JOIN users u ON u.tg_id=p.tg_id"""
+            async with db.execute(q) as cur:
+                row = dict(await cur.fetchone())
+            async with db.execute(
+                people + f"""SELECT COALESCE(u.funnel_step,'') AS step, COUNT(*) AS c FROM users u
+                    WHERE {where} AND NOT EXISTS(SELECT 1 FROM documents d WHERE d.teacher_id=u.tg_id)
+                    GROUP BY step ORDER BY c DESC LIMIT 8"""
+            ) as cur:
+                row["stuck"] = [dict(r) for r in await cur.fetchall()]
+            async with db.execute(
+                people + f"""SELECT f.event, COUNT(DISTINCT f.tg_id) AS c FROM funnel_events f
+                    WHERE f.tg_id IN (SELECT tg_id FROM p) AND f.event IN ('generation_failed','paywall_shown') GROUP BY f.event"""
+            ) as cur:
+                row["problems"] = {r["event"]: r["c"] for r in await cur.fetchall()}
+            async with db.execute(
+                "SELECT reason, COUNT(*) AS c FROM user_feedback GROUP BY reason ORDER BY c DESC"
+            ) as cur:
+                row["feedback"] = [dict(r) for r in await cur.fetchall()]
+            async with db.execute(
+                "SELECT tg_id, reason, text, created_at FROM user_feedback WHERE trim(COALESCE(text,''))<>'' "
+                "ORDER BY id DESC LIMIT 5"
+            ) as cur:
+                row["feedback_texts"] = [dict(r) for r in await cur.fetchall()]
+        return {k: (v or 0) if not isinstance(v, (list, dict)) else v for k, v in row.items()}
+
+    async def get_winback_candidates(self, limit: int = 1000) -> list[dict]:
+        """Пришли больше суток назад, не создали ни одного документа, ещё не спрашивали."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """SELECT * FROM users u
+                   WHERE datetime(u.created_at) <= datetime('now', '-1 day')
+                     AND COALESCE(u.notifications_enabled, 1)=1
+                     AND u.winback_sent_at IS NULL
+                     AND NOT EXISTS(SELECT 1 FROM documents d WHERE d.teacher_id=u.tg_id)
+                   ORDER BY u.created_at LIMIT ?""",
+                (max(1, int(limit)),),
+            ) as cur:
+                return [dict(r) for r in await cur.fetchall()]
+
+    async def mark_winback_sent(self, tg_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE users SET winback_sent_at=? WHERE tg_id=?", (datetime.now().isoformat(), tg_id))
+            await db.commit()
+
+    async def save_feedback(self, tg_id: int, reason: str, text: str = "") -> bool:
+        """Сохраняет ответ. Возвращает True, если это первый ответ (за него бонус)."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "INSERT INTO user_feedback (tg_id, reason, text) VALUES (?, ?, ?)",
+                (tg_id, (reason or "")[:60], (text or "")[:2000]),
+            )
+            cur = await db.execute(
+                "UPDATE users SET winback_answered=1, bonus_docs=COALESCE(bonus_docs,0)+2 "
+                "WHERE tg_id=? AND COALESCE(winback_answered,0)=0",
+                (tg_id,),
+            )
+            first = cur.rowcount > 0
+            await db.commit()
+            return first
 
     async def get_funnel_event_counts(self) -> list[dict]:
         async with aiosqlite.connect(self.db_path) as db:

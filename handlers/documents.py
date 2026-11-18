@@ -765,6 +765,12 @@ def _pop_concierge_prefill(context, allowed_keys=None) -> dict:
     return {k: v for k, v in prefill.items() if k in allowed_keys and v}
 
 
+
+# Модели генерации. Можно поменять переменными на Railway без правки кода.
+GEN_MODEL = os.getenv("DOCURA_GEN_MODEL", "claude-sonnet-4-6")
+EVAL_MODEL = os.getenv("DOCURA_EVAL_MODEL", "claude-haiku-4-5")
+GEN_MAX_TOKENS = int(os.getenv("DOCURA_GEN_MAX_TOKENS", "6000"))
+
 class DocumentHandler:
     def __init__(self, db: Database, api_key: str):
         self.db      = db
@@ -1039,6 +1045,19 @@ class DocumentHandler:
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
         # ── Выбрать ученика/воспитанника из базы ──
+        elif data == "gen_retry":
+            if not context.user_data.get("doc_type"):
+                await query.edit_message_text(
+                    "Данные документа потерялись после перезапуска. Начните заново: /new" if lang != "kz"
+                    else "Құжат деректері жоғалды. Қайта бастаңыз: /new"
+                )
+                return
+            try:
+                await query.edit_message_reply_markup(reply_markup=None)
+            except Exception:
+                pass
+            await self._generate(query.message, context, lang)
+
         elif data.startswith("gen_student_") and data not in {"gen_student_confirm", "gen_student_choose"}:
             student_id = int(data[12:])
             if student_id == 0:
@@ -1116,6 +1135,10 @@ class DocumentHandler:
         free_used  = user.get("free_used", 0)
 
         if not subscribed and free_used >= free_limit_for(user):
+            try:
+                await self.db.log_funnel_event(user_id, "paywall_shown", doc_type)
+            except Exception:
+                pass
             from handlers.profile import TIER_PRICES
             promo_available = not user.get("promo_used")
 
@@ -1800,6 +1823,27 @@ class DocumentHandler:
                 parse_mode=ParseMode.MARKDOWN
             )
 
+    async def _generate_failed_text(self, lang):
+        return (
+            "⚠️ Не получилось создать документ — сервис ИИ сейчас не ответил.\n"
+            "Ваши ответы сохранены, бесплатная попытка не списана. Нажмите «Повторить» через минуту."
+        ) if lang != "kz" else (
+            "⚠️ Құжат жасалмады — ИИ сервисі қазір жауап бермеді.\n"
+            "Жауаптарыңыз сақталды, тегін әрекет есептелмеді. Бір минуттан кейін «Қайталау» басыңыз."
+        )
+
+    async def _generation_failed(self, message, user_id, doc_type, lang, exc):
+        print(f"Generation failed for {user_id} ({doc_type}): {type(exc).__name__}: {exc}")
+        try:
+            await self.db.log_funnel_event(user_id, "generation_failed", doc_type)
+        except Exception:
+            pass
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔄 Повторить" if lang != "kz" else "🔄 Қайталау", callback_data="gen_retry")],
+            [InlineKeyboardButton("🏠 " + ("Главное меню" if lang != "kz" else "Басты мәзір"), callback_data="menu_main")],
+        ])
+        await message.reply_text(await self._generate_failed_text(lang), reply_markup=kb)
+
     async def _generate(self, message, context, lang):
         user_id  = message.chat_id
         user     = await self.db.get_user(user_id)
@@ -1922,28 +1966,38 @@ class DocumentHandler:
                 }
                 await message.reply_text(improve_msg.get(lang, improve_msg["ru"]), parse_mode=ParseMode.MARKDOWN)
 
-            async with typing_action(context.bot, user_id):
-                msg = await client.messages.create(
-                    model="claude-sonnet-4-6",
-                    max_tokens=3000,
-                    system=system_prompt,
-                    messages=[{"role": "user", "content": user_prompt}]
-                )
+            try:
+                async with typing_action(context.bot, user_id):
+                    msg = await client.messages.create(
+                        model=GEN_MODEL,
+                        max_tokens=GEN_MAX_TOKENS,
+                        system=system_prompt,
+                        messages=[{"role": "user", "content": user_prompt}]
+                    )
+            except Exception as exc:
+                if result:
+                    # Улучшение не удалось — отдаём первый вариант, он уже есть.
+                    print(f"Improve pass failed: {exc}")
+                    break
+                await self._generation_failed(message, user_id, doc_type, lang, exc)
+                return
             result = msg.content[0].text if msg.content else ""
             # Страховка: если модель всё же оставила русские подписи структуры
             # (шапка таблицы, заголовки, «Предмет:») в казахском/английском документе —
             # заменяем их детерминированно. Содержимое документа не затрагивается.
             result = fix_title(localize_labels(result, doc_lang), doc_type, doc_lang)
 
-            eval_msg = await client.messages.create(
-                model="claude-haiku-4-5",
-                max_tokens=10,
-                messages=[{"role": "user", "content": SELF_EVAL_PROMPT.format(document=result[:3000])}]
-            )
+            if getattr(msg, "stop_reason", "") == "max_tokens":
+                print(f"Generation hit max_tokens for {doc_type}")
             try:
+                eval_msg = await client.messages.create(
+                    model=EVAL_MODEL,
+                    max_tokens=10,
+                    messages=[{"role": "user", "content": SELF_EVAL_PROMPT.format(document=result[:3000])}]
+                )
                 eval_text = eval_msg.content[0].text if eval_msg.content else ""
                 score = int("".join(filter(str.isdigit, eval_text.strip()[:5])))
-            except:
+            except Exception:
                 score = 88
 
             if score < 85 and attempts < 2:

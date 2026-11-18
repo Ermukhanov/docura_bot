@@ -143,6 +143,13 @@ class OnboardingHandler:
             reply_markup=InlineKeyboardMarkup(buttons),
         )
 
+    async def _event(self, user_id: int, event: str, doc_type: str = ""):
+        """Аналитика не должна ломать онбординг."""
+        try:
+            await self.db.log_funnel_event(user_id, event, doc_type)
+        except Exception:
+            pass
+
     async def _drop_chat_task(self, user_id: int):
         """Сбрасывает незавершённую подготовку документа в разговоре с ИИ-агентом."""
         try:
@@ -231,6 +238,7 @@ class OnboardingHandler:
             lang = data.rsplit("_", 1)[1]
             # Само поле lang является признаком выбранного языка интерфейса.
             await self.db.upsert_user(user_id, {"lang": lang})
+            await self._event(user_id, "lang_chosen", lang)
             context.user_data["onboard_step"] = 1
             await self._show_role_step(query, lang)
             return
@@ -250,6 +258,7 @@ class OnboardingHandler:
                 await self._launch_first_document(query, context, user_id, lang, role, doc_type)
                 return
             await self.db.upsert_user(user_id, {"role": role})
+            await self._event(user_id, "role_chosen", role)
             context.user_data["onboard_role"] = role
             context.user_data["onboard_step"] = 2
             await self._show_how_it_works(query, lang, role)
@@ -270,6 +279,7 @@ class OnboardingHandler:
                 await self._show_how_it_works(query, lang, context.user_data.get("onboard_role", "teacher"))
             return
         if data == "onboard_confirm_profile":
+            await self._event(user_id, "profile_done")
             await self._finish_new_onboarding(query, context, user_id, lang)
             return
         if data == "onboard_edit_profile":

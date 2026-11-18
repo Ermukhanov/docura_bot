@@ -17,6 +17,7 @@ from handlers.main_menu import MainMenuHandler
 from handlers.documents import DocumentHandler
 from handlers.profile import ProfileHandler
 from handlers.admin import AdminHandler, ADMIN_IDS
+from handlers.feedback import FeedbackHandler
 from handlers.voice import VoiceHandler
 from handlers.agent import AgentHandler
 from handlers.concierge import ConciergeHandler
@@ -527,6 +528,8 @@ async def run():
     agent      = AgentHandler(db, ANTHROPIC_API_KEY)
 
     # Команды
+    feedback = FeedbackHandler(db, ADMIN_IDS)
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.UpdateType.MESSAGE, feedback.on_text), group=-1)
     app.add_handler(CommandHandler("start",   cmd_start))
     app.add_handler(CommandHandler("menu",    main_menu.show))
     app.add_handler(CommandHandler("cancel",  onboarding.cancel))
@@ -574,6 +577,7 @@ async def run():
     app.add_handler(CallbackQueryHandler(documents.callback,  pattern="^(doc_|cat_|ans_|gen_|rating_)"))
     app.add_handler(CallbackQueryHandler(profile.callback,    pattern="^(prof_|sub_|student_)"))
     app.add_handler(CallbackQueryHandler(admin.callback,      pattern="^admin_"))
+    app.add_handler(CallbackQueryHandler(feedback.callback,   pattern="^fb_"))
     app.add_handler(CallbackQueryHandler(agent.callback,      pattern="^agent_"))
     app.add_handler(CallbackQueryHandler(concierge.callback,  pattern="^cg_"))
 

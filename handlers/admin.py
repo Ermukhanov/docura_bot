@@ -194,6 +194,27 @@ class AdminHandler:
             kb = [[InlineKeyboardButton("✅ Отправить", callback_data="admin_broadcast_unregistered_confirm")],
                   [InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
             await _safe_edit(query, text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+        elif data in {"admin_funnel", "admin_funnel_all"}:
+            await self._show_funnel(query, None if data == "admin_funnel_all" else 30)
+        elif data == "admin_winback":
+            users = await self.db.get_winback_candidates()
+            text = (
+                f"💬 *Спросить ушедших*\n\n"
+                f"Кому: *{len(users)}* — пришли больше суток назад и не создали ни одного документа "
+                f"(каждому — один раз).\n\n"
+                "Сообщение: «Вы заходили, но не создали документ. Что помешало? За ответ +2 бесплатных документа» "
+                "и кнопки с причинами + «напишу своими словами».\n\n"
+                "Ответы придут вам сюда и появятся в «Воронке»."
+            )
+            kb = [[InlineKeyboardButton(f"✅ Отправить ({len(users)})", callback_data="admin_winback_confirm")] if users else [],
+                  [InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
+            await _safe_edit(query, text, reply_markup=InlineKeyboardMarkup([r for r in kb if r]), parse_mode=ParseMode.MARKDOWN)
+        elif data == "admin_winback_confirm":
+            from handlers.feedback import send_winback
+            await query.edit_message_reply_markup(reply_markup=None)
+            sent, failed = await send_winback(context.bot, self.db)
+            await _safe_edit(query, f"💬 Опрос отправлен: {sent}; не доставлено (заблокировали бота): {failed}.",
+                             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Админ-панель", callback_data="admin_menu")]]))
         elif data == "admin_broadcast_unregistered_confirm":
             users = await self.db.get_unregistered_users()
             await query.edit_message_reply_markup(reply_markup=None)
@@ -461,6 +482,8 @@ class AdminHandler:
     def _main_keyboard(self):
         return [
             [InlineKeyboardButton("📊 Статистика", callback_data="admin_stats")],
+            [InlineKeyboardButton("🔻 Воронка: где уходят", callback_data="admin_funnel")],
+            [InlineKeyboardButton("💬 Спросить ушедших", callback_data="admin_winback")],
             [InlineKeyboardButton("👥 Все пользователи", callback_data="admin_users")],
             [InlineKeyboardButton("⭐ PRO", callback_data="admin_users_pro"),
              InlineKeyboardButton("🆓 Free", callback_data="admin_users_free")],
@@ -475,6 +498,49 @@ class AdminHandler:
             [InlineKeyboardButton("🔓 Снять подписку", callback_data="admin_deactivate_btn"),
              InlineKeyboardButton("♻️ Сбросить аккаунт", callback_data="admin_reset_btn")],
         ]
+
+    async def _show_funnel(self, query, days):
+        r = await self.db.get_funnel_report(days)
+        base = r["started"] or 1
+
+        def line(label, n, prev=None):
+            pct = f"{n * 100 / base:.0f}%"
+            drop = ""
+            if prev is not None and prev > n:
+                drop = f"  ▼ −{prev - n}"
+            return f"{label}: *{n}* ({pct}){drop}\n"
+
+        period = "за 30 дней" if days else "за всё время"
+        text = f"🔻 *Воронка новых пользователей {period}*\n{'─'*22}\n\n"
+        text += line("1. Нажали /start", r["started"])
+        text += line("2. Выбрали язык", r["lang"], r["started"])
+        text += line("3. Выбрали школа/садик", r["role"], r["lang"])
+        text += line("4. Выбрали документ", r["chose_doc"], r["role"])
+        text += line("5. Получили 1-й документ", r["doc1"], r["chose_doc"])
+        text += line("6. Сделали 2-й документ", r["doc2"], r["doc1"])
+        text += line("7. Оплатили", r["paid"], r["doc2"])
+        text += f"\nЗаполнили анкету (ФИО): *{r['profile']}*\n"
+        probs = r.get("problems") or {}
+        if probs:
+            text += (f"⚠️ Ошибка генерации: *{probs.get('generation_failed', 0)}* чел.  "
+                     f"💳 Упёрлись в оплату: *{probs.get('paywall_shown', 0)}* чел.\n")
+        if r["stuck"]:
+            text += "\n🧱 *На каком шаге остановились те, у кого 0 документов:*\n"
+            for row in r["stuck"]:
+                text += f"  • {_esc(_funnel_step_label(row['step']))}: {row['c']}\n"
+        if r["feedback"]:
+            from handlers.feedback import REASONS
+            text += "\n💬 *Ответы на опрос:*\n"
+            for row in r["feedback"]:
+                label = REASONS.get(row["reason"], ("своими словами",))[0]
+                text += f"  • {_esc(label)}: {row['c']}\n"
+            for row in r.get("feedback_texts") or []:
+                text += f"  «{_esc(row['text'][:160])}»\n"
+        other = "admin_funnel" if not days else "admin_funnel_all"
+        kb = [[InlineKeyboardButton("За 30 дней" if not days else "За всё время", callback_data=other)],
+              [InlineKeyboardButton("💬 Спросить ушедших", callback_data="admin_winback")],
+              [InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
+        await _safe_edit(query, text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
     async def _show_stats(self, query):
         stats = await self.db.get_admin_stats()
