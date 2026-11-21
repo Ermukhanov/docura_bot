@@ -272,7 +272,7 @@ def _fix_greeting_time(reply: str, lang: str) -> str:
 def _find_schedule_suggestions(schedule: dict, role: str):
     """Ищет в расписании на завтра совпадения по ключевым словам и возвращает
     список подходящих (doc_type, doc_name) — модель предложит один или спросит какой."""
-    if not schedule:
+    if not schedule or not isinstance(schedule, dict):
         return None, None
 
     tomorrow_idx = (now_local().weekday() + 1) % 7

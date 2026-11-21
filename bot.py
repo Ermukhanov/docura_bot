@@ -421,7 +421,7 @@ async def _route_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # это означает отсутствие активного сценария, а не ошибку .startswith().
     step = context.user_data.get("step") or ""
 
-    if step.startswith("onboard_") or step.startswith("reg_"):
+    if step.startswith("onboard_") or step.startswith("reg_") or step == "post_doc_profile":
         await OnboardingHandler(db).handle_text(update, context)
     elif step.startswith("doc_") or step == "waiting_answer":
         await DocumentHandler(db, key).handle_text(update, context)

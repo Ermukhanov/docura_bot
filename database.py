@@ -932,7 +932,7 @@ class Database:
             db.row_factory = aiosqlite.Row
             async with db.execute("SELECT schedule_data FROM schedules WHERE tg_id=?", (tg_id,)) as cur:
                 row = await cur.fetchone()
-                return row["schedule_data"] if row else None
+                return normalize_schedule_json(row["schedule_data"]) if row else None
 
     async def get_users_with_schedules(self):
         """Возвращает пользователей, у которых сохранено расписание и включены уведомления."""
@@ -1091,6 +1091,41 @@ class Database:
             await db.commit()
 
 FREE_BASE_LIMIT = 3
+
+_DAY_ALIASES = {
+    "пн": "Понедельник", "понедельник": "Понедельник", "mon": "Понедельник", "monday": "Понедельник", "дүйсенбі": "Понедельник",
+    "вт": "Вторник", "вторник": "Вторник", "tue": "Вторник", "tuesday": "Вторник", "сейсенбі": "Вторник",
+    "ср": "Среда", "среда": "Среда", "wed": "Среда", "wednesday": "Среда", "сәрсенбі": "Среда",
+    "чт": "Четверг", "четверг": "Четверг", "thu": "Четверг", "thursday": "Четверг", "бейсенбі": "Четверг",
+    "пт": "Пятница", "пятница": "Пятница", "fri": "Пятница", "friday": "Пятница", "жұма": "Пятница",
+    "сб": "Суббота", "суббота": "Суббота", "sat": "Суббота", "saturday": "Суббота", "сенбі": "Суббота",
+    "вс": "Воскресенье", "воскресенье": "Воскресенье", "sun": "Воскресенье", "sunday": "Воскресенье", "жексенбі": "Воскресенье",
+}
+
+
+def normalize_schedule_json(raw):
+    """Расписание всегда отдаётся как JSON-объект {"Понедельник": [ {...}, ... ]}.
+    В базе встречаются старые записи-списки ([{"day": "Пн", ...}]) — раньше они
+    роняли чат и напоминания (AttributeError: 'list' object has no attribute 'get')."""
+    if not raw:
+        return raw
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+    except (TypeError, ValueError):
+        return "{}"
+    if isinstance(data, dict):
+        return raw if isinstance(raw, str) else json.dumps(data, ensure_ascii=False)
+    out = {}
+    if isinstance(data, list):
+        for entry in data:
+            if not isinstance(entry, dict):
+                continue
+            day = str(entry.get("day") or entry.get("weekday") or entry.get("день") or "").strip()
+            day = _DAY_ALIASES.get(day.lower().rstrip("."), day)
+            if day:
+                out.setdefault(day, []).append({k: v for k, v in entry.items() if k not in ("day", "weekday", "день")})
+    return json.dumps(out, ensure_ascii=False)
+
 
 def free_limit_for(user: dict) -> int:
     """Сколько всего бесплатных документов доступно пользователю
