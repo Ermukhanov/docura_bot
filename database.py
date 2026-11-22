@@ -1177,7 +1177,7 @@ def format_lesson(l: dict, lang: str = "ru") -> str:
     num = str(l.get("lesson") or l.get("number") or "").strip()
     if not time and num:
         time = f"{num} урок" if lang == "ru" else f"{num}-сабақ"
-    head = f"{time} — " if time else "• "
+    head = f"{time} — " if time else ""
     return (head + f"{l.get('class') or ''} {l.get('subject') or ''}").rstrip()
 
 
