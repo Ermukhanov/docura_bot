@@ -821,7 +821,7 @@ class ConciergeHandler:
             if not answers.get(key) and profile.get(key):
                 answers[key] = profile[key]
         # «автоматически» -> понятная для генератора формулировка на языке документа
-        auto = {"ru": "автоматически", "kz": "автоматты", "en": "automatic"}[doc_lang]
+        auto = {"ru": "автоматически", "kz": "автоматты", "en": "automatic"}.get(doc_lang, "автоматически")
         for k, v in list(answers.items()):
             if str(v).strip().casefold() in ("автоматически", "автоматты", "automatic"):
                 answers[k] = auto
@@ -849,7 +849,8 @@ class ConciergeHandler:
 
         user_id = user["tg_id"]
         task = state["doc_task"]
-        doc_lang = task["doc_lang"]
+        doc_lang = task["doc_lang"] if task.get("doc_lang") in ("ru", "kz", "en") else (user.get("lang") if user.get("lang") in ("ru", "kz") else "ru")
+        task["doc_lang"] = doc_lang
 
         # Лимит бесплатных документов — тот же экран, что и в обычном сценарии.
         fresh = await self.db.get_user(user_id) or user

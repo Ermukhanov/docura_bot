@@ -423,7 +423,7 @@ async def _route_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if step.startswith("onboard_") or step.startswith("reg_") or step == "post_doc_profile":
         await OnboardingHandler(db).handle_text(update, context)
-    elif step.startswith("doc_") or step == "waiting_answer":
+    elif step.startswith("doc_") or step in ("waiting_answer", "monitoring_data"):
         await DocumentHandler(db, key).handle_text(update, context)
     elif step.startswith("prof_") or step.startswith("student_"):
         await ProfileHandler(db).handle_text(update, context)
