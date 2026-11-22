@@ -590,7 +590,7 @@ async def post_init(app: Application):
     logger.info("✅ Меню команд установлено")
     logger.info("🔔 Планировщик уведомлений запущен")
     logger.info("⏳ Проверка истечения подписок запущена")
-    logger.info("📅 Мониторинг расписаний (каждые 6 часов) запущен")
+    logger.info("📅 Мониторинг расписаний запущен")
 
 
 async def run():

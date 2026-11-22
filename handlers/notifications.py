@@ -247,6 +247,8 @@ async def send_first_doc_reminders(app: Application, db: Database) -> int:
             sent += 1
         except Exception as error:
             logger.warning("First-document reminder failed for user %s: %s", tg_id, error)
+            if "blocked" in str(error).lower() or "deactivated" in str(error).lower() or "chat not found" in str(error).lower():
+                await db.mark_first_doc_reminder_sent(tg_id)  # не пытаться каждый час заново
     return sent
 
 
