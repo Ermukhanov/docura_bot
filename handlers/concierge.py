@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from database import Database, free_limit_for
+from database import Database, free_limit_for, format_lesson
 from handlers.query_adapter import MessageQueryAdapter
 from handlers.chat_utils import now_local, greeting_word, part_of_day, typing_action, LOCAL_TZ
 
@@ -509,7 +509,7 @@ class ConciergeHandler:
             lines = []
             for day, items in schedule.items():
                 if isinstance(items, list):
-                    day_str = ", ".join(f"{it.get('time', '')} {it.get('class', '')} {it.get('subject', '')}".strip() for it in items if isinstance(it, dict))
+                    day_str = ", ".join(format_lesson(it) for it in items if isinstance(it, dict))
                     lines.append(f"- {day}: {day_str}")
                 else:
                     lines.append(f"- {day}: {items}")

@@ -1138,7 +1138,7 @@ def normalize_schedule_json(raw):
     except (TypeError, ValueError):
         return "{}"
     if isinstance(data, dict):
-        return raw if isinstance(raw, str) else json.dumps(data, ensure_ascii=False)
+        return json.dumps(_clean_schedule_nulls(data), ensure_ascii=False)
     out = {}
     if isinstance(data, list):
         for entry in data:
@@ -1148,7 +1148,29 @@ def normalize_schedule_json(raw):
             day = _DAY_ALIASES.get(day.lower().rstrip("."), day)
             if day:
                 out.setdefault(day, []).append({k: v for k, v in entry.items() if k not in ("day", "weekday", "день")})
-    return json.dumps(out, ensure_ascii=False)
+    return json.dumps(_clean_schedule_nulls(out), ensure_ascii=False)
+
+
+def _clean_schedule_nulls(data: dict) -> dict:
+    """null/«None» в полях урока → пустая строка: иначе учитель видел «None — 8Б Алгебра»."""
+    for lessons in data.values():
+        if isinstance(lessons, list):
+            for l in lessons:
+                if isinstance(l, dict):
+                    for k, v in list(l.items()):
+                        if v is None or (isinstance(v, str) and v.strip().lower() in ("none", "null")):
+                            l[k] = ""
+    return data
+
+
+def format_lesson(l: dict, lang: str = "ru") -> str:
+    """Строка урока для показа: время, а если его нет — номер урока."""
+    time = str(l.get("time") or "").strip()
+    num = str(l.get("lesson") or l.get("number") or "").strip()
+    if not time and num:
+        time = f"{num} урок" if lang == "ru" else f"{num}-сабақ"
+    head = f"{time} — " if time else "• "
+    return (head + f"{l.get('class') or ''} {l.get('subject') or ''}").rstrip()
 
 
 def free_limit_for(user: dict) -> int:

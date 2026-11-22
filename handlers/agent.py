@@ -11,7 +11,7 @@ import anthropic
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
-from database import Database
+from database import Database, format_lesson
 
 
 MENU_BTN = lambda lang: InlineKeyboardButton(
@@ -200,7 +200,7 @@ class AgentHandler:
                 if isinstance(lessons, list):
                     for l in lessons:
                         if isinstance(l, dict):
-                            lines.append(f"  {l.get('time', '')} — {l.get('class', '')} {l.get('subject', '')}")
+                            lines.append("  " + format_lesson(l, lang))
                         else:
                             lines.append(f"  {l}")
                 else:
@@ -416,6 +416,7 @@ class AgentHandler:
   "Четверг": [...],
   "Пятница": [...]
 }}
+Поля урока: "lesson" — номер урока (если указан), "time" — время начала (если не указано — пустая строка "", никогда null), "class", "subject". Не пропускай ни одного урока.
 Если не можешь распознать — верни {{"error": "не удалось распознать"}}"""
 
             if message.photo:
@@ -474,7 +475,7 @@ class AgentHandler:
 
             response = await client.messages.create(
                 model="claude-haiku-4-5",
-                max_tokens=1500,
+                max_tokens=3000,
                 messages=messages
             )
 
@@ -557,6 +558,7 @@ class AgentHandler:
   "Вторник": [...],
   ...
 }}
+Поля урока: "lesson" — номер урока (если указан), "time" — время начала (если не указано — пустая строка "", никогда null), "class", "subject". Не пропускай ни одного урока.
 Верни ТОЛЬКО JSON без markdown.
 
 ДАННЫЕ:
@@ -564,7 +566,7 @@ class AgentHandler:
 
             response = await client.messages.create(
                 model="claude-haiku-4-5",
-                max_tokens=1000,
+                max_tokens=3000,
                 messages=[{"role": "user", "content": prompt}]
             )
 
@@ -653,8 +655,7 @@ class AgentHandler:
             for day, lessons in schedule.items():
                 if isinstance(lessons, list):
                     lessons_str = ", ".join(
-                        f"{l.get('time', '')} {l.get('class', '')} {l.get('subject', '')}"
-                        for l in lessons if isinstance(l, dict)
+                        format_lesson(l) for l in lessons if isinstance(l, dict)
                     )
                     lines.append(f"- {day}: {lessons_str}")
 
@@ -662,7 +663,7 @@ class AgentHandler:
                 lines.append(f"\nСегодня ({today_ru}):")
                 for l in today_lessons:
                     if isinstance(l, dict):
-                        lines.append(f"  • {l.get('time', '')} — {l.get('class', '')} {l.get('subject', '')}")
+                        lines.append("  • " + format_lesson(l))
 
             return "\n".join(lines) if len(lines) > 1 else ""
         except Exception:
