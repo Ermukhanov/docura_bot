@@ -218,13 +218,32 @@ def generate_word(content: str, title: str, teacher_name: str = "", director_nam
     elif cycle_data:
         _add_kindergarten_cycle_schedule(doc, cycle_data)
     else:
-        _parse_content(doc, content)
+        _parse_content(doc, _strip_repeated_title(content, title))
 
     _add_signature_block(doc, teacher_name, director_name, lang)
 
     fname = os.path.join(tempfile.gettempdir(), f"docura_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx")
     doc.save(fname)
     return fname
+
+
+def _letters(s: str) -> str:
+    return re.sub(r"[^0-9a-zа-яёәғқңөұүһі]", "", (s or "").lower())
+
+
+def _strip_repeated_title(content: str, title: str) -> str:
+    """Генератор сам печатает заголовок документа. Если модель начала текст с того же
+    заголовка, первая строка дублировала его в Word — убираем её."""
+    lines = (content or "").split("\n")
+    want = _letters(title)
+    for idx, line in enumerate(lines):
+        if not line.strip():
+            continue
+        got = _letters(line)
+        if want and got and (got == want or (len(got) > 6 and (got in want or want in got))):
+            return "\n".join(lines[:idx] + lines[idx + 1:])
+        break
+    return content
 
 
 def _add_individual_development_card(doc, data: dict):
@@ -587,7 +606,7 @@ def _parse_content(doc, content: str):
     def is_sig(s):
         kw = ["подпись","директор","учитель","кл.рук","дата:","м.п.",
               "классный руководитель","қолы","мұғалім","күні:",
-              "мектеп директоры","________","___/",
+              "мектеп директоры","___/",
               "signature","director","teacher","head of","date:","seal","staff member",
               "меңгеруші","тәрбиеші","заведующ","воспитатель"]
         return any(k in s.lower() for k in kw)
