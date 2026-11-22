@@ -105,9 +105,14 @@ class ChatDigestHandler:
         r_title.font.bold = True
         r_title.font.name = "Times New Roman"
 
+        counter = {"n": 0}
+
         def add_block(title_text, items):
             if not items:
                 return
+            # Пустые разделы пропускаются, поэтому номер ставим по факту (1, 2, 3…), а не жёстко.
+            counter["n"] += 1
+            title_text = f"{counter['n']}. " + re.sub(r"^\d+\.\s*", "", title_text)
             p = doc.add_paragraph()
             p.paragraph_format.space_before = Pt(10)
             p.paragraph_format.space_after = Pt(4)
@@ -141,7 +146,7 @@ class ChatDigestHandler:
         p_memo = doc.add_paragraph()
         p_memo.paragraph_format.space_before = Pt(14)
         p_memo.paragraph_format.space_after = Pt(18)
-        rm = p_memo.add_run(f"Түйіндеме / Резюме:\n{digest_data.get('final_memo_text', '')}")
+        rm = p_memo.add_run(f"{'Түйіндеме' if lang == 'kz' else 'Резюме'}:\n{digest_data.get('final_memo_text', '')}")
         rm.font.italic = True
         rm.font.size = Pt(11.5)
         rm.font.name = "Times New Roman"
@@ -151,7 +156,16 @@ class ChatDigestHandler:
         today_str = datetime.now().strftime("%d.%m.%Y")
         p_sign = doc.add_paragraph()
         p_sign.paragraph_format.space_before = Pt(20)
-        p_sign.add_run(f"Күні / Дата: {today_str} г.                                 Қолы / Подпись: ______________")
+        if lang == "kz":
+            p_sign.add_run(f"Күні: {today_str}                                 Қолы: ______________")
+        else:
+            p_sign.add_run(f"Дата: {today_str} г.                                 Подпись: ______________")
+        from handlers.rag_base import AI_DISCLAIMER
+        p_ai = doc.add_paragraph()
+        p_ai.paragraph_format.space_before = Pt(8)
+        r_ai = p_ai.add_run(AI_DISCLAIMER.get(lang, AI_DISCLAIMER["ru"]))
+        r_ai.font.italic = True
+        r_ai.font.size = Pt(9)
 
         fd, out_path = tempfile.mkstemp(suffix=".docx", prefix="Docura_Zavuch_Digest_")
         os.close(fd)

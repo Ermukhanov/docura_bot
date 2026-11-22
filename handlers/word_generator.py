@@ -134,6 +134,17 @@ def _add_signature_block(doc, teacher_name: str, director_name: str, lang: str =
     _para(doc, AI_DISCLAIMER.get(lang, AI_DISCLAIMER["ru"]), italic=True, size=9, space_before=8)
 
 
+def _strip_none_values(content: str) -> str:
+    """Страховка: «Класс: None» / «ФИО: null» от модели превращаем в поле для заполнения от руки."""
+    import re as _re
+    content = content or ""
+    # Markdown-разметка модели не должна попадать в Word как символы: «## 1. Причина», «**жирный**».
+    content = _re.sub(r"(?m)^\s*#{1,6}\s+", "", content)
+    content = _re.sub(r"\*\*(.+?)\*\*", r"\1", content)
+    content = _re.sub(r"(?im)^(\s*[^:\n]{1,60}:\s*)(?:None|null|nan)\s*$", r"\1____________________", content)
+    return content
+
+
 def _clean(value) -> str:
     """None, «None», «null» и пустые строки — это отсутствие данных, а не текст для документа."""
     text = "" if value is None else str(value).strip()
@@ -218,7 +229,7 @@ def generate_word(content: str, title: str, teacher_name: str = "", director_nam
     elif cycle_data:
         _add_kindergarten_cycle_schedule(doc, cycle_data)
     else:
-        _parse_content(doc, _strip_repeated_title(content, title))
+        _parse_content(doc, re.sub(r"\n\s*\n(\s*\n)+", "\n\n", _strip_none_values(_strip_repeated_title(content, title))).strip("\n"))
 
     _add_signature_block(doc, teacher_name, director_name, lang)
 

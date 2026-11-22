@@ -241,6 +241,8 @@ COMMON_DOC_RULES = """
 
 # Системный промпт для генерации
 def get_system_prompt(user: dict, lang: str) -> str:
+    # Пустые поля профиля хранятся как NULL → без этого в документ попадало «ФИО учителя: None».
+    user = {k: ("" if v is None or str(v).strip().lower() in ("none", "null") else v) for k, v in (user or {}).items()}
     from handlers.chat_utils import now_local
     _now = now_local()
     today = _now.strftime("%d.%m.%Y")

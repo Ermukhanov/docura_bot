@@ -1751,15 +1751,15 @@ class DocumentHandler:
             cd = ChatDigestHandler(api_key=self.api_key)
             digest = await cd.analyze_chat_messages(
                 messages_text=raw_text,
-                user_name=user.get("name", "Педагог"),
-                school=user.get("school", "Школа"),
-                role=user.get("position", "Учитель"),
+                user_name=user.get("name") or "",
+                school=user.get("school") or "",
+                role=user.get("position") or "",
                 lang=doc_lang
             )
             out_docx = cd.generate_docx_digest(
                 digest_data=digest,
-                user_name=user.get("name", "Педагог"),
-                school=user.get("school", "Школа"),
+                user_name=user.get("name") or "",
+                school=user.get("school") or "",
                 lang=doc_lang
             )
             safe_name = f"Доклад_завучу_{datetime.now().strftime('%d%m%Y_%H%M')}.docx"
@@ -1880,10 +1880,10 @@ class DocumentHandler:
         is_kg    = user.get("role") == "kindergarten"
 
         if is_kg:
-            context_line = f"Возрастная группа: {user.get('age_group')}."
+            context_line = f"Возрастная группа: {user.get('age_group') or 'не указана'}."
             asker = "Воспитатель"
         else:
-            context_line = f"Предмет: {user.get('subject')}, классы: {user.get('classes')}."
+            context_line = f"Предмет: {user.get('subject') or 'не указан'}, классы: {user.get('classes') or 'не указаны'}."
             asker = "Учитель"
 
         client = anthropic.AsyncAnthropic(api_key=self.api_key)
