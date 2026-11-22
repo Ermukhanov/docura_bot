@@ -525,6 +525,28 @@ async def on_error(update, context: ContextTypes.DEFAULT_TYPE):
                 pass
 
 
+async def _resume_interrupted_generations(app: Application):
+    """После перезапуска: кому документ не успел сгенерироваться — сообщаем и даём кнопку «Повторить»."""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    await asyncio.sleep(3)
+    for user_id, data in list(app.user_data.items()):
+        snap = data.pop("generating", None) if isinstance(data, dict) else None
+        if not snap or not snap.get("doc_type"):
+            continue
+        data["interrupted_generation"] = snap
+        ru = snap.get("lang", "ru") != "kz"
+        try:
+            await app.bot.send_message(
+                snap.get("chat_id") or user_id,
+                ("⚠️ Бот обновлялся, и документ не успел сохраниться. Ваши ответы сохранены — нажмите «Повторить»."
+                 if ru else "⚠️ Бот жаңартылды, құжат дайын болмай қалды. Жауаптарыңыз сақталған — «Қайталау» басыңыз."),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Повторить" if ru else "🔄 Қайталау", callback_data="gen_retry")]]),
+            )
+        except Exception as exc:
+            logging.getLogger(__name__).warning("resume notice failed for %s: %s", user_id, exc)
+        await asyncio.sleep(0.05)
+
+
 async def post_init(app: Application):
     db        = app.bot_data["db"]
     concierge = app.bot_data["concierge"]
@@ -535,6 +557,8 @@ async def post_init(app: Application):
         asyncio.create_task(check_subscription_expirations(app, db)),
         asyncio.create_task(monitor_schedules(app, db, app.bot_data["anthropic_key"])),
     ]
+
+    app.bot_data["bg_tasks"].append(asyncio.create_task(_resume_interrupted_generations(app)))
 
     # Устанавливаем меню команд в Telegram
     commands_ru = [

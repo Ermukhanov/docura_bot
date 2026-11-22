@@ -1143,6 +1143,18 @@ class DocumentHandler:
             await query.edit_message_text("Выберите ученика из базы:" if lang == "ru" else "Базадан оқушыны таңдаңыз:",
                                           reply_markup=self._student_picker(students, lang))
 
+        elif data == "gen_retry":
+            snap = context.user_data.pop("interrupted_generation", None)
+            if not snap:
+                await query.answer("Начните документ заново через меню" if lang == "ru" else "Құжатты мәзірден қайта бастаңыз", show_alert=True)
+                return
+            await query.answer()
+            context.user_data["doc_type"] = snap.get("doc_type", "")
+            context.user_data["doc_lang"] = snap.get("doc_lang", lang)
+            context.user_data["doc_answers"] = snap.get("doc_answers", {})
+            context.user_data["step"] = None
+            await self._generate(query.message, context, lang)
+
         elif data.startswith("gen_stcls_"):
             students = await self.db.get_students(user_id)
             raw = data[len("gen_stcls_"):]
@@ -1957,6 +1969,25 @@ class DocumentHandler:
         await message.reply_text(await self._generate_failed_text(lang), reply_markup=kb)
 
     async def _generate(self, message, context, lang):
+        # Метка «идёт генерация» сохраняется вместе с диалогом. Если бот перезапустится
+        # посреди генерации (деплой), при старте он напишет учителю и предложит повторить —
+        # раньше учитель навсегда оставался с сообщением «Генерирую…».
+        context.user_data["generating"] = {
+            "chat_id": message.chat_id, "lang": lang,
+            "doc_type": context.user_data.get("doc_type", ""),
+            "doc_lang": context.user_data.get("doc_lang", lang),
+            "doc_answers": dict(context.user_data.get("doc_answers", {}) or {}),
+        }
+        try:
+            await context.application.update_persistence()
+        except Exception:
+            pass
+        try:
+            return await self._generate_impl(message, context, lang)
+        finally:
+            context.user_data.pop("generating", None)
+
+    async def _generate_impl(self, message, context, lang):
         user_id  = message.chat_id
         user     = await self.db.get_user(user_id)
         doc_type = context.user_data.get("doc_type", "")

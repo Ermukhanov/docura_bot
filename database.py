@@ -486,7 +486,7 @@ class Database:
             db.row_factory = aiosqlite.Row
             async with db.execute("SELECT * FROM students WHERE id=?", (student_id,)) as cur:
                 row = await cur.fetchone()
-                return dict(row) if row else None
+                return ({**dict(row), "class_name": normalize_class_name(row["class_name"])} if row else None)
 
     async def get_student_for_teacher(self, student_id: int, teacher_id: int):
         """Fetch a student only when it belongs to the requesting teacher."""
@@ -496,7 +496,7 @@ class Database:
                 "SELECT * FROM students WHERE id=? AND teacher_id=?", (student_id, teacher_id)
             ) as cur:
                 row = await cur.fetchone()
-                return dict(row) if row else None
+                return ({**dict(row), "class_name": normalize_class_name(row["class_name"])} if row else None)
 
     async def add_student(self, teacher_id: int, data: dict | str = None, class_name: str = "", **kwargs):
         """Добавить ученика. Поддерживает как передачу словаря data, так и именованные аргументы:
