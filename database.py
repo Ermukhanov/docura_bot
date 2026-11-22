@@ -470,7 +470,16 @@ class Database:
                     (teacher_id,)
                 ) as cur:
                     rows = await cur.fetchall()
-            return [dict(r) for r in rows]
+            # Один и тот же ученик мог быть сохранён несколько раз (повторный импорт
+            # списка) — в выборе он показывался дважды. Оставляем первую запись.
+            out, seen = [], set()
+            for r in rows:
+                key = (str(r["name"] or "").strip().lower(), str(r["class_name"] or "").strip().lower())
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(dict(r))
+            return out
 
     async def get_student(self, student_id: int):
         async with aiosqlite.connect(self.db_path) as db:
@@ -509,6 +518,13 @@ class Database:
             absences = st_dict.get("absences", 0)
             behavior = st_dict.get("behavior", "хорошее")
             notes = st_dict.get("notes", "")
+
+            async with db.execute(
+                "SELECT id FROM students WHERE teacher_id=? AND lower(trim(name))=lower(trim(?)) AND lower(trim(class_name))=lower(trim(?))",
+                (teacher_id, name, cls_name),
+            ) as cur:
+                if await cur.fetchone():
+                    return  # такой ученик уже есть — не создаём дубль
 
             await db.execute(
                 """INSERT INTO students (teacher_id, name, class_name, grades, achievements, absences, behavior, notes)

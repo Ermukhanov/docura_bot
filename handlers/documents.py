@@ -1936,8 +1936,14 @@ class DocumentHandler:
         user     = await self.db.get_user(user_id)
         doc_type = context.user_data.get("doc_type", "")
         doc_lang = context.user_data.get("doc_lang", lang)
+        # Служебные сообщения («Генерирую…», «Документ готов») — на языке интерфейса,
+        # а не документа: раньше при казахском документе и русском интерфейсе
+        # бот переходил на казахский посреди сценария.
+        if user and user.get("lang") in ("ru", "kz"):
+            lang = user["lang"]
         answers  = context.user_data.get("doc_answers", {})
         doc_name = DOC_NAMES.get(doc_lang, DOC_NAMES["ru"]).get(doc_type, doc_type)
+        ui_doc_name = DOC_NAMES.get(lang, DOC_NAMES["ru"]).get(doc_type, doc_name)
 
         if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:
             missing = validate_cycle_schedule_answers(answers)
@@ -1955,9 +1961,9 @@ class DocumentHandler:
 
         # Красивое сообщение о генерации
         gen_msgs = {
-            "ru": f"⚙️ *Генерирую {doc_name}...*\n\n🌐 Язык: {_doc_lang_name(doc_lang)}\n⭐ Качество: автоматическая проверка\n\n_Напиши /cancel чтобы отменить_",
-            "kz": f"⚙️ *{doc_name} жасалуда...*\n\n🌐 Тіл: {_doc_lang_name(doc_lang)}\n⭐ Сапа: автоматты тексеру\n\n_Болдырмау үшін /cancel жазыңыз_",
-            "en": f"⚙️ *Generating {doc_name}...*\n\n🌐 Language: {_doc_lang_name(doc_lang)}\n⭐ Quality: auto-check\n\n_Type /cancel to stop_",
+            "ru": f"⚙️ *Генерирую {ui_doc_name}...*\n\n🌐 Язык: {_doc_lang_name(doc_lang)}\n⭐ Качество: автоматическая проверка\n\n_Напиши /cancel чтобы отменить_",
+            "kz": f"⚙️ *{ui_doc_name} жасалуда...*\n\n🌐 Тіл: {_doc_lang_name(doc_lang)}\n⭐ Сапа: автоматты тексеру\n\n_Болдырмау үшін /cancel жазыңыз_",
+            "en": f"⚙️ *Generating {ui_doc_name}...*\n\n🌐 Language: {_doc_lang_name(doc_lang)}\n⭐ Quality: auto-check\n\n_Type /cancel to stop_",
         }
         gen_text = gen_msgs.get(lang, gen_msgs["ru"])
         if profile_missing(user):

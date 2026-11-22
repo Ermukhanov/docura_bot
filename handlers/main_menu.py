@@ -43,7 +43,14 @@ class MainMenuHandler:
         spec = user.get("age_group") if is_kg else user.get("subject", "")
 
         if subscribed:
-            status_line = "⭐ *Docura PRO* — безлимитный доступ активен" if lang == "ru" else "⭐ *Docura PRO* — шексіз қолжетімділік белсенді"
+            # Тот же тариф, что и в профиле (раньше меню всегда писало PRO, а профиль — MAX).
+            tier = (user.get("tier") or "pro").lower()
+            if tier == "max":
+                status_line = "💎 *Docura MAX* — безлимитный доступ активен" if lang == "ru" else "💎 *Docura MAX* — шексіз қолжетімділік белсенді"
+            elif tier == "b2b":
+                status_line = "🏢 *Docura для организации* — доступ активен" if lang == "ru" else "🏢 *Мекемеге арналған Docura* — қолжетімділік белсенді"
+            else:
+                status_line = "⭐ *Docura PRO* — безлимитный доступ активен" if lang == "ru" else "⭐ *Docura PRO* — шексіз қолжетімділік белсенді"
         else:
             status_line = f"🆓 *Бесплатный доступ:* осталось *{free_left}/{total_free}* документов" if lang == "ru" else f"🆓 *Тегін қолжетімділік:* қалды *{free_left}/{total_free}* құжат"
             if bonus_docs:
@@ -226,10 +233,10 @@ class MainMenuHandler:
         if is_kg:
             cats = ["cat_kg_planning", "cat_kg_reports", "cat_kg_children", "cat_kg_personal", "cat_common"]
         else:
-            cats = ["cat_planning", "cat_reports"]
-            if user.get("is_class_teacher", 0):
-                cats.append("cat_students")
-            cats += ["cat_personal", "cat_common"]
+            # «По ученикам» нужны любому учителю (справка об отсутствии, письмо
+            # родителям, благодарственное письмо), а не только классному руководителю:
+            # раньше раздел был скрыт, и включить его в профиле было нельзя.
+            cats = ["cat_planning", "cat_reports", "cat_students", "cat_personal", "cat_common"]
         row = []
         for c in cats:
             row.append(InlineKeyboardButton(t(lang, c), callback_data=c))
