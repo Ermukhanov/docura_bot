@@ -1,3 +1,4 @@
+import re
 """
 Docura.kz — AI-агент с памятью
 Загружает расписание/режим дня, помнит контекст, предлагает нужные документы
@@ -58,8 +59,8 @@ class AgentHandler:
                 "Загрузите расписание занятий вашей группы — ИИ-ассистент будет автоматически "
                 "подставлять нужные данные в циклограммы, КСП и карты развития.\n\n"
                 "🤖 *Интеллектуальные функции:*\n"
-                "• Мониторинг расписания каждые 6 часов\n"
-                "• Авто-подготовка планов к занятиям заблаговременно\n\n"
+                "• Бот следит за режимом дня группы\n"
+                "• В пятницу вечером предложит циклограмму на следующую неделю\n\n"
                 "Способы загрузки:\n"
                 "📸 Фото расписания группы (стенд или журнал)\n"
                 "✍️ Текстовый ввод (например: _Понедельник: Развитие речи, Музыка_)"
@@ -69,8 +70,8 @@ class AgentHandler:
                 "Тобыңыздың сабақ кестесін жүктеңіз — ЖИ-көмекші деректерді циклограммаларға, "
                 "ҚМЖ-ға және даму карталарына автоматты түрде қосады.\n\n"
                 "🤖 *Зияткерлік мүмкіндіктер:*\n"
-                "• Кестені әр 6 сағат сайын бақылау\n"
-                "• Сабақ жоспарларын алдын ала автоматты дайындау\n\n"
+                "• Бот топтың күн тәртібін бақылайды\n"
+                "• Жұма күні кешке келесі аптаға циклограмма ұсынады\n\n"
                 "Жүктеу жолдары:\n"
                 "📸 Топ кестесінің фотосы (стенд немесе журнал)\n"
                 "✍️ Мәтінмен енгізу (мысалы: _Дүйсенбі: Тіл дамыту, Музыка_)"
@@ -81,8 +82,8 @@ class AgentHandler:
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 "Загрузите ваше расписание — ИИ-ассистент свяжет его с базой классов и КСП.\n\n"
                 "🤖 *Интеллектуальные возможности:*\n"
-                "• Каждые 6 часов ИИ проверяет предстоящие уроки\n"
-                "• Автоматическая генерация КСП по расписанию (если включен автопилот)\n"
+                "• Каждый вечер бот присылает уроки на завтра — КСП к любому уроку в 1 нажатие\n"
+                "• Автогенерация: пишете темы уроков одним сообщением — бот делает КСП на каждый\n"
                 "• В чате всегда можно спросить: _«Что у меня завтра по расписанию?»_\n\n"
                 "Способы добавления:\n"
                 "📸 Фото расписания из учительской или журнала\n"
@@ -92,8 +93,8 @@ class AgentHandler:
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 "Кестеңізді жүктеңіз — ЖИ-көмекші оны сыныптар және ҚМЖ базасымен байланыстырады.\n\n"
                 "🤖 *Зияткерлік мүмкіндіктер:*\n"
-                "• Әр 6 сағат сайын ЖИ алдағы сабақтарды бақылайды\n"
-                "• Кесте бойынша ҚМЖ-ларды автоматты дайындау (автопилот қосулы болса)\n"
+                "• Әр кеш сайын бот ертеңгі сабақтарды жібереді — кез келген сабаққа ҚМЖ бір басумен\n"
+                "• Авто-жасау: тақырыптарды бір хабармен жазасыз — бот әр сабаққа ҚМЖ жасайды\n"
                 "• Чаттан кез келген уақытта: _«Ертең қандай сабақтарым бар?»_ деп сұрай аласыз\n\n"
                 "Қосу тәсілдері:\n"
                 "📸 Кестенің фотосы\n"
@@ -226,11 +227,11 @@ class AgentHandler:
             desc = (
                 f"Напоминания: *{status}*\n"
                 f"Автогенерация по расписанию: *{ag_status}*\n\n"
-                f"_При включённой автогенерации ИИ каждые 6 часов проверяет расписание и базу учеников и готовит документы заблаговременно._"
+                f"_При включённой автогенерации каждый вечер бот присылает уроки на завтра — вы пишете темы, он делает КСП на каждый урок._"
             ) if lang == "ru" else (
                 f"Еске салғыштар: *{status}*\n"
                 f"Кесте бойынша авто-жасау: *{ag_status}*\n\n"
-                f"_Авто-жасау қосулы болса, ЖИ әр 6 сағат сайын кесте мен балалар базасын тексеріп, құжаттарды алдын ала дайындайды._"
+                f"_Авто-жасау қосулы болса, бот әр кеш сайын ертеңгі сабақтарды жібереді — тақырыптарды жазасыз, ол әр сабаққа ҚМЖ жасайды._"
             )
             kb = [
                 [InlineKeyboardButton("🔕 Выключить напоминания" if enabled and lang == "ru" else "🔔 Включить напоминания" if lang == "ru" else ("🔕 Еске салғышты өшіру" if enabled else "🔔 Еске салғышты қосу"), callback_data="agent_reminders_toggle")],
@@ -251,8 +252,8 @@ class AgentHandler:
         elif data == "agent_autogen_toggle":
             if not user or not user.get("subscribed"):
                 await query.edit_message_text(
-                    "Автогенерация доступна только в PRO. Docura будет каждые 6 часов проверять ваше расписание и базу учеников и готовить документы автоматически." if lang == "ru"
-                    else "Автоматты жасау тек PRO тарифінде қолжетімді. Docura әр 6 сағат сайын кестеңіз бен оқушылар базасын тексеріп, құжаттарды автоматты дайындайды.",
+                    "Автогенерация доступна в платном тарифе. Каждый вечер бот присылает уроки на завтра, вы пишете темы — он делает КСП на каждый урок." if lang == "ru"
+                    else "Авто-жасау ақылы тарифте қолжетімді. Бот әр кеш сайын ертеңгі сабақтарды жібереді, сіз тақырыптарды жазасыз — ол әр сабаққа ҚМЖ жасайды.",
                     reply_markup=InlineKeyboardMarkup([
                         [InlineKeyboardButton("⭐ Посмотреть PRO" if lang == "ru" else "⭐ PRO көру", callback_data="prof_sub")],
                         [MENU_BTN(lang)],
@@ -262,10 +263,10 @@ class AgentHandler:
             new_val = 0 if user.get("auto_generate") else 1
             await self.db.upsert_user(user_id, {"auto_generate": new_val})
             msg = (
-                "✅ *Автогенерация включена!*\n\nИИ-агент каждые 6 часов проверяет ваше расписание и базу учеников и готовит документы заблаговременно." if new_val
+                "✅ *Автогенерация включена!*\n\nКаждый вечер (15:00–20:00) я пришлю уроки на завтра. Ответьте темами — по строке на урок, и я сделаю КСП на каждый." if new_val
                 else "❌ *Автогенерация выключена.* Документы будут создаваться только по вашему запросу."
             ) if lang == "ru" else (
-                "✅ *Авто-жасау қосылды!*\n\nЖИ агент әр 6 сағат сайын кесте мен оқушылар базасын тексеріп, құжаттарды алдын ала дайындайды." if new_val
+                "✅ *Авто-жасау қосылды!*\n\nӘр кеш сайын (15:00–20:00) ертеңгі сабақтарды жіберемін. Тақырыптарды жазыңыз — әр сабаққа ҚМЖ жасаймын." if new_val
                 else "❌ *Авто-жасау өшірілді.*"
             )
             await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]]), parse_mode=ParseMode.MARKDOWN)
@@ -292,6 +293,23 @@ class AgentHandler:
                 "Хорошо, не буду создавать автоматически." if lang == "ru" else "Жақсы, автоматты түрде жасамаймын.",
                 reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]])
             )
+
+        elif re.fullmatch(r"agent_ksp_\d+", data):
+            memory = await self.db.get_agent_context(user_id)
+            pend = memory.get("ksp_lessons") or {}
+            lessons = pend.get("lessons") or []
+            idx = int(data.rsplit("_", 1)[1])
+            if idx >= len(lessons):
+                await query.answer("Расписание обновилось — откройте его заново" if lang == "ru" else "Кесте жаңарды", show_alert=True)
+                return
+            await query.answer()
+            lesson = lessons[idx]
+            context.user_data["step"] = "agent_ksp_topics"
+            context.user_data["ksp_pending"] = {"date": pend.get("date", ""), "lessons": [lesson]}
+            label = " ".join(p for p in [lesson.get("class") or "", lesson.get("subject") or ""] if p)
+            await query.message.reply_text(
+                f"✍️ Тема урока «{label}»?" if lang == "ru" else f"✍️ «{label}» сабағының тақырыбы?",
+                reply_markup=InlineKeyboardMarkup([[MENU_BTN(lang)]]))
 
         elif data in {"agent_auto_generate_ksp", "agent_auto_generate_cycle"}:
             from database import can_generate
@@ -386,6 +404,55 @@ class AgentHandler:
                     "✅ Начинаю генерацию..." if lang == "ru" else "✅ Жасауды бастаймын..."
                 )
                 await docs._generate(query.message, context, lang)
+
+    async def _handle_ksp_topics(self, update, context):
+        """Ответ учителя с темами завтрашних уроков → КСП на каждый урок полным пайплайном."""
+        from handlers.schedule_monitor import parse_topics
+        from handlers.documents import DocumentHandler
+        from database import can_generate
+        message = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        user_id = update.effective_user.id
+        user = await self.db.get_user(user_id) or {}
+        lang = user.get("lang") or "ru"
+        pend = context.user_data.pop("ksp_pending", None) or {}
+        context.user_data["step"] = None
+        lessons = pend.get("lessons") or []
+        text = (message.text or "").strip()
+        from handlers.schedule_monitor import pending_still_valid
+        if not lessons or not pending_still_valid(pend) or text.endswith("?") or text.startswith("/"):
+            return False  # это не темы — пусть ответит ассистент
+        topics = parse_topics(text, len(lessons))
+        jobs = [(l, t) for l, t in zip(lessons, topics) if t]
+        if not jobs:
+            await message.reply_text("Хорошо, КСП не делаю." if lang == "ru" else "Жарайды, ҚМЖ жасамаймын.")
+            return True
+        if len(jobs) > 1:
+            await message.reply_text((f"✅ Делаю КСП: {len(jobs)} шт. Пришлю по готовности."
+                                      if lang == "ru" else f"✅ ҚМЖ жасаймын: {len(jobs)}. Дайын болғанда жіберемін."))
+        docs = DocumentHandler(self.db, self.api_key)
+        for lesson, topic in jobs:
+            user = await self.db.get_user(user_id) or user
+            if not can_generate(user):
+                await message.reply_text(
+                    "Лимит бесплатных документов исчерпан — оформите подписку для безлимита." if lang == "ru"
+                    else "Тегін құжаттар лимиті таусылды — шексіз жасау үшін жазылымды қосыңыз.",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⭐ Тарифы" if lang == "ru" else "⭐ Тарифтер", callback_data="prof_sub")]]))
+                break
+            subject_class = " ".join(p for p in [lesson.get("subject") or "", lesson.get("class") or ""] if p)
+            context.user_data.update({
+                "doc_type": "lesson_plan",
+                "doc_lang": user.get("document_lang") or lang,
+                "doc_answers": {
+                    "subject_class": subject_class,
+                    "topic": topic,
+                    "goals": "автоматически" if lang == "ru" else "автоматты",
+                    "date": f"{pend.get('date', '')}, 45 минут".strip(", "),
+                },
+                "q_index": 0,
+                "step": "waiting_answer",
+            })
+            await docs._generate(message, context, lang)
+        return True
 
     async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает фото расписания / режима дня"""
@@ -533,6 +600,8 @@ class AgentHandler:
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает текстовое расписание / режим дня"""
+        if context.user_data.get("step") == "agent_ksp_topics":
+            return await self._handle_ksp_topics(update, context)
         if context.user_data.get("step") != "agent_waiting_schedule_text":
             return False
 

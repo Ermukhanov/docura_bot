@@ -744,7 +744,7 @@ class Database:
                 """SELECT * FROM users WHERE
                    (notified_at IS NULL OR julianday('now') - julianday(notified_at) >= 3)
                    AND (notifications_enabled IS NULL OR notifications_enabled = 1)
-                   AND name IS NOT NULL
+                   AND (name IS NOT NULL OR role IS NOT NULL)
                    AND (COALESCE(free_used, 0) > 0 OR EXISTS (
                        SELECT 1 FROM documents d WHERE d.teacher_id=users.tg_id
                    ))""",
@@ -869,6 +869,9 @@ class Database:
             async with db.execute(
                 """SELECT * FROM users u
                    WHERE datetime(u.created_at) <= datetime('now', '-1 day')
+                     -- только недавние: фоновые задачи раньше не запускались, и без этого
+                     -- при включении напоминание ушло бы всем, кто зарегистрировался месяцы назад
+                     AND datetime(u.created_at) >= datetime('now', '-10 days')
                      AND COALESCE(u.notifications_enabled, 1)=1
                      AND u.winback_sent_at IS NULL
                      AND NOT EXISTS(SELECT 1 FROM documents d WHERE d.teacher_id=u.tg_id)

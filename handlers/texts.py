@@ -78,7 +78,6 @@ TEXTS = {
         },
         "docs_reports": {
             "monthly_report":   "📊 Отчёт учителя",
-            "chat_digest":      "📑 Доклад для завуча (из чатов)",
             "control_analysis": "📈 Анализ контрольной работы",
         },
         "docs_students": {
@@ -291,7 +290,6 @@ TEXTS = {
         },
         "docs_reports": {
             "monthly_report":   "📊 Мұғалім есебі",
-            "chat_digest":      "📑 Оқу ісі меңгерушісіне баяндама",
             "control_analysis": "📈 Бақылау жұмысын талдау",
         },
         "docs_students": {

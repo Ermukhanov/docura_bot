@@ -23,8 +23,9 @@ from handlers.agent import AgentHandler
 from handlers.concierge import ConciergeHandler
 from handlers.query_adapter import MessageQueryAdapter
 from handlers.notifications import (
-    send_reminders, first_doc_reminder_loop, check_subscription_expirations, monitor_schedules,
+    send_reminders, first_doc_reminder_loop, check_subscription_expirations,
 )
+from handlers.schedule_monitor import schedule_monitor_loop, pending_still_valid
 from security import create_auth_token
 
 logging.basicConfig(
@@ -444,7 +445,11 @@ async def _route_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif step.startswith("admin_"):
         await AdminHandler(db).handle_text(update, context)
     elif step.startswith("agent_"):
-        await AgentHandler(db, key).handle_text(update, context)
+        handled = await AgentHandler(db, key).handle_text(update, context)
+        if handled is False and context.user_data.get("step") in (None, "", "agent_ksp_topics"):
+            # это были не темы уроков (вопрос, команда, устаревшая сводка) — отвечает ассистент
+            context.user_data["step"] = None
+            await context.application.bot_data["concierge"].handle_text(update, context)
     else:
         # Нет активного сценария — либо это ещё не зарегистрированный пользователь
         # (тогда ведём в онбординг, как и раньше), либо это просто свободное сообщение
@@ -456,6 +461,17 @@ async def _route_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not user or not (user.get("name") or user.get("role")):
             await OnboardingHandler(db).start(update, context)
         else:
+            # Вечерняя сводка с автогенерацией могла прийти, пока у учителя шёл другой
+            # сценарий или его не было в памяти бота — тогда ждём темы отсюда.
+            memory = await db.get_agent_context(update.effective_user.id)
+            pend = memory.get("ksp_pending")
+            if pend:
+                await db.update_agent_context(update.effective_user.id, {"ksp_pending": None})
+                if pending_still_valid(pend):
+                    context.user_data["step"] = "agent_ksp_topics"
+                    context.user_data["ksp_pending"] = pend
+                    if await AgentHandler(db, key).handle_text(update, context):
+                        return
             concierge = context.application.bot_data["concierge"]
             await concierge.handle_text(update, context)
 
@@ -556,7 +572,7 @@ async def post_init(app: Application):
         asyncio.create_task(send_reminders(app, db, concierge)),
         asyncio.create_task(first_doc_reminder_loop(app, db)),
         asyncio.create_task(check_subscription_expirations(app, db)),
-        asyncio.create_task(monitor_schedules(app, db, app.bot_data["anthropic_key"])),
+        asyncio.create_task(schedule_monitor_loop(app, db)),
     ]
 
     app.bot_data["bg_tasks"].append(asyncio.create_task(_resume_interrupted_generations(app)))
@@ -695,6 +711,10 @@ async def run():
 
     async with app:
         await app.start()
+        # post_init вызывается сам только в run_polling(); при ручном запуске его нужно
+        # вызвать явно — иначе не стартовали напоминания, мониторинг расписания,
+        # проверка подписок и меню команд.
+        await post_init(app)
         await app.updater.start_polling(drop_pending_updates=True)
         await asyncio.Event().wait()
 
