@@ -162,6 +162,7 @@ class Database:
 
             # ── Миграция для баз созданных до появления новых колонок ──
             await self._ensure_column(db, "users", "tier", "TEXT")
+            await self._ensure_column(db, "documents", "file_id", "TEXT")
             await self._ensure_column(db, "users", "age_group", "TEXT")
             await self._ensure_column(db, "users", "ref_code", "TEXT")
             await self._ensure_column(db, "users", "referred_by", "INTEGER")
@@ -618,6 +619,13 @@ class Database:
             async with db.execute("SELECT * FROM documents WHERE id=?", (document_id,)) as cur:
                 row = await cur.fetchone()
                 return dict(row) if row else None
+
+    async def set_document_file(self, document_id: int, file_id: str):
+        """Telegram file_id отправленного Word-файла — чтобы из «Моих документов»
+        прислать ровно тот же файл, без повторной генерации."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE documents SET file_id=? WHERE id=?", (file_id, document_id))
+            await db.commit()
 
     async def count_documents(self, teacher_id: int) -> int:
         async with aiosqlite.connect(self.db_path) as db:

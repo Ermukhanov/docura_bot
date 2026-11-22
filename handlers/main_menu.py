@@ -137,6 +137,9 @@ class MainMenuHandler:
         elif data == "menu_history":
             await self._show_history(query, user_id, lang)
 
+        elif data.startswith("menu_histdoc_"):
+            await self._resend_history_doc(query, user_id, lang, data.rsplit("_", 1)[1])
+
         elif data == "menu_profile":
             from handlers.profile import ProfileHandler
             await ProfileHandler(self.db).show(query, user_id, lang)
@@ -303,6 +306,40 @@ class MainMenuHandler:
         keyboard = [[InlineKeyboardButton(t(lang, "back"), callback_data="menu_main")]]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
+    async def _resend_history_doc(self, query, user_id, lang, raw_id):
+        try:
+            doc = await self.db.get_document(int(raw_id))
+        except (TypeError, ValueError):
+            doc = None
+        if not doc or doc.get("teacher_id") != user_id:
+            await query.answer("Документ не найден" if lang == "ru" else "Құжат табылмады", show_alert=True)
+            return
+        await query.answer()
+        caption = f"📄 *{doc['doc_name']}*"
+        if doc.get("file_id"):
+            try:
+                await query.message.reply_document(document=doc["file_id"], caption=caption, parse_mode=ParseMode.MARKDOWN)
+                return
+            except Exception as exc:
+                print(f"history resend by file_id failed: {exc}")
+        # Старые документы (до сохранения file_id): собираем Word заново из сохранённого текста.
+        import os as _os
+        from handlers.word_generator import generate_word
+        user = await self.db.get_user(user_id) or {}
+        fname = generate_word(doc["content"], doc["doc_name"], user.get("name") or "",
+                              director_name=user.get("director") or "", registry_doc_type=doc.get("doc_type") or "",
+                              lang=user.get("lang") or "ru")
+        try:
+            with open(fname, "rb") as f:
+                date = (doc.get("created_at") or "")[:10].replace("-", "")
+                await query.message.reply_document(document=f, filename=f"{doc['doc_name']}_{date}.docx",
+                                                   caption=caption, parse_mode=ParseMode.MARKDOWN)
+        finally:
+            try:
+                _os.remove(fname)
+            except OSError:
+                pass
+
     async def _show_history(self, query, user_id, lang):
         docs = await self.db.get_history(user_id, limit=15)
         if not docs:
@@ -314,13 +351,18 @@ class MainMenuHandler:
             )
             return
 
-        lines = [t(lang, "history_title"), ""]
-        for d in docs[:10]:
-            date = d["created_at"][:10]
-            lines.append(f"📄 *{d['doc_name']}*\n📅 {date} | ⭐ {d['score']}/100")
-        text = "\n".join(lines)
-
-        keyboard = [[InlineKeyboardButton(t(lang, "back"), callback_data="menu_main")]]
+        # Каждый документ — кнопка: нажал и получил тот же Word-файл ещё раз.
+        # Внутреннюю оценку качества (score) учителю больше не показываем.
+        hint = ("Нажмите на документ, чтобы скачать его ещё раз:" if lang == "ru"
+                else "Құжатты қайта жүктеу үшін оны басыңыз:")
+        text = t(lang, "history_title") + "\n\n" + hint
+        keyboard = []
+        for d in docs:
+            date = (d.get("created_at") or "")[:16].replace("T", " ")
+            dd = f"{date[8:10]}.{date[5:7]} {date[11:16]}" if len(date) >= 16 else date
+            label = f"📄 {d['doc_name'][:34]} · {dd}"
+            keyboard.append([InlineKeyboardButton(label, callback_data=f"menu_histdoc_{d['id']}")])
+        keyboard.append([InlineKeyboardButton(t(lang, "back"), callback_data="menu_main")])
         await query.edit_message_text(
             text,
             reply_markup=InlineKeyboardMarkup(keyboard),

@@ -2163,12 +2163,13 @@ class DocumentHandler:
                     "kz": f"📄 *{doc_name}*\n✅ Басуға дайын",
                     "en": f"📄 *{doc_name}*\n✅ Ready to print",
                 }
-                await message.reply_document(
+                sent_doc = await message.reply_document(
                     document=f,
                     filename=f"{doc_name}_{now_local().strftime('%d%m%Y')}.docx",
                     caption=caption.get(lang, caption.get(doc_lang, caption["ru"])),
                     parse_mode=ParseMode.MARKDOWN
                 )
+                sent_file_id = getattr(getattr(sent_doc, "document", None), "file_id", None)
             os.remove(filename)
         except Exception as e:
             print(f"Word error: {e}")
@@ -2184,6 +2185,8 @@ class DocumentHandler:
 
         # Сохранить в БД
         document_id = await self.db.save_document(user_id, doc_type, doc_name, result, score)
+        if locals().get("sent_file_id"):
+            await self.db.set_document_file(document_id, sent_file_id)
         await self._reward_referrer_if_needed(context, user_id)
         await self.db.upsert_user(user_id, {
             "last_doc_type": doc_type,
