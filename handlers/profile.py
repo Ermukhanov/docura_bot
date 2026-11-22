@@ -974,13 +974,11 @@ class ProfileHandler:
         elif step == "student_grades":
             grades = {}
             if text.lower() not in ["пропустить", "өткізу", "-", "нет"]:
-                for part in text.split(","):
-                    if "-" in part:
-                        subj, grade = part.strip().rsplit("-", 1)
-                        try:
-                            grades[subj.strip()] = int(grade.strip())
-                        except Exception:
-                            pass
+                # Принимаем «алгебра 5», «алгебра-5», «алгебра: 5», «алгебра — 5»; разделители , ; и перевод строки.
+                for part in re.split(r"[,;\n]", text):
+                    m = re.match(r"^\s*(.+?)\s*[-–—:=]?\s*([1-5]|10|[6-9])\s*$", part)
+                    if m and m.group(1).strip():
+                        grades[m.group(1).strip()] = int(m.group(2))
             context.user_data["new_student"]["grades"] = grades
             context.user_data["step"] = "student_achievements"
             await message.reply_text(

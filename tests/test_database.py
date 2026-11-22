@@ -107,7 +107,7 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await self.db.update_student(student["id"], {"notes=class_name": "8Б"})
         unchanged = await self.db.get_student(student["id"])
-        self.assertEqual(unchanged["class_name"], "7А")
+        self.assertEqual(unchanged["class_name"], "7 «А»")  # класс хранится в нормальном виде
 
     async def test_student_records_are_scoped_to_their_owner(self):
         await self.db.add_student(404, {"name": "Әлия", "class_name": "5Б"})

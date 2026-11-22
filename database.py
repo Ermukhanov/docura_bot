@@ -459,27 +459,26 @@ class Database:
     async def get_students(self, teacher_id: int, class_name: str = None):
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            if class_name:
-                async with db.execute(
-                    "SELECT * FROM students WHERE teacher_id=? AND class_name=? ORDER BY name",
-                    (teacher_id, class_name)
-                ) as cur:
-                    rows = await cur.fetchall()
-            else:
-                async with db.execute(
-                    "SELECT * FROM students WHERE teacher_id=? ORDER BY class_name, name",
-                    (teacher_id,)
-                ) as cur:
-                    rows = await cur.fetchall()
+            async with db.execute(
+                "SELECT * FROM students WHERE teacher_id=? ORDER BY class_name, name",
+                (teacher_id,)
+            ) as cur:
+                rows = await cur.fetchall()
+            # Класс сравниваем в нормальном виде: «7а» и «7 «А»» — один класс.
+            want = normalize_class_name(class_name) if class_name else None
             # Один и тот же ученик мог быть сохранён несколько раз (повторный импорт
             # списка) — в выборе он показывался дважды. Оставляем первую запись.
             out, seen = [], set()
             for r in rows:
-                key = (str(r["name"] or "").strip().lower(), str(r["class_name"] or "").strip().lower())
+                d = dict(r)
+                d["class_name"] = normalize_class_name(d.get("class_name"))
+                if want and d["class_name"] != want:
+                    continue
+                key = (str(d["name"] or "").strip().lower(), d["class_name"].lower())
                 if key in seen:
                     continue
                 seen.add(key)
-                out.append(dict(r))
+                out.append(d)
             return out
 
     async def get_student(self, student_id: int):
@@ -513,7 +512,7 @@ class Database:
                 st_dict = kwargs
 
             name = st_dict.get("name", "")
-            cls_name = st_dict.get("class_name", "")
+            cls_name = normalize_class_name(st_dict.get("class_name", ""))
             grades = st_dict.get("grades", {})
             achievements = st_dict.get("achievements", [])
             absences = st_dict.get("absences", 0)
@@ -1149,6 +1148,15 @@ def normalize_schedule_json(raw):
             if day:
                 out.setdefault(day, []).append({k: v for k, v in entry.items() if k not in ("day", "weekday", "день")})
     return json.dumps(_clean_schedule_nulls(out), ensure_ascii=False)
+
+
+def normalize_class_name(value) -> str:
+    """«7а», «7 А», «7-а», «7"А"» → «7 «А»», как в остальной базе: иначе один класс
+    распадался на два и ученик не находился при выборе класса."""
+    import re as _re
+    text = str(value or "").strip()
+    m = _re.fullmatch(r"(\d{1,2})\s*[-–\s]?\s*[«\"']?\s*([A-Za-zА-Яа-яЁёӘәІіҢңҒғҮүҰұҚқӨөҺһ])\s*[»\"']?(?:\s*класс|\s*сынып)?", text, _re.I)
+    return f"{m.group(1)} «{m.group(2).upper()}»" if m else text
 
 
 def _clean_schedule_nulls(data: dict) -> dict:
