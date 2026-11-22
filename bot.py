@@ -450,7 +450,10 @@ async def _route_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # (тогда ведём в онбординг, как и раньше), либо это просто свободное сообщение
         # в чате — тогда отвечает разговорный агент, а не заново открывает меню.
         user = await db.get_user(update.effective_user.id)
-        if not user or not user.get("name"):
+        # Учитель может пропустить анкету (ФИО пустое), но роль он уже выбрал — значит,
+        # онбординг пройден, и на свободное сообщение должен отвечать ассистент,
+        # а не показываться снова главное меню.
+        if not user or not (user.get("name") or user.get("role")):
             await OnboardingHandler(db).start(update, context)
         else:
             concierge = context.application.bot_data["concierge"]
