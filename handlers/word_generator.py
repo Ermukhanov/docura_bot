@@ -707,8 +707,9 @@ def _parse_content(doc, content: str):
             i += 1
             continue
 
-        # Подпись
-        if is_sig(s):
+        # Подпись: только в конце документа или с линией для подписи. Раньше «Директору СШ №5»,
+        # «ФИО учителя: …» и «Дата: …» в шапке тоже серели как подписи.
+        if is_sig(s) and ("__" in s or i >= len(lines) * 0.75):
             p = _para(doc, s, color=GRAY,
                       space_before=3, space_after=3)
             i += 1
