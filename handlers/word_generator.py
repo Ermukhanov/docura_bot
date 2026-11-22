@@ -142,6 +142,23 @@ def _strip_none_values(content: str) -> str:
     content = _re.sub(r"(?m)^\s*#{1,6}\s+", "", content)
     content = _re.sub(r"\*\*(.+?)\*\*", r"\1", content)
     content = _re.sub(r"(?im)^(\s*[^:\n]{1,60}:\s*)(?:None|null|nan)\s*$", r"\1____________________", content)
+    # Генератор сам ставит блок подписей в конце. Если модель тоже написала
+    # «Учитель: ____ / Директор: ____ / Дата / М.П.» — в документе было две подписи.
+    sig = _re.compile(r"^\s*(учитель|классный руководитель|кл\.\s*рук\w*|директор|педагог|воспитатель|руководитель|заведующ\w*|"
+                      r"подпись|дата|м\.\s*п\.?|мұғалім|сынып жетекшісі|басшы|меңгеруші|тәрбиеші|күні|қолы|м\.\s*о\.?|"
+                      r"teacher|director|head|signature|date|seal)\b[^\n]*$", _re.I)
+    lines = content.rstrip().split("\n")
+    cut = len(lines)
+    for k in range(len(lines) - 1, max(-1, len(lines) - 9), -1):
+        ln = lines[k].strip()
+        if not ln:
+            continue
+        if sig.match(ln) and ("_" in ln or len(ln) < 40):
+            cut = k
+            continue
+        break
+    if cut < len(lines) and any("_" in l for l in lines[cut:]):
+        content = "\n".join(lines[:cut]).rstrip()
     return content
 
 

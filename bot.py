@@ -534,6 +534,7 @@ async def _resume_interrupted_generations(app: Application):
         if not snap or not snap.get("doc_type"):
             continue
         data["interrupted_generation"] = snap
+        data["step"] = None  # иначе следующее сообщение учителя приняли бы за ответ на вопрос анкеты
         ru = snap.get("lang", "ru") != "kz"
         try:
             await app.bot.send_message(
