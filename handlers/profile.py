@@ -10,7 +10,7 @@ from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from telegram.helpers import escape_markdown
 from handlers.texts import t
-from database import Database, free_limit_for
+from database import Database, free_limit_for, normalize_class_name
 from security import create_auth_token
 
 def _val(user: dict, key: str) -> str:
@@ -76,7 +76,9 @@ def get_site_url() -> str:
 class ProfileHandler:
     def __init__(self, db: Database, api_key: str = ""):
         self.db      = db
-        self.api_key = api_key
+        # Обработчик создаётся во многих местах без ключа — без этого загрузка списка
+        # учеников (текст/фото) всегда падала с ошибкой авторизации ИИ.
+        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
 
     async def show(self, query, user_id, lang):
         user = await self.db.get_user(user_id)
@@ -403,6 +405,9 @@ class ProfileHandler:
         elif data == "prof_bulk_confirm":
             pending = context.user_data.pop("bulk_students", [])
             default_class = user.get("age_group") if is_kg else user.get("classes", "")
+            # «7А, 8Б» из профиля — это несколько классов, а не класс ученика.
+            if default_class and re.search(r"[,;/]", str(default_class)):
+                default_class = ""
             for item in pending:
                 data = {
                     "name": item["name"], "class_name": item.get("class_name") or default_class or "—",
@@ -852,6 +857,12 @@ class ProfileHandler:
             if any(w in lowered for w in ["да", "иә", "қосу", "добавить", "ок", "yes", "ага", "жарайды"]):
                 pending = context.user_data.pop("bulk_students", [])
                 default_class = user.get("age_group") if is_kg else user.get("classes", "")
+                # «7А, 8Б» из профиля — это несколько классов, а не класс ученика.
+                if default_class and re.search(r"[,;/]", str(default_class)):
+                    default_class = ""
+            # «7А, 8Б» из профиля — это несколько классов, а не класс ученика.
+            if default_class and re.search(r"[,;/]", str(default_class)):
+                default_class = ""
                 for item in pending:
                     data = {
                         "name": item["name"], "class_name": item.get("class_name") or default_class or "—",
@@ -1123,11 +1134,13 @@ class ProfileHandler:
         user = await self.db.get_user(update.effective_user.id)
         lang = user.get("lang", "ru") if user else "ru"
         prompt = ("Извлеки список учеников из текста или изображения. Верни ТОЛЬКО JSON-массив: "
-                  "[{\"name\":\"\", \"birth_date\":\"\", \"parent_name\":\"\", \"phone\":\"\"}]. "
+                  "[{\"name\":\"\", \"class_name\":\"\", \"birth_date\":\"\", \"parent_name\":\"\", \"phone\":\"\"}]. "
+                  "class_name — класс/группа, если указан (в т.ч. в заголовке списка — тогда он у всех). "
+                  "birth_date — дата или год рождения. "
                   "Если данных нет — оставь поле пустым. Не придумывай данные.")
         try:
             client = anthropic.AsyncAnthropic(api_key=self.api_key)
-            response = await client.messages.create(model="claude-haiku-4-5", max_tokens=1200,
+            response = await client.messages.create(model="claude-haiku-4-5", max_tokens=4000,
                                               messages=[{"role": "user", "content": content + [{"type": "text", "text": prompt}]}])
             raw_text = response.content[0].text.strip() if response.content else ""
             raw = re.sub(r"```[a-z]*", "", raw_text).strip("` \n")
@@ -1142,7 +1155,9 @@ class ProfileHandler:
             return
         context.user_data["bulk_students"] = students
         context.user_data["step"] = "student_bulk_confirm"
-        names = "\n".join(f"• {item['name']}" for item in students[:30])
+        names = "\n".join(
+            f"• {item['name']}" + (f" — {normalize_class_name(item['class_name'])}" if item.get("class_name") else "")
+            for item in students[:30])
         await message.reply_text(
             (f"Нашёл {len(students)} учеников. Добавить всех?\n\n{names}" if lang == "ru" else f"{len(students)} оқушы табылды. Барлығын қосу керек пе?\n\n{names}"),
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Добавить всех" if lang == "ru" else "Барлығын қосу", callback_data="prof_bulk_confirm")], [InlineKeyboardButton("Отмена" if lang == "ru" else "Болдырмау", callback_data="prof_bulk_cancel")]])
