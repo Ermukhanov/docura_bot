@@ -268,7 +268,12 @@ def _strip_repeated_title(content: str, title: str) -> str:
         if not line.strip():
             continue
         got = _letters(line)
-        if want and got and (got == want or (len(got) > 6 and (got in want or want in got))):
+        # «КРАТКОСРОЧНЫЙ ПЛАН (КСП)» и «КРАТКОСРОЧНЫЙ ПЛАН УРОКА» — тоже повтор: строка-заголовок
+        # капсом, совпадающая с названием по первым двум словам.
+        tw = re.findall(r"\w+", title.lower())[:2]
+        lw = re.findall(r"\w+", line.lower())[:2]
+        same_head = len(tw) == 2 and tw == lw and line.strip().upper() == line.strip() and len(line.strip()) < 70
+        if want and got and (same_head or got == want or (len(got) > 6 and (got in want or want in got))):
             return "\n".join(lines[:idx] + lines[idx + 1:])
         break
     return content
