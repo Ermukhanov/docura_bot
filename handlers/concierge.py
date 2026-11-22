@@ -967,7 +967,12 @@ class ConciergeHandler:
                 await self._begin_task(message, context, user, ui_lang, classified["doc_type"], text)
                 return
 
-        # 3) Обычный разговор.
+        # 3) «Что у меня завтра?» — отвечаем прямо из сохранённого расписания, без ИИ:
+        # модель путала дни и придумывала уроки.
+        if await self._answer_schedule_question(message, user_id, ui_lang, text):
+            return
+
+        # 4) Обычный разговор.
         if not self._configured():
             await message.reply_text(
                 "Я пока учусь вести беседу 🙂 Напишите, какой документ нужен, или нажмите /menu."
@@ -976,6 +981,50 @@ class ConciergeHandler:
             return
 
         await self._chat_reply(message, context, user, ui_lang, state, text)
+
+    async def _answer_schedule_question(self, message, user_id, lang: str, text: str) -> bool:
+        low = text.lower()
+        if len(low) > 140 or not re.search(r"расписан|урок|занят|сабақ|кесте|сабақтар", low):
+            return False
+        if re.search(r"составь|сделай|создай|кспк?|план|жоспар|жаса", low):
+            return False  # это просьба о документе, а не вопрос
+        today = now_local().weekday()
+        offsets = [("послезавтра", 2), ("бүрсігүні", 2), ("завтра", 1), ("ертең", 1), ("сегодня", 0), ("бүгін", 0)]
+        target = next(((today + off) % 7 for word, off in offsets if word in low), None)
+        if target is None:
+            for idx in range(7):
+                if WEEKDAYS["ru"][idx][:-1] in low or WEEKDAYS["kz"][idx] in low:
+                    target = idx
+                    break
+        if target is None:
+            return False
+        raw = await self.db.get_schedule(user_id)
+        if not raw:
+            return False
+        try:
+            schedule = json.loads(raw)
+        except (TypeError, ValueError):
+            return False
+        if not isinstance(schedule, dict):
+            return False
+        from database import _DAY_ALIASES
+        day_ru = WEEKDAYS["ru"][target]
+        lessons = []
+        for key, items in schedule.items():
+            if _DAY_ALIASES.get(str(key).strip().lower().rstrip("."), str(key)).lower() == day_ru:
+                lessons = items if isinstance(items, list) else [items]
+                break
+        day_label = WEEKDAYS["ru" if lang == "ru" else "kz"][target]
+        when = {0: ("сегодня", "бүгін"), 1: ("завтра", "ертең"), 2: ("послезавтра", "бүрсігүні")}.get((target - today) % 7)
+        head = f"{when[0 if lang == 'ru' else 1].capitalize()}, {day_label}" if when else day_label.capitalize()
+        if not lessons:
+            await message.reply_text(f"📅 {head}: уроков в расписании нет." if lang == "ru" else f"📅 {head}: кестеде сабақ жоқ.")
+            return True
+        lines = [("  • " + format_lesson(it, lang)) if isinstance(it, dict) else f"  • {it}" for it in lessons]
+        tail = ("\n\nНужен КСП к одному из уроков? Напишите, например: «КСП 7А алгебра»." if lang == "ru"
+                else "\n\nСабақтың біріне ҚМЖ керек пе? Мысалы: «ҚМЖ 7А алгебра» деп жазыңыз.")
+        await message.reply_text(f"📅 {head}:\n" + "\n".join(lines) + tail)
+        return True
 
     async def _chat_reply(self, message, context, user, ui_lang: str, state: dict, text: str):
         user_id = user["tg_id"]
