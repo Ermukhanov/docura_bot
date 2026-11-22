@@ -1002,9 +1002,9 @@ class DocumentHandler:
             return
 
         # ── Выбор языка документа ──
-        if data.startswith("doc_lang_"):
+        if data.startswith("doc_lang_") and data != "doc_lang_confirm":
             parts = data.split("_")
-            doc_lang = parts[2] if len(parts) > 2 else lang
+            doc_lang = parts[2] if len(parts) > 2 and parts[2] in ("ru", "kz", "en") else lang
             context.user_data["doc_lang"] = doc_lang
             doc_type = context.user_data.get("doc_type", "")
             if doc_type == KINDERGARTEN_CYCLE_SCHEDULE:

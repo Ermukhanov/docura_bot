@@ -478,6 +478,15 @@ async def on_error(update, context: ContextTypes.DEFAULT_TYPE):
     отправляется только нейтральная подсказка; технические детали получает
     администратор (не чаще раза в минуту)."""
     global _last_admin_alert
+    # Повторное нажатие той же кнопки: Telegram отвечает «Message is not modified».
+    # Это не ошибка — молча закрываем «часики» на кнопке, без алертов.
+    if "Message is not modified" in str(context.error):
+        try:
+            if isinstance(update, Update) and update.callback_query:
+                await update.callback_query.answer()
+        except Exception:
+            pass
+        return
     logger.error("Unhandled exception", exc_info=context.error)
     try:
         if isinstance(update, Update):
