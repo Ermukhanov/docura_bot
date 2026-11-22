@@ -442,12 +442,13 @@ class ProfileHandler:
             await self._show_students(query, user_id, lang, is_kg)
 
     async def _show_students(self, query, user_id, lang, is_kg=False):
-        if not await self.db.has_seen_section(user_id, "students"):
+        students = await self.db.get_students(user_id)
+        # Приветствие «Добавьте первого ученика» — только когда база действительно пустая.
+        if not students and not await self.db.has_seen_section(user_id, "students"):
             await query.message.reply_text(
                 students_section_intro(lang, is_kg), parse_mode=ParseMode.MARKDOWN
             )
             await self.db.mark_section_seen(user_id, "students")
-        students = await self.db.get_students(user_id)
         keyboard = []
         add_btn_text = t(lang, "btn_add_child") if is_kg else t(lang, "btn_add_student")
         t(lang, "no_children") if is_kg else t(lang, "no_students")

@@ -350,6 +350,20 @@ async def cmd_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await msg.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
 
 
+def _dialog_persistence():
+    """Незаконченные диалоги (шаг анкеты, введённые ответы) переживают перезапуск бота.
+    Раньше каждый деплой молча сбрасывал учителя посреди заполнения в главное меню.
+    Файл лежит рядом с базой — на volume, если DB_PATH указывает туда."""
+    from telegram.ext import PicklePersistence, PersistenceInput
+    from database import DB_PATH
+    path = os.path.join(os.path.dirname(os.path.abspath(DB_PATH)), "docura_dialogs.pickle")
+    return PicklePersistence(
+        filepath=path,
+        store_data=PersistenceInput(bot_data=False, chat_data=False, user_data=True, callback_data=False),
+        update_interval=30,
+    )
+
+
 async def _start_after_account_reset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Возвращает пользователя к выбору учреждения после сброса из админки."""
     db = context.application.bot_data["db"]
@@ -547,6 +561,7 @@ async def run():
     app = (
         Application.builder()
         .token(TELEGRAM_TOKEN)
+        .persistence(_dialog_persistence())
         .post_init(post_init)
         .build()
     )
