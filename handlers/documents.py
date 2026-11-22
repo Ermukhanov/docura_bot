@@ -1,3 +1,4 @@
+import re
 import os
 import base64
 import aiosqlite
@@ -1139,9 +1140,43 @@ class DocumentHandler:
         elif data == "gen_student_choose":
             doc_type = context.user_data.get("doc_type", "")
             students = await self.db.get_students(user_id)
-            keyboard = [[InlineKeyboardButton(f"👤 {student['name']} ({student['class_name']})", callback_data=f"gen_student_{student['id']}")] for student in students[:8]]
-            keyboard.append([InlineKeyboardButton("✍️ Ввести вручную" if lang == "ru" else "✍️ Қолмен енгізу", callback_data="gen_student_0")])
-            await query.edit_message_text("Выберите ученика из базы:" if lang == "ru" else "Базадан оқушыны таңдаңыз:", reply_markup=InlineKeyboardMarkup(keyboard))
+            await query.edit_message_text("Выберите ученика из базы:" if lang == "ru" else "Базадан оқушыны таңдаңыз:",
+                                          reply_markup=self._student_picker(students, lang))
+
+        elif data.startswith("gen_stcls_"):
+            students = await self.db.get_students(user_id)
+            raw = data[len("gen_stcls_"):]
+            classes = self._sorted_classes(students)
+            cls = classes[int(raw)] if raw.isdigit() and int(raw) < len(classes) else None
+            await query.edit_message_reply_markup(reply_markup=self._student_picker(students, lang, cls))
+
+    @staticmethod
+    def _sorted_classes(students):
+        def key(c):
+            m = re.match(r"\d+", c)
+            return (int(m.group()) if m else 999, c)
+        return sorted({st["class_name"] or "—" for st in students}, key=key)
+
+    @staticmethod
+    def _student_picker(students, lang, cls=None):
+        """Выбор ученика. Раньше показывались только первые 8 — остальных выбрать было нельзя.
+        Если учеников много, сначала выбирается класс, потом ученик."""
+        manual = [InlineKeyboardButton("✍️ Ввести вручную" if lang == "ru" else "✍️ Қолмен енгізу", callback_data="gen_student_0")]
+        classes = DocumentHandler._sorted_classes(students)
+        rows = []
+        if cls is None and len(students) > 10 and len(classes) > 1:
+            for idx, c in enumerate(classes):
+                n = sum(1 for st in students if (st["class_name"] or "—") == c)
+                rows.append([InlineKeyboardButton(f"🏷 {c} · {n}", callback_data=f"gen_stcls_{idx}")])
+            rows.append(manual)
+            return InlineKeyboardMarkup(rows)
+        shown = [st for st in students if cls is None or (st["class_name"] or "—") == cls]
+        for st in shown[:40]:
+            rows.append([InlineKeyboardButton(f"👤 {st['name']} ({st['class_name']})", callback_data=f"gen_student_{st['id']}")])
+        if cls is not None and len(classes) > 1:
+            rows.append([InlineKeyboardButton("← " + ("Другой класс" if lang == "ru" else "Басқа сынып"), callback_data="gen_stcls_all")])
+        rows.append(manual)
+        return InlineKeyboardMarkup(rows)
 
     async def _show_doc_list(self, query, lang, cat, user):
         role_cats = CAT_DOCS_KG if (user or {}).get("role") == "kindergarten" else CAT_DOCS
@@ -1254,20 +1289,10 @@ class DocumentHandler:
         if doc_type in STUDENT_LINKED_DOC_TYPES:
             students = await self.db.get_students(user_id)
             if students:
-                keyboard = []
-                for s in students[:8]:
-                    keyboard.append([InlineKeyboardButton(
-                        f"👤 {s['name']} ({s['class_name']})",
-                        callback_data=f"gen_student_{s['id']}"
-                    )])
-                keyboard.append([InlineKeyboardButton(
-                    "✍️ Ввести вручную" if lang == "ru" else "✍️ Қолмен енгізу",
-                    callback_data="gen_student_0"
-                )])
                 is_kg = user.get("role") == "kindergarten"
                 title = ("👥 *Выберите воспитанника из базы:*" if is_kg else "👥 *Выберите ученика из базы:*") if lang == "ru" \
                     else ("👥 *Базадан баланы таңдаңыз:*" if is_kg else "👥 *Базадан оқушыны таңдаңыз:*")
-                await query.edit_message_text(title, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+                await query.edit_message_text(title, reply_markup=self._student_picker(students, lang), parse_mode=ParseMode.MARKDOWN)
                 return
             # База пуста — сразу переходим к "Ввести вручную", как и предполагает
             # экран выбора из базы, когда учеников/воспитанников ещё нет.
