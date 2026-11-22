@@ -742,7 +742,7 @@ class Database:
             db.row_factory = aiosqlite.Row
             async with db.execute(
                 """SELECT * FROM users WHERE
-                   (notified_at IS NULL OR julianday('now') - julianday(notified_at) >= 3)
+                   (notified_at IS NULL OR julianday('now') - julianday(notified_at) >= 0.5)
                    AND (notifications_enabled IS NULL OR notifications_enabled = 1)
                    AND (name IS NOT NULL OR role IS NOT NULL)
                    AND (COALESCE(free_used, 0) > 0 OR EXISTS (

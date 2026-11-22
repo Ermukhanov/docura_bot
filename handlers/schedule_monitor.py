@@ -5,7 +5,7 @@
 дублировало то же самое. К тому же цикл вообще не запускался (post_init не вызывался).
 
 Теперь:
-• Бот проверяет расписание каждые 30 минут и один раз в день, вечером (15:00–20:00),
+• Бот проверяет расписание каждые 30 минут и один раз в день, вечером (после 15:00),
   присылает учителю ВСЕ уроки на завтра с кнопкой КСП на каждый урок.
 • Автогенерация (MAX, кнопка в «Расписании»): бот просит темы уроков одним сообщением
   и делает КСП на каждый урок обычным полным пайплайном (с проверкой качества,
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 DAYS_RU = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
 DAYS_KZ = ["Дүйсенбі", "Сейсенбі", "Сәрсенбі", "Бейсенбі", "Жұма", "Сенбі", "Жексенбі"]
-WINDOW = (15, 20)  # часы, когда уместно писать про завтрашние уроки
+WINDOW = (15, 18)  # до 18:00, чтобы ежедневная подсказка видела, что сводка уже ушла  # часы, когда уместно писать про завтрашние уроки
 CHECK_EVERY = 30 * 60
 
 
@@ -114,11 +114,13 @@ async def run_once(app: Application, db: Database) -> int:
             if user.get("role") == "kindergarten":
                 if now.weekday() == 4:  # пятница
                     await _send_kg_weekly(app, user)
+                    await db.update_agent_context(tg_id, {"sched_digest_sent": today_key})
                     sent += 1
             else:
                 lessons = lessons_for(schedule, tomorrow.weekday())
                 if lessons:
                     await _send_teacher_digest(app, db, user, lessons, tomorrow.weekday(), tomorrow.date())
+                    await db.update_agent_context(tg_id, {"sched_digest_sent": today_key})
                     sent += 1
             await db.update_agent_context(tg_id, {"sched_digest_date": today_key})
             await asyncio.sleep(0.3)

@@ -42,6 +42,85 @@ def _inactive_reminder_text(name: str, lang: str) -> str:
     return f"Здравствуйте, {name}! Не заходили несколько дней. Сделать отчёт за 1 минуту?"
 
 
+# Конец четвертей в школах РК (примерно): за неделю до них — СОР/СОЧ и анализ.
+QUARTER_ENDS = [(10, 31), (12, 26), (3, 20), (5, 25)]
+
+
+def daily_tip(user: dict, memory: dict, lang: str, is_kg: bool, has_schedule: bool, has_students: bool, now):
+    """Короткая подсказка дня под конкретного педагога: что полезно сделать именно сегодня."""
+    ru = lang != "kz"
+    T = lambda r, k: r if ru else k
+    day, wd, month = now.day, now.weekday(), now.month
+    last_day = ((now.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)).day
+    near_quarter_end = any(m == month and 0 <= d - day <= 7 for m, d in QUARTER_ENDS)
+
+    if is_kg:
+        if wd == 4:
+            return (T("Пятница — время подготовить циклограмму на следующую неделю. Сделаем за пару минут?",
+                      "Жұма — келесі аптаға циклограмма дайындайтын уақыт. Бірнеше минутта жасайық па?"),
+                    [(T("📅 Циклограмма", "📅 Циклограмма"), "doc_kindergarten_cycle_schedule")])
+        if last_day - day <= 3:
+            return (T("Конец месяца близко — нужен отчёт воспитателя?", "Ай соңы жақын — тәрбиеші есебі керек пе?"),
+                    [(T("📊 Отчёт за месяц", "📊 Айлық есеп"), "doc_kg_monthly_report")])
+        pool = [
+            (T("Завтрашнее занятие можно расписать по шагам за минуту — технологическая карта ОУД.",
+               "Ертеңгі ҰОҚ-ты бір минутта қадамдап жазуға болады — технологиялық карта."),
+             [(T("📖 Техкарта ОУД", "📖 ҰОҚ техкартасы"), "doc_kg_activity_summary")]),
+            (T("Хотите поблагодарить родителей или сообщить новость группы? Письмо готово за минуту.",
+               "Ата-аналарға алғыс айтқыңыз немесе топ жаңалығын хабарлағыңыз келе ме? Хат бір минутта дайын."),
+             [(T("📩 Письмо родителям", "📩 Ата-аналарға хат"), "doc_kg_parent_letter")]),
+            (T("Характеристика воспитанника по данным из базы — без ручного набора.",
+               "Тәрбиеленуші мінездемесі — базадағы деректер бойынша, қолмен термей."),
+             [(T("📝 Характеристика", "📝 Мінездеме"), "doc_kg_child_characteristic")]),
+        ]
+        if not has_students and user.get("subscribed"):
+            pool.insert(0, (T("Добавьте список группы — имена детей будут подставляться в документы сами.",
+                              "Топ тізімін қосыңыз — балалардың аттары құжаттарға өзі қойылады."),
+                            [(T("👶 Добавить детей", "👶 Балаларды қосу"), "prof_students")]))
+    else:
+        if near_quarter_end:
+            return (T("Конец четверти близко — СОР/СОЧ и их анализ можно сделать сейчас.",
+                      "Тоқсан соңы жақын — БЖБ/ТЖБ мен талдауын қазір жасауға болады."),
+                    [(T("📝 СОР / СОЧ", "📝 БЖБ / ТЖБ"), "doc_sor_soch"),
+                     (T("📈 Анализ СОР / СОЧ", "📈 БЖБ / ТЖБ талдауы"), "doc_sor_soch_analysis")])
+        if last_day - day <= 3:
+            return (T("Конец месяца — отчёт учителя за пару минут?", "Ай соңы — мұғалім есебін бірнеше минутта жасайық па?"),
+                    [(T("📊 Отчёт учителя", "📊 Мұғалім есебі"), "doc_monthly_report")])
+        if wd == 6 or wd == 0:
+            return (T("Новая неделя — КСП на ближайшие уроки готовы за минуту каждый.",
+                      "Жаңа апта — жақын сабақтарға ҚМЖ әрқайсысы бір минутта."),
+                    [(T("📋 Сделать КСП", "📋 ҚМЖ жасау"), "doc_lesson_plan")])
+        pool = [
+            (T("Провели контрольную? Анализ с выводами и таблицей — за пару минут.",
+               "Бақылау жұмысын өткіздіңіз бе? Қорытындысы мен кестесі бар талдау — бірнеше минутта."),
+             [(T("📈 Анализ контрольной", "📈 Бақылау талдауы"), "doc_control_analysis")]),
+            (T("Нужно написать родителям? Письмо или благодарность — за минуту, с именем ученика из базы.",
+               "Ата-анаға жазу керек пе? Хат немесе алғыс — бір минутта, оқушының аты базадан."),
+             [(T("📩 Письмо родителям", "📩 Ата-анаға хат"), "doc_parent_letter"),
+              (T("🏆 Благодарность", "🏆 Алғыс хат"), "doc_gratitude_letter")]),
+            (T("Характеристика ученика по оценкам и достижениям из базы — без ручного набора.",
+               "Оқушы мінездемесі — базадағы бағалар мен жетістіктер бойынша."),
+             [(T("📝 Характеристика", "📝 Мінездеме"), "doc_characteristic")]),
+            (T("Конспект завтрашнего урока с заданиями — быстрее, чем писать вручную.",
+               "Ертеңгі сабақтың тапсырмалары бар конспектісі — қолмен жазудан тезірек."),
+             [(T("📖 Конспект урока", "📖 Сабақ конспектісі"), "doc_lesson_summary")]),
+        ]
+        if not has_schedule and user.get("subscribed"):
+            pool.insert(0, (T("Загрузите расписание — каждый вечер буду присылать уроки на завтра и делать КСП в 1 нажатие.",
+                              "Кестені жүктеңіз — әр кеш ертеңгі сабақтарды жіберіп, ҚМЖ-ны бір басумен жасаймын."),
+                            [(T("📅 Загрузить расписание", "📅 Кестені жүктеу"), "agent_schedule")]))
+        if not has_students and user.get("subscribed"):
+            pool.insert(0, (T("Добавьте учеников списком — имена, оценки и родители будут подставляться в документы сами.",
+                              "Оқушыларды тізіммен қосыңыз — аттары, бағалары мен ата-аналары құжаттарға өзі қойылады."),
+                            [(T("👥 Добавить учеников", "👥 Оқушыларды қосу"), "prof_students")]))
+    # Каждый день — другая подсказка (по кругу), а настройка базы/расписания — через день, не каждый день.
+    idx = now.timetuple().tm_yday % len(pool)
+    text, buttons = pool[idx]
+    if memory.get("last_tip") and text.endswith(memory["last_tip"]):
+        text, buttons = pool[(idx + 1) % len(pool)]
+    return text, buttons
+
+
 TARGET_HOUR = 18  # Каждый день ровно в 18:00 по местному времени
 
 
@@ -114,14 +193,11 @@ def _tomorrow_event_info(schedule_json: str, is_kg: bool):
 
 async def send_reminders(app: Application, db: Database, concierge=None):
     """
-    Ежедневный планировщик удержания и уведомлений (18:00 по местному времени):
-    1. Проверяет пользователей со включёнными уведомлениями (notifications_enabled).
-    2. Если у пользователя завтра событие по расписанию:
-       «Завтра у вас [событие]. Подготовить черновики документов?» с кнопками «Да / Нет».
-    3. Если пользователь не писал боту 3+ дней:
-       «Не заходили неделю. Сделать отчёт за 1 минуту?» (не чаще 1 раза в 3 дня).
-    4. Раз в 2 недели: рассылка новостей и обновлений шаблонов.
-    Все сообщения тёплые, короткие, на казахском/русском, заканчиваются вопросом.
+    Ежедневно в 18:00 — одно короткое полезное сообщение каждому педагогу:
+    подсказка дня под его роль и дату (КСП на неделю, отчёт в конце месяца,
+    СОР/СОЧ перед концом четверти, письмо родителям и т.д.), каждый день другая.
+    Если в этот день уже ушла сводка уроков на завтра — второе сообщение не шлём.
+    Кнопка «Не присылать» отключает всё.
     """
     logger.info("🔔 Ежедневный планировщик уведомлений (18:00) активен")
     while True:
@@ -147,62 +223,24 @@ async def send_reminders(app: Application, db: Database, concierge=None):
                     name_parts = (user.get("name") or "").split()
                     name = name_parts[0] if name_parts else ("коллега" if lang == "ru" else "әріптес")
 
-                    # Уроки на завтра присылает handlers/schedule_monitor.py — здесь не дублируем.
-                    # 2. Если не заходил 3+ дней — сообщение с выгодой
-                    if _due_since_last_active_or_notified(user, min_days=3):
-                        text = _inactive_reminder_text(name, lang)
-                        keyboard = InlineKeyboardMarkup([
-                            [
-                                InlineKeyboardButton("Да, сделать" if lang == "ru" else "Иә, жасау", callback_data="menu_create"),
-                                InlineKeyboardButton("Позже" if lang == "ru" else "Кейінірек", callback_data="agent_remind_later")
-                            ]
-                        ])
-                        await app.bot.send_message(
-                            chat_id=tg_id,
-                            text=text,
-                            reply_markup=keyboard,
-                        )
-                        await db.update_notified(tg_id)
-                        await asyncio.sleep(0.3)
+                    # Одно полезное сообщение в день. Если вечером уже ушла сводка уроков
+                    # на завтра (schedule_monitor) — второе сообщение не шлём.
+                    today_key = now_local().strftime("%Y-%m-%d")
+                    if memory.get("sched_digest_sent") == today_key or memory.get("daily_tip_date") == today_key:
                         continue
+                    has_schedule = bool(await db.get_schedule(tg_id))
+                    has_students = bool(await db.get_students(tg_id))
+                    text, buttons = daily_tip(user, memory, lang, is_kg, has_schedule, has_students, now_local())
+                    text = (f"Добрый вечер, {name}! " if lang == "ru" else f"Қайырлы кеш, {name}! ") + text
+                    rows = [[InlineKeyboardButton(label, callback_data=cb)] for label, cb in buttons]
+                    rows.append([InlineKeyboardButton("🔕 Не присылать" if lang == "ru" else "🔕 Жібермеу", callback_data="agent_reminders_off")])
+                    await app.bot.send_message(chat_id=tg_id, text=text, reply_markup=InlineKeyboardMarkup(rows))
+                    await db.update_notified(tg_id)
+                    await db.update_agent_context(tg_id, {"daily_tip_date": today_key, "last_tip": text[-60:]})
+                    await asyncio.sleep(0.3)
 
                 except Exception as user_err:
                     logger.warning(f"Error notifying user {user.get('tg_id')}: {user_err}")
-
-            # 3. Раз в 2 недели: полезная рассылка новостей и шаблонов (только тем, кто не отключал)
-            try:
-                broadcast_users = await db.get_users_for_broadcast(days=14)
-                for b_user in broadcast_users:
-                    try:
-                        b_id = b_user["tg_id"]
-                        b_lang = b_user.get("lang", "ru")
-                        b_name_parts = (b_user.get("name") or "").split()
-                        b_name = b_name_parts[0] if b_name_parts else ("коллега" if b_lang == "ru" else "әріптес")
-                        is_kg = b_user.get("role") == "kindergarten"
-
-                        if b_lang == "kz":
-                            news_text = (
-                                f"Қайырлы күн, {b_name}! Docura ресми құжаттарды Word форматында дайындауға көмектеседі.\n\n"
-                                f"Жаңа құжат жасап көресіз бе?"
-                            )
-                            btn_text = "📄 Құжат жасау"
-                        else:
-                            news_text = (
-                                f"Добрый день, {b_name}! Docura помогает готовить официальные документы в Word.\n\n"
-                                f"Создадим новый документ?"
-                            )
-                            btn_text = "📄 Создать документ"
-
-                        kb = InlineKeyboardMarkup([
-                            [InlineKeyboardButton(btn_text, callback_data="menu_create")]
-                        ])
-                        await app.bot.send_message(chat_id=b_id, text=news_text, reply_markup=kb)
-                        await db.update_broadcast_sent(b_id)
-                        await asyncio.sleep(0.3)
-                    except Exception as b_err:
-                        logger.warning(f"Broadcast error for {b_user.get('tg_id')}: {b_err}")
-            except Exception as bc_err:
-                logger.error(f"Broadcast check error: {bc_err}")
 
         except Exception as e:
             logger.error(f"Daily scheduler error: {e}")
