@@ -769,6 +769,9 @@ def _pop_concierge_prefill(context, allowed_keys=None) -> dict:
 # Модели генерации. Можно поменять переменными на Railway без правки кода.
 GEN_MODEL = os.getenv("DOCURA_GEN_MODEL", "claude-sonnet-4-6")
 EVAL_MODEL = os.getenv("DOCURA_EVAL_MODEL", "claude-haiku-4-5")
+# Второй проход генерации только для действительно слабых документов: при пороге 85
+# почти каждый документ (особенно казахский) генерировался дважды — +40–90 с и x2 к цене.
+IMPROVE_BELOW = int(os.getenv("DOCURA_IMPROVE_BELOW", "70"))
 GEN_MAX_TOKENS = int(os.getenv("DOCURA_GEN_MAX_TOKENS", "6000"))
 
 
@@ -2064,7 +2067,7 @@ class DocumentHandler:
                 score = 90
                 attempts = 2  # отдельная проверка качества не нужна
 
-        while score < 85 and attempts < 2:
+        while score < IMPROVE_BELOW and attempts < 2:
             attempts += 1
             if attempts > 1:
                 improve_msg = {
@@ -2108,7 +2111,7 @@ class DocumentHandler:
             except Exception:
                 score = 88
 
-            if score < 85 and attempts < 2:
+            if score < IMPROVE_BELOW and attempts < 2:
                 # Второй проход сохраняет исходное задание (язык, структура, данные):
                 # раньше промпт заменялся на «Заполни все пустые поля», модель теряла
                 # язык документа и начинала выдумывать ФИО, даты и организации.
