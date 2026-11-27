@@ -1960,12 +1960,8 @@ class DocumentHandler:
             "en": f"⚙️ *Generating {ui_doc_name}...*\n\n🌐 Language: {_doc_lang_name(doc_lang)}\n⭐ Quality: auto-check\n\n_Type /cancel to stop_",
         }
         gen_text = gen_msgs.get(lang, gen_msgs["ru"])
-        if profile_missing(user):
-            gen_text += {
-                "ru": "\n\nℹ️ Ваш профиль ещё не заполнен, поэтому строки «Педагог», «Руководитель» и «Организация» останутся пустыми — их можно вписать от руки. После документа предложу заполнить их за 30 секунд и пришлю этот же файл уже с вашими данными.",
-                "kz": "\n\nℹ️ Профиліңіз әлі толтырылмаған, сондықтан «Педагог», «Басшы» және «Ұйым» жолдары бос қалады — оларды қолмен жазуға болады. Құжаттан кейін оларды 30 секундта толтыруды ұсынамын және дәл осы файлды сіздің деректеріңізбен жіберемін.",
-                "en": "\n\nℹ️ Your profile is not filled in yet, so the teacher, head and organisation lines will stay blank. After the document I'll offer to fill them in 30 seconds and resend the same file with your details.",
-            }.get(lang, "")
+        # Предупреждение о пустом профиле здесь не показываем: новичка оно пугает
+        # и выглядит как ошибка. После документа бот сам предлагает заполнить поля.
         await message.reply_text(gen_text, parse_mode=ParseMode.MARKDOWN)
 
         answers_text  = "\n".join(f"- {k}: {v}" for k, v in answers.items() if v not in (None, "", "None"))
