@@ -75,6 +75,7 @@ TEXTS = {
             "lesson_plan":    "📋 Краткосрочный план (КСП)",
             "calendar_plan":  "📅 Календарный план на месяц",
             "lesson_summary": "📖 Конспект урока",
+            "school_holiday_script": "🎄 Сценарий праздника (Новый год)",
         },
         "docs_reports": {
             "monthly_report":   "📊 Отчёт учителя",
@@ -287,6 +288,7 @@ TEXTS = {
             "lesson_plan":    "📋 Қысқамерзімді жоспар (ҚМЖ)",
             "calendar_plan":  "📅 Айлық күнтізбелік жоспар",
             "lesson_summary": "📖 Сабақ конспектісі",
+            "school_holiday_script": "🎄 Мереке сценарийі (Жаңа жыл)",
         },
         "docs_reports": {
             "monthly_report":   "📊 Мұғалім есебі",

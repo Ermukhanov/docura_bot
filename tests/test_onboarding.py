@@ -124,14 +124,16 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
 
         saved = await self.db.get_user(701)
         self.assertEqual(saved["lang"], "kz")
-        self.assertEqual(len(message.sent[0][1]["reply_markup"].inline_keyboard), 4)
-        self.assertIn("ҚМЖ үзіндісі", message.sent[0][0])
-        self.assertIn("ресми үлгі емес", message.sent[0][0])
+        keyboard = message.sent[0][1]["reply_markup"].inline_keyboard
+        self.assertEqual(len(keyboard), 4)
+        self.assertEqual(keyboard[0][0].callback_data, "onboard_doc_newyear")
+        self.assertIn("2 сұраққа", message.sent[0][0])
+        self.assertNotIn("|", message.sent[0][0])
         self.assertNotIn("ФИО", message.sent[0][0])
         events = await self.db.get_funnel_event_counts()
         self.assertEqual(events[0]["event"], "start")
 
-    async def test_russian_start_shows_labeled_demo_document_fragment(self):
+    async def test_russian_start_is_short_and_offers_new_year_first(self):
         user = types.SimpleNamespace(id=711, language_code="ru")
         message = FakeMessage(711)
         update = types.SimpleNamespace(effective_user=user, effective_message=message, message=message)
@@ -139,9 +141,36 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         await self.handler.start(update, self.context)
 
         text = message.sent[0][0]
-        self.assertIn("Пример фрагмента КСП", text)
-        self.assertIn("не официальный образец", text)
-        self.assertEqual(len(message.sent[0][1]["reply_markup"].inline_keyboard), 4)
+        self.assertIn("ответьте на 2 вопроса", text)
+        self.assertNotIn("|", text)
+        self.assertLess(len(text), 250)
+        keyboard = message.sent[0][1]["reply_markup"].inline_keyboard
+        self.assertEqual(len(keyboard), 4)
+        self.assertIn("Новогодний", keyboard[0][0].text)
+
+    async def test_new_year_button_asks_role_then_starts_matinee_with_theme(self):
+        await self.db.upsert_user(721, {"lang": "ru"})
+        query = FakeQuery("onboard_doc_newyear", 721)
+        update = types.SimpleNamespace(callback_query=query, effective_user=query.from_user)
+        await self.handler.callback(update, self.context)
+        self.assertEqual(self.context.user_data["onboard_quick_doc"], "newyear")
+
+        query = FakeQuery("onboard_role_kindergarten", 721)
+        update = types.SimpleNamespace(callback_query=query, effective_user=query.from_user)
+        await self.handler.callback(update, self.context)
+        user = await self.db.get_user(721)
+        self.assertEqual(user["role"], "kindergarten")
+        self.assertEqual(self.context.user_data["doc_type"], "kg_matinee_script")
+        self.assertEqual(self.context.user_data["concierge_prefill"], {"theme": "Новый год"})
+
+    async def test_new_year_button_for_school_starts_class_holiday_script(self):
+        await self.db.upsert_user(722, {"lang": "kz"})
+        for data in ("onboard_doc_newyear", "onboard_role_teacher"):
+            query = FakeQuery(data, 722)
+            update = types.SimpleNamespace(callback_query=query, effective_user=query.from_user)
+            await self.handler.callback(update, self.context)
+        self.assertEqual(self.context.user_data["doc_type"], "school_holiday_script")
+        self.assertEqual(self.context.user_data["concierge_prefill"], {"theme": "Жаңа жыл"})
 
     async def test_quick_cyclegram_infers_kindergarten_and_starts_document(self):
         await self.db.upsert_user(702, {"lang": "ru"})

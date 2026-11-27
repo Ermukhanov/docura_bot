@@ -278,6 +278,8 @@ SCHEMAS = {
         fields=["age_group", "month", "educator_fio"]),
     "kg_matinee_script": S(
         headings=["characters", "props", "scenario"], fields=["topic", "age_group", "date"]),
+    "school_holiday_script": S(
+        headings=["characters", "props", "scenario"], fields=["topic", "group", "date"]),
     "kg_monthly_report": S(
         headings=["rep_edu_prog", "rep_events", "rep_parents", "rep_selfedu", "rep_problems"],
         fields=["educator_fio", "period", "age_group"]),

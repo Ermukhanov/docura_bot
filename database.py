@@ -911,12 +911,12 @@ class Database:
                 return [dict(row) for row in await cur.fetchall()]
 
     async def get_users_due_first_doc_reminder(self) -> list[dict]:
-        """Users at least 24 hours old, with no generated document or prior reminder."""
+        """Users at least 1 hour old, with no generated document or prior reminder."""
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute(
                 """SELECT u.* FROM users AS u
-                   WHERE datetime(u.created_at) <= datetime('now', '-1 day')
+                   WHERE datetime(u.created_at) <= datetime('now', '-1 hour')
                      AND COALESCE(u.notifications_enabled, 1)=1
                      AND u.first_doc_reminder_sent_at IS NULL
                      AND NOT EXISTS (

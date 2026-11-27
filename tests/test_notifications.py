@@ -52,9 +52,9 @@ class FirstDocReminderTests(unittest.IsolatedAsyncioTestCase):
         sent = await send_first_doc_reminders(types.SimpleNamespace(bot=bot), db)
 
         self.assertEqual(sent, 1)
-        self.assertIn("алғашқы құжатыңызды", bot.sent[0]["text"])
+        self.assertIn("Жаңа жыл", bot.sent[0]["text"])
         button = bot.sent[0]["reply_markup"].inline_keyboard[0][0]
-        self.assertEqual(button.callback_data, "menu_create")
+        self.assertEqual(button.callback_data, "onboard_doc_newyear")
         self.assertEqual(db.marked, [801])
 
     async def test_respects_agent_reminder_opt_out(self):

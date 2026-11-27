@@ -227,6 +227,12 @@ DOC_QUESTIONS = {
             {"key": "family",        "q": "👨‍👩‍👧 Состав семьи?"},
             {"key": "conditions",    "q": "🏠 Условия проживания и рабочее место ребёнка?\n\n_Или напишите «автоматически» на основе состава семьи_"},
         ],
+        "school_holiday_script": [
+            {"key": "theme",  "q": "🎄 Какой праздник?\n\n_Пример: Новый год, Наурыз, 8 Марта_"},
+            {"key": "group",  "q": "🏷 Для какого класса?\n\n_Пример: 5А_"},
+            {"key": "date",   "q": "📅 Дата проведения?\n\n_Если не знаете, напишите «нет»_"},
+            {"key": "roles",  "q": "🎬 Ведущие и участники?\n\n_Или напишите «автоматически»_"},
+        ],
     },
     "kz": {
         "lesson_plan": [
@@ -412,6 +418,12 @@ DOC_QUESTIONS = {
             {"key": "family",       "q": "👨‍👩‍👧 Отбасы құрамы?"},
             {"key": "conditions",   "q": "🏠 Тұрғын үй жағдайы?\n\n_Немесе «автоматты»_"},
         ],
+        "school_holiday_script": [
+            {"key": "theme",  "q": "🎄 Қандай мереке?\n\n_Мысалы: Жаңа жыл, Наурыз_"},
+            {"key": "group",  "q": "🏷 Қай сыныпқа?\n\n_Мысалы: 5А_"},
+            {"key": "date",   "q": "📅 Өтетін күні?\n\n_Білмесеңіз, «жоқ» деп жазыңыз_"},
+            {"key": "roles",  "q": "🎬 Жүргізушілер мен қатысушылар?\n\n_Немесе «автоматты»_"},
+        ],
     },
     "en": {
         "lesson_plan": [
@@ -476,6 +488,7 @@ DOC_NAMES = {
         "parent_meeting_protocol": "Протокол родительского собрания",
         "individual_work_plan": "Индивидуальный план работы",
         "housing_survey_act": "Акт обследования жилищно-бытовых условий",
+        "school_holiday_script": "Сценарий праздника для класса",
     },
     "kz": {
         "lesson_plan": "Қысқамерзімді жоспар (ҚМЖ)",
@@ -515,6 +528,7 @@ DOC_NAMES = {
         "parent_meeting_protocol": "Ата-аналар жиналысының хаттамасы",
         "individual_work_plan": "Жеке жұмыс жоспары",
         "housing_survey_act": "Тұрмыстық жағдайды тексеру актісі",
+        "school_holiday_script": "Сыныпқа арналған мереке сценарийі",
     },
     "en": {
         "lesson_plan": "Lesson Plan",
@@ -551,6 +565,7 @@ DOC_NAMES = {
         "parent_meeting_protocol": "Parent Meeting Protocol",
         "individual_work_plan": "Individual Work Plan",
         "housing_survey_act": "Living Conditions Survey Act",
+        "school_holiday_script": "Class Holiday Script",
         "development_monitoring": "Development Monitoring",
     }
 }
@@ -559,7 +574,7 @@ register_titles(DOC_NAMES)
 
 # Категории документов учителя (школа)
 CAT_DOCS = {
-    "planning": ["lesson_plan", "calendar_plan", "lesson_summary"],
+    "planning": ["lesson_plan", "calendar_plan", "lesson_summary", "school_holiday_script"],
     "reports":  ["monthly_report", "control_analysis", "sor_soch", "sor_soch_analysis"],
     "students": ["characteristic", "absence_cert", "discipline_act", "gratitude_letter", "parent_letter"],
     "personal": ["vacation_request", "explanation", "announcement"],

@@ -51,32 +51,28 @@ class OnboardingHandler:
         context.user_data.clear()
         context.user_data["onboard_step"] = 0
         context.user_data["onboard_quick_start"] = True
+        free_ru = "" if (user or {}).get("subscribed") else "\n🎁 Первые 3 документа бесплатно."
+        free_kz = "" if (user or {}).get("subscribed") else "\n🎁 Алғашқы 3 құжат тегін."
         text = (
-            "👋 Привет! Я Docura — помогу подготовить документ Word.\n\n"
-            "Выберите, что нужно сделать. Затем выберите язык документа и ответьте на несколько коротких вопросов.\n\n"
-            + ("" if (user or {}).get("subscribed") else "🎁 Первые 3 документа бесплатно\n\n") +
-            "📄 Пример фрагмента КСП (демо, данные условные; не официальный образец):\n"
-            "Предмет: Математика · Класс: 7А · Тема: Дроби\n"
-            "| Этап | Действия учителя и ученика | Оценивание |\n"
-            "| Начало | Вспоминают изученное и формулируют цель | Устные ответы |"
+            "👋 Здравствуйте! Я Docura, делаю документы для учителей и воспитателей.\n\n"
+            "Нажмите, что нужно, ответьте на 2 вопроса и получите готовый Word файл."
+            + free_ru
         ) if lang == "ru" else (
-            "👋 Сәлем! Мен Docura — Word құжатын дайындауға көмектесемін.\n\n"
-            "Қажетті құжатты таңдаңыз. Содан кейін құжат тілін таңдап, бірнеше қысқа сұраққа жауап беріңіз.\n\n"
-            + ("" if (user or {}).get("subscribed") else "🎁 Алғашқы 3 құжат тегін\n\n") +
-            "📄 ҚМЖ үзіндісі (демо, деректер шартты; ресми үлгі емес):\n"
-            "Пән: Математика · Сынып: 7А · Тақырып: Бөлшектер\n"
-            "| Кезең | Мұғалім мен оқушының әрекеті | Бағалау |\n"
-            "| Басы | Өткенді еске түсіріп, сабақ мақсатын анықтайды | Ауызша жауап |"
+            "👋 Сәлеметсіз бе! Мен Docura, мұғалімдер мен тәрбиешілерге құжат жасаймын.\n\n"
+            "Керегін басыңыз, 2 сұраққа жауап беріңіз, дайын Word файлын аласыз."
+            + free_kz
         )
-        await message.reply_text(
-            text,
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📘 КСП" if lang == "ru" else "📘 ҚМЖ", callback_data="onboard_doc_ksp")],
-                [InlineKeyboardButton("🧸 Циклограмма", callback_data="onboard_doc_cycle")],
-                [InlineKeyboardButton("👤 Характеристика", callback_data="onboard_doc_characteristic")],
-                [InlineKeyboardButton("📄 Другое" if lang == "ru" else "📄 Басқа құжат", callback_data="onboard_doc_other")],
-            ]),
-        )
+        await message.reply_text(text, reply_markup=self._first_screen_keyboard(lang))
+
+    def _first_screen_keyboard(self, lang):
+        ru = lang == "ru"
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton("🎄 Новогодний утренник / праздник" if ru else "🎄 Жаңа жыл мерекесінің сценарийі", callback_data="onboard_doc_newyear")],
+            [InlineKeyboardButton("📘 КСП" if ru else "📘 ҚМЖ", callback_data="onboard_doc_ksp"),
+             InlineKeyboardButton("🧸 Циклограмма", callback_data="onboard_doc_cycle")],
+            [InlineKeyboardButton("👤 Характеристика" if ru else "👤 Мінездеме", callback_data="onboard_doc_characteristic")],
+            [InlineKeyboardButton("📄 Другой документ" if ru else "📄 Басқа құжат", callback_data="onboard_doc_other")],
+        ])
 
     async def _show_quick_role(self, query, lang):
         text = (
@@ -224,6 +220,14 @@ class OnboardingHandler:
             role, doc_type = quick_docs[data]
             await self._launch_first_document(query, context, user_id, lang, role, doc_type)
             return
+        if data.startswith("onboard_doc_"):
+            # Кнопки первого экрана могут прийти и из напоминания, когда
+            # состояние онбординга уже потеряно: короткий путь первого документа.
+            context.user_data["onboard_quick_start"] = True
+        if data == "onboard_doc_newyear":
+            context.user_data["onboard_quick_doc"] = "newyear"
+            await self._show_quick_role(query, lang)
+            return
         if data in {"onboard_doc_characteristic", "onboard_doc_other"}:
             context.user_data["onboard_quick_doc"] = (
                 "characteristic" if data == "onboard_doc_characteristic" else "other"
@@ -233,12 +237,7 @@ class OnboardingHandler:
         if data == "onboard_quick_back":
             await query.edit_message_text(
                 "Выберите документ:" if lang == "ru" else "Құжатты таңдаңыз:",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📘 КСП" if lang == "ru" else "📘 ҚМЖ", callback_data="onboard_doc_ksp")],
-                    [InlineKeyboardButton("🧸 Циклограмма", callback_data="onboard_doc_cycle")],
-                    [InlineKeyboardButton("👤 Характеристика", callback_data="onboard_doc_characteristic")],
-                    [InlineKeyboardButton("📄 Другое" if lang == "ru" else "📄 Басқа құжат", callback_data="onboard_doc_other")],
-                ]),
+                reply_markup=self._first_screen_keyboard(lang),
             )
             return
 
@@ -263,6 +262,11 @@ class OnboardingHandler:
                     await MainMenuHandler(self.db)._show_categories(
                         query, lang, await self.db.get_user(user_id)
                     )
+                    return
+                if quick_choice == "newyear":
+                    doc_type = "school_holiday_script" if role == "teacher" else "kg_matinee_script"
+                    context.user_data["concierge_prefill"] = {"theme": "Новый год" if lang == "ru" else "Жаңа жыл"}
+                    await self._launch_first_document(query, context, user_id, lang, role, doc_type)
                     return
                 doc_type = "characteristic" if role == "teacher" else "kg_child_characteristic"
                 await self._launch_first_document(query, context, user_id, lang, role, doc_type)

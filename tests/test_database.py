@@ -159,6 +159,13 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(await self.db.mark_first_doc_reminder_sent(601))
         self.assertEqual(await self.db.get_users_due_first_doc_reminder(), [])
 
+    async def test_first_document_reminder_is_due_after_one_hour(self):
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        await self.db.upsert_user(611, {"name": "Два часа", "created_at": (now - timedelta(hours=2)).isoformat()})
+        await self.db.upsert_user(612, {"name": "Только пришёл", "created_at": (now - timedelta(minutes=10)).isoformat()})
+        due = await self.db.get_users_due_first_doc_reminder()
+        self.assertEqual([user["tg_id"] for user in due], [611])
+
     async def test_general_reminders_skip_users_without_a_first_document(self):
         old = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=5)).isoformat()
         await self.db.upsert_user(701, {"name": "Без документа", "created_at": old})

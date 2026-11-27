@@ -264,22 +264,19 @@ async def send_first_doc_reminders(app: Application, db: Database) -> int:
             lang = user.get("lang", "ru")
             if lang == "kz":
                 text = (
-                    "👋 Сәлем! Сіз әлі алғашқы құжатыңызды жасамадыңыз. "
-                    "Құжат пен тілді таңдаңыз — мен қадамдап көмектесемін."
+                    "🎄 Жаңа жылға дайындық басталды! Мерекенің сценарийін, ҚМЖ немесе "
+                    "циклограмманы 1 минутта жасап берейін. Төменнен таңдаңыз, 2 сұраққа жауап беріңіз."
                 )
-                button = "📄 Құжат жасау"
             else:
                 text = (
-                    "👋 Вы ещё не создали первый документ. Выберите документ и язык — "
-                    "я помогу пройти шаги и подготовить файл."
+                    "🎄 Скоро Новый год! Давайте за минуту сделаю сценарий утренника, КСП "
+                    "или циклограмму. Нажмите кнопку ниже и ответьте на 2 вопроса."
                 )
-                button = "📄 Создать документ"
+            from handlers.onboarding import OnboardingHandler
             await app.bot.send_message(
                 chat_id=tg_id,
                 text=text,
-                reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton(button, callback_data="menu_create")
-                ]]),
+                reply_markup=OnboardingHandler(db)._first_screen_keyboard(lang),
             )
             await db.mark_first_doc_reminder_sent(tg_id)
             sent += 1
