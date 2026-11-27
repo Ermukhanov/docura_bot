@@ -27,6 +27,12 @@ def _parse_admin_ids():
 ADMIN_IDS = _parse_admin_ids()
 
 
+INVITE_TEXT = {
+    "ru": "🎄 Здравствуйте! Скоро Новый год. Docura за минуту сделает сценарий утренника, КСП, циклограмму или характеристику. Нажмите кнопку ниже и ответьте на 2 вопроса, первые 3 документа бесплатно.",
+    "kz": "🎄 Сәлеметсіз бе! Жаңа жыл жақындап қалды. Docura 1 минутта мереке сценарийін, ҚМЖ, циклограмма немесе мінездеме жасап береді. Төмендегі түймені басып, 2 сұраққа жауап беріңіз, алғашқы 3 құжат тегін.",
+}
+
+
 def is_admin(user_id) -> bool:
     return user_id in ADMIN_IDS
 
@@ -188,8 +194,8 @@ class AdminHandler:
             text = (
                 f"📨 *Приглашение незарегистрированным*\n\n"
                 f"Получателей: *{len(users)}* (русский: {ru_count}, қазақша: {kz_count})\n\n"
-                "🇷🇺 Здравствуйте! Завершите регистрацию в Docura, чтобы создавать документы для школы или детского сада. Нажмите /start и следуйте шагам бота.\n\n"
-                "🇰🇿 Сәлеметсіз бе! Мектепке немесе балабақшаға арналған құжаттарды жасау үшін Docura тіркеуін аяқтаңыз. /start түймесін басып, бот қадамдарын орындаңыз."
+                f"🇷🇺 {INVITE_TEXT['ru']}\n\n🇰🇿 {INVITE_TEXT['kz']}\n\n"
+                "Под сообщением кнопки: новогодний сценарий, КСП, циклограмма, характеристика."
             )
             kb = [[InlineKeyboardButton("✅ Отправить", callback_data="admin_broadcast_unregistered_confirm")],
                   [InlineKeyboardButton("← Назад", callback_data="admin_menu")]]
@@ -221,13 +227,13 @@ class AdminHandler:
             sent = failed = 0
             for user in users:
                 lang = user.get("lang")
-                text = (
-                    "Здравствуйте! Завершите регистрацию в Docura, чтобы создавать документы для школы или детского сада. Нажмите /start и следуйте шагам бота."
-                    if lang == "ru" else
-                    "Сәлеметсіз бе! Мектепке немесе балабақшаға арналған құжаттарды жасау үшін Docura тіркеуін аяқтаңыз. /start түймесін басып, бот қадамдарын орындаңыз."
-                )
+                lang = "ru" if lang == "ru" else "kz"
+                from handlers.onboarding import OnboardingHandler
                 try:
-                    await context.bot.send_message(chat_id=user["tg_id"], text=text)
+                    await context.bot.send_message(
+                        chat_id=user["tg_id"], text=INVITE_TEXT[lang],
+                        reply_markup=OnboardingHandler(self.db)._first_screen_keyboard(lang),
+                    )
                     sent += 1
                 except Exception:
                     failed += 1
